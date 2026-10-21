@@ -44,7 +44,26 @@ public class SuiteOptionsPanel extends JPanel {
             + "this if the app looks tiny on a high-density screen, or too large for a small "
             + "one. You can also launch with -Dopentrap.scale=2 (or 1.5, etc.).");
         scaleNote.setPreferredSize(new java.awt.Dimension(600, 60));
-        page.section("display", Ui.row(Ui.label("interface scale"), scaleCombo), scaleNote);
+
+        // Theme control: like scale, a change relaunches so the whole interface
+        // (including the colours the Ui constants cache) comes up consistent.
+        JComboBox<String> themeCombo = Ui.combo(new String[]{"light", "dark"});
+        themeCombo.setSelectedItem(Theme.darkPreferred() ? "dark" : "light");
+        themeCombo.addActionListener(e -> {
+            boolean wantDark = "dark".equals(themeCombo.getSelectedItem());
+            if (wantDark == Theme.dark) return;
+            ctx.settings().set("ui.theme", wantDark ? "dark" : "light");
+            if (UiScale.relaunchWith(UiScale.desired(), Main.launchArgs)) System.exit(0);
+        });
+        JTextArea themeNote = Ui.note("Switches between the light and dark palette. "
+                + "Changing it restarts the app so every panel comes up in the new theme.");
+        themeNote.setPreferredSize(new java.awt.Dimension(600, 40));
+
+        page.section("display",
+                Ui.row(Ui.label("interface scale"), scaleCombo),
+                scaleNote,
+                Ui.row(Ui.label("theme"), themeCombo),
+                themeNote);
 
         JTextArea about = Ui.note(
             "OpenTRAP is an HTTP interception and testing suite.\n\n" +

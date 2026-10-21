@@ -15,8 +15,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 
 /**
  * The decode, encode and hash operations offered by the decoder. Everything
@@ -37,7 +41,8 @@ final class Transforms {
 
     /** Transform names in menu order. The leading space is the house style. */
     private static final String[] NAMES = {
-        " plain", " url", " html", " base64", " ascii hex", " hex", " octal", " binary", " gzip"
+        " plain", " url", " html", " base64", " ascii hex", " hex", " octal", " binary",
+        " gzip", " deflate", " brotli"
     };
 
     private static final Pattern PERCENT = Pattern.compile("%[0-9a-fA-F]{2}");
@@ -51,6 +56,21 @@ final class Transforms {
         NAMED_ENTITIES.put("quot", 34);
         NAMED_ENTITIES.put("apos", 39);
         NAMED_ENTITIES.put("nbsp", 160);
+        // A fuller set of common named entities beyond the original five.
+        NAMED_ENTITIES.put("copy", 169);  NAMED_ENTITIES.put("reg", 174);  NAMED_ENTITIES.put("trade", 8482);
+        NAMED_ENTITIES.put("hellip", 8230); NAMED_ENTITIES.put("mdash", 8212); NAMED_ENTITIES.put("ndash", 8211);
+        NAMED_ENTITIES.put("lsquo", 8216); NAMED_ENTITIES.put("rsquo", 8217); NAMED_ENTITIES.put("ldquo", 8220);
+        NAMED_ENTITIES.put("rdquo", 8221); NAMED_ENTITIES.put("laquo", 171); NAMED_ENTITIES.put("raquo", 187);
+        NAMED_ENTITIES.put("euro", 8364); NAMED_ENTITIES.put("pound", 163); NAMED_ENTITIES.put("cent", 162);
+        NAMED_ENTITIES.put("yen", 165);   NAMED_ENTITIES.put("sect", 167);  NAMED_ENTITIES.put("para", 182);
+        NAMED_ENTITIES.put("middot", 183); NAMED_ENTITIES.put("bull", 8226); NAMED_ENTITIES.put("dagger", 8224);
+        NAMED_ENTITIES.put("times", 215); NAMED_ENTITIES.put("divide", 247); NAMED_ENTITIES.put("deg", 176);
+        NAMED_ENTITIES.put("plusmn", 177); NAMED_ENTITIES.put("micro", 181); NAMED_ENTITIES.put("frac12", 189);
+        NAMED_ENTITIES.put("frac14", 188); NAMED_ENTITIES.put("frac34", 190); NAMED_ENTITIES.put("sup2", 178);
+        NAMED_ENTITIES.put("sup3", 179);  NAMED_ENTITIES.put("szlig", 223); NAMED_ENTITIES.put("agrave", 224);
+        NAMED_ENTITIES.put("aacute", 225); NAMED_ENTITIES.put("eacute", 233); NAMED_ENTITIES.put("egrave", 232);
+        NAMED_ENTITIES.put("ccedil", 231); NAMED_ENTITIES.put("ntilde", 241); NAMED_ENTITIES.put("uuml", 252);
+        NAMED_ENTITIES.put("ouml", 246);  NAMED_ENTITIES.put("auml", 228);  NAMED_ENTITIES.put("euml", 235);
     }
 
     static String[] decodeItems() { return items(" decode as ..."); }
@@ -93,6 +113,8 @@ final class Transforms {
             case "octal"     -> fromBase(Bytes.str(data), 8, 3);
             case "binary"    -> fromBase(Bytes.str(data), 2, 8);
             case "gzip"      -> gunzip(data);
+            case "deflate"   -> inflate(data);
+            case "brotli"    -> unbrotli(data);
             default          -> data;
         };
     }
@@ -107,6 +129,8 @@ final class Transforms {
             case "octal"     -> toBase(data, 8, 3, " ");
             case "binary"    -> toBase(data, 2, 8, " ");
             case "gzip"      -> gzip(data);
+            case "deflate"   -> deflate(data);
+            case "brotli"    -> throw new Failure("brotli encoding is not supported (decode only)");
             default          -> data;
         };
     }
@@ -119,6 +143,11 @@ final class Transforms {
      */
     static String guess(byte[] data) {
         if (data == null || data.length == 0) return null;
+        // gzip has an unambiguous magic number, so it is safe to recognise.
+        if (data.length >= 2 && (data[0] & 0xff) == 0x1f && (data[1] & 0xff) == 0x8b) {
+            String hit = ifChanged("gzip", data);
+            if (hit != null) return hit;
+        }
         String s = Bytes.str(data);
         if (PERCENT.matcher(s).find()) {
             String hit = ifChanged("url", data);
@@ -332,6 +361,35 @@ final class Transforms {
     private static byte[] gunzip(byte[] data) throws IOException {
         try (GZIPInputStream g = new GZIPInputStream(new ByteArrayInputStream(data))) {
             return g.readAllBytes();
+        }
+    }
+
+    private static byte[] deflate(byte[] data) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (DeflaterOutputStream d = new DeflaterOutputStream(out, new Deflater(Deflater.DEFAULT_COMPRESSION, false))) {
+            d.write(data);
+        }
+        return out.toByteArray();
+    }
+
+    /** Inflate zlib-wrapped data, falling back to raw (headerless) deflate. */
+    private static byte[] inflate(byte[] data) throws Failure {
+        try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(data))) {
+            return in.readAllBytes();
+        } catch (IOException zlib) {
+            try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(data), new Inflater(true))) {
+                return in.readAllBytes();
+            } catch (IOException raw) {
+                throw new Failure("not valid deflate data");
+            }
+        }
+    }
+
+    private static byte[] unbrotli(byte[] data) throws Failure {
+        try (org.brotli.dec.BrotliInputStream b = new org.brotli.dec.BrotliInputStream(new ByteArrayInputStream(data))) {
+            return b.readAllBytes();
+        } catch (IOException e) {
+            throw new Failure("not valid brotli data");
         }
     }
 

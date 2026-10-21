@@ -23,22 +23,68 @@ public final class Theme {
     private Theme() {}
 
     // ---- palette ----
+    // Not final: the dark variant is chosen at install() time (before any UI is
+    // built, so the Ui constants that copy these capture the right values). A
+    // theme change relaunches the app, exactly as a scale change does.
     /** Page background. */
-    public static final Color BG         = new Color(0xFF, 0xFF, 0xFF);
+    public static Color BG         = new Color(0xFF, 0xFF, 0xFF);
     /** Raised surfaces: toolbars, table headers, cards, the status bar. */
-    public static final Color SURFACE    = new Color(0xF6, 0xF7, 0xF9);
+    public static Color SURFACE    = new Color(0xEE, 0xEE, 0xEE);
     /** Hover and pressed state of surfaces and secondary buttons. */
-    public static final Color SURFACE_2  = new Color(0xEA, 0xED, 0xF1);
-    public static final Color SURFACE_3  = new Color(0xDD, 0xE2, 0xE8);
+    public static Color SURFACE_2  = new Color(0xE4, 0xE4, 0xE4);
+    public static Color SURFACE_3  = new Color(0xD8, 0xD8, 0xD8);
     /** Hairlines and outlines. */
-    public static final Color BORDER     = new Color(0xDF, 0xE3, 0xE8);
-    public static final Color TEXT       = new Color(0x1F, 0x23, 0x28);
-    public static final Color MUTED      = new Color(0x6B, 0x72, 0x80);
-    /** The accent: the same blue as the proxy's landing page. */
-    public static final Color ACCENT       = new Color(0x3C, 0x6E, 0xA5);
-    public static final Color ACCENT_DARK  = new Color(0x2F, 0x5A, 0x8A);
-    public static final Color ACCENT_LIGHT = new Color(0xE3, 0xED, 0xF8);
-    public static final Color ACCENT_FAINT = new Color(0xF1, 0xF6, 0xFB);
+    public static Color BORDER     = new Color(0xD4, 0xD4, 0xD4);
+    public static Color TEXT       = new Color(0x1A, 0x1A, 0x1A);
+    public static Color MUTED      = new Color(0x6B, 0x6B, 0x6B);
+    /** The accent: Burp's orange, used on primary buttons and the active tab. */
+    public static Color ACCENT       = new Color(0xDB, 0x61, 0x2F);
+    public static Color ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
+    /** Row selection: Burp keeps a light blue selection even with the orange accent. */
+    public static Color ACCENT_LIGHT = new Color(0xCA, 0xDA, 0xF0);
+    public static Color ACCENT_FAINT = new Color(0xF7, 0xF7, 0xF7);
+
+    /** Whether the dark palette is active (set by {@link #configure}). */
+    public static boolean dark = false;
+
+    /** Read the saved theme preference (system property wins, then prefs). */
+    public static boolean darkPreferred() {
+        String flag = System.getProperty("opentrap.theme");
+        if (flag != null) return flag.equalsIgnoreCase("dark");
+        try { return "dark".equalsIgnoreCase(
+                java.util.prefs.Preferences.userRoot().node("opentrap.v1").get("ui.theme", "light")); }
+        catch (Exception e) { return false; }
+    }
+
+    /** Point the palette at the light or dark colours. Call before install(). */
+    public static void configure(boolean darkMode) {
+        dark = darkMode;
+        if (darkMode) {
+            BG           = new Color(0x1E, 0x22, 0x28);
+            SURFACE      = new Color(0x26, 0x2B, 0x33);
+            SURFACE_2    = new Color(0x2F, 0x35, 0x3E);
+            SURFACE_3    = new Color(0x3A, 0x41, 0x4B);
+            BORDER       = new Color(0x3A, 0x41, 0x4B);
+            TEXT         = new Color(0xE6, 0xE9, 0xED);
+            MUTED        = new Color(0x9A, 0xA3, 0xAF);
+            ACCENT       = new Color(0x5B, 0x8D, 0xD6);
+            ACCENT_DARK  = new Color(0x3C, 0x6E, 0xA5);
+            ACCENT_LIGHT = new Color(0x2B, 0x3B, 0x55);
+            ACCENT_FAINT = new Color(0x23, 0x29, 0x33);
+        } else {
+            BG           = new Color(0xFF, 0xFF, 0xFF);
+            SURFACE      = new Color(0xEE, 0xEE, 0xEE);
+            SURFACE_2    = new Color(0xE4, 0xE4, 0xE4);
+            SURFACE_3    = new Color(0xD8, 0xD8, 0xD8);
+            BORDER       = new Color(0xD4, 0xD4, 0xD4);
+            TEXT         = new Color(0x1A, 0x1A, 0x1A);
+            MUTED        = new Color(0x6B, 0x6B, 0x6B);
+            ACCENT       = new Color(0xDB, 0x61, 0x2F);
+            ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
+            ACCENT_LIGHT = new Color(0xCA, 0xDA, 0xF0);
+            ACCENT_FAINT = new Color(0xF7, 0xF7, 0xF7);
+        }
+    }
 
     public static final Font FONT      = new Font("Dialog", Font.PLAIN, 12);
     public static final Font FONT_BOLD = new Font("Dialog", Font.BOLD, 12);
@@ -51,6 +97,7 @@ public final class Theme {
 
     /** Install the theme. Call once, before any component is created. */
     public static void install() {
+        configure(darkPreferred());
         MetalLookAndFeel.setCurrentTheme(new Palette());
         try { UIManager.setLookAndFeel(new MetalLookAndFeel()); } catch (Exception ignored) {}
 

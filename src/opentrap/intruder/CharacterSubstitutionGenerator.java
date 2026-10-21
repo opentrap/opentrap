@@ -50,7 +50,7 @@ class CharacterSubstitutionGenerator extends AbstractGenerator {
         panel = new JPanel(new BorderLayout(8, 4));
         panel.setOpaque(false);
         panel.add(sp, BorderLayout.CENTER);
-        panel.add(Ui.vbox(add, delete, clear), BorderLayout.EAST);
+        panel.add(Ui.buttonColumn(add, delete, clear), BorderLayout.EAST);
     }
 
     private Map<Character, Character> rules() {

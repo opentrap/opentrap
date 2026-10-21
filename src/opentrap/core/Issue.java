@@ -72,6 +72,11 @@ public final class Issue {
     private final String evidence;
     private final Dedupe dedupe;
 
+    // Dashboard metadata, set after construction.
+    private final long time = System.currentTimeMillis();
+    private String source = "";    // which task found it (e.g. "Live audit", "Scan 3")
+    private String comment = "";   // user-editable note
+
     public Issue(String title, Severity severity, Confidence confidence,
                  HttpService service, String path, String param,
                  String detail, String background, String remediation,
@@ -131,6 +136,11 @@ public final class Issue {
     /** The exact text in the message that triggered the finding. */
     public String evidence()         { return evidence; }
     public Dedupe dedupeScope()      { return dedupe; }
+    public long time()               { return time; }
+    public String source()           { return source; }
+    public void setSource(String s)  { this.source = s == null ? "" : s; }
+    public String comment()          { return comment; }
+    public void setComment(String c) { this.comment = c == null ? "" : c; }
 
     public String host() { return service == null ? "" : service.host(); }
 

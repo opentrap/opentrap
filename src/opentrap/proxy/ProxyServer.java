@@ -330,6 +330,13 @@ public class ProxyServer {
                 intercept.completed(p);
             }
 
+            // A WebSocket upgrade leaves HTTP behind: hand the connection to the
+            // relay, which streams and records frames both ways until it closes.
+            if (isWebSocketUpgrade(request)) {
+                handleWebSocket(request, in, out, svc);
+                return false;
+            }
+
             LogEntry entry = new LogEntry("proxy", svc, request);
             entry.setOriginalRequest(original);
             entry.setEdited(wasModified);
@@ -338,6 +345,10 @@ public class ProxyServer {
             opt.updateContentLength = false;
             opt.unpackGzip = unpackGzip;
             opt.followRedirects = false;
+            opt.session = ctx.sessions();
+            opt.sessionTool = "proxy";
+            // Live passive scanning: route in-scope traffic through the scan engine.
+            if (ctx.liveScanRouter() != null) opt.upstream = ctx.liveScanRouter().apply(svc);
             long t0 = System.currentTimeMillis();
             HttpClient.Result res = new HttpClient().send(svc, request, opt);
             entry.setDurationMillis(System.currentTimeMillis() - t0);
@@ -415,7 +426,7 @@ public class ProxyServer {
             } else {
                 String body = "<!doctype html><html><head><title>OpenTRAP</title>"
                         + "<style>body{font:14px system-ui;margin:3em auto;max-width:34em;color:#222}"
-                        + "a.btn{display:inline-block;padding:.6em 1.1em;background:#3C6EA5;color:#fff;"
+                        + "a.btn{display:inline-block;padding:.6em 1.1em;background:#DB612F;color:#fff;"
                         + "text-decoration:none;border-radius:4px}</style></head><body>"
                         + "<h1>OpenTRAP proxy</h1>"
                         + "<p>The proxy is running on port " + cfg.port + ".</p>"
@@ -519,6 +530,48 @@ public class ProxyServer {
     }
 
     /** Read bytes up to and including the header terminator. */
+    private static boolean isWebSocketUpgrade(HttpMessage request) {
+        String up = request.header("Upgrade");
+        String con = request.header("Connection");
+        return up != null && up.toLowerCase(java.util.Locale.ROOT).contains("websocket")
+                && con != null && con.toLowerCase(java.util.Locale.ROOT).contains("upgrade");
+    }
+
+    /**
+     * Relay an upgraded WebSocket: forward the handshake to the upstream server,
+     * return its 101 to the browser, then stream frames both ways through the
+     * {@link WebSocketConnection} relay until either side closes.
+     */
+    private void handleWebSocket(HttpMessage request, InputStream clientIn, OutputStream clientOut, HttpService svc) {
+        java.net.Socket up = null;
+        try {
+            up = HttpClient.openSocket(svc, 15000, 0); // no read timeout: WebSockets idle between frames
+            OutputStream upOut = up.getOutputStream();
+            InputStream upIn = new BufferedInputStream(up.getInputStream(), 32768);
+            upOut.write(request.raw());
+            upOut.flush();
+
+            byte[] respHead = readHead(upIn);
+            if (respHead.length == 0) return;
+            HttpMessage resp = new HttpMessage(respHead);
+            clientOut.write(resp.raw());
+            clientOut.flush();
+
+            LogEntry entry = new LogEntry("proxy", svc, request);
+            entry.setResponse(resp);
+            ctx.store().add(entry);
+            ctx.siteMapChanged(entry);
+
+            if (resp.statusCode() != 101) return; // server declined the upgrade
+            ctx.alert("proxy", "WebSocket connected to " + svc.host());
+            new WebSocketConnection(ctx, svc, clientOut, upOut).run(clientIn, upIn);
+        } catch (Exception e) {
+            ctx.alert("proxy", "WebSocket relay error: " + e.getMessage());
+        } finally {
+            if (up != null) try { up.close(); } catch (Exception ignored) {}
+        }
+    }
+
     private static byte[] readHead(InputStream in) throws IOException {
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
         int consecutive = 0;

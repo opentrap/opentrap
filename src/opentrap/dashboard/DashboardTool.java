@@ -70,7 +70,8 @@ public class DashboardTool implements ToolModule {
     private final IssueTableModel summaryModel =
             new IssueTableModel(new String[]{"Issue type", "Host", "Severity", "Confidence"});
     private final IssueTableModel issuesModel =
-            new IssueTableModel(new String[]{"Issue type", "Host", "Path", "Severity", "Confidence"});
+            new IssueTableModel(new String[]{"Time", "Source", "Issue type", "Host", "Path",
+                    "Insertion point", "Severity", "Confidence", "Comment"});
     private JTable summaryTable;
     private JTable issuesTable;
 
@@ -100,6 +101,9 @@ public class DashboardTool implements ToolModule {
 
     @Override public Tab[] tabs() { return new Tab[]{ new Tab("dashboard", root) }; }
 
+    private ScanTask liveAudit;
+    private opentrap.engine.LivePassiveScanner passiveScanner;
+
     @Override public void init(SuiteContext ctx) {
         this.ctx = ctx;
         ctx.addIssueListener(i -> SwingUtilities.invokeLater(this::onIssuesChanged));
@@ -109,6 +113,18 @@ public class DashboardTool implements ToolModule {
         issueResponse = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
         issueSplit.setTopComponent(issueRequest);
         issueSplit.setBottomComponent(issueResponse);
+
+        // The one default task: a live passive audit capturing from the Proxy.
+        // Scans the user starts add their own tasks on top of this.
+        liveAudit = new ScanTask(ScanTask.Type.LIVE_PASSIVE,
+                "Live audit from Proxy (all traffic)", "Audit checks - passive");
+        ctx.addTask(liveAudit);
+
+        // Live passive scanning: route in-scope proxy traffic through the engine
+        // and poll its alerts into issues. On by default, like Burp's live audit.
+        passiveScanner = new opentrap.engine.LivePassiveScanner(ctx);
+        ctx.setLiveScanRouter(passiveScanner::routeFor);
+        passiveScanner.setEnabled(true);
 
         rebuildTasks();
         onIssuesChanged();
@@ -285,9 +301,8 @@ public class DashboardTool implements ToolModule {
     private JComponent buildIssuesTab() {
         issuesTable = new JTable(issuesModel);
         Ui.styleTable(issuesTable);
-        Ui.distributeWidths(issuesTable, 220, 150, 150, 80, 80);
-        Ui.centerCells(issuesTable);
-        Ui.severityColumn(issuesTable, 3);   // Severity column
+        Ui.distributeWidths(issuesTable, 95, 70, 190, 140, 130, 110, 80, 80, 110);
+        Ui.severityColumn(issuesTable, 6);   // Severity column
         issuesTable.getSelectionModel().addListSelectionListener(this::onIssueRowSelected);
 
         issueDetail = new JEditorPane();
@@ -304,11 +319,32 @@ public class DashboardTool implements ToolModule {
         detailTabs.addTab("Advisory", Ui.scroll(issueDetail));
         detailTabs.addTab("Request / response", issueSplit);
 
-        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                Ui.scroll(issuesTable), detailTabs);
+        JButton exportReport = Ui.button("export report", "save all findings as an HTML or XML report");
+        exportReport.addActionListener(e -> exportIssuesReport());
+        JPanel issuesBar = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 6, 3));
+        issuesBar.add(exportReport);
+        JPanel issuesPanel = new JPanel(new BorderLayout());
+        issuesPanel.add(issuesBar, BorderLayout.NORTH);
+        issuesPanel.add(Ui.scroll(issuesTable), BorderLayout.CENTER);
+
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, issuesPanel, detailTabs);
         split.setBorder(null);
         Ui.balance(split, 0.4);
         return split;
+    }
+
+    private void exportIssuesReport() {
+        List<Issue> all = ctx == null ? new ArrayList<>() : ctx.issues();
+        if (all.isEmpty()) {
+            JOptionPane.showMessageDialog(ctx == null ? null : ctx.frame(),
+                    "There are no findings to export yet.", "export report", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        Object[] options = {"HTML", "XML", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(ctx.frame(), "Export the findings as:", "export report",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+        if (choice == 0) opentrap.report.Export.save(ctx.frame(), "opentrap-report.html", opentrap.report.Export.issuesHtml(all));
+        else if (choice == 1) opentrap.report.Export.save(ctx.frame(), "opentrap-report.xml", opentrap.report.Export.issuesXml(all));
     }
 
     private JComponent buildEventLogTab() {
@@ -436,6 +472,9 @@ public class DashboardTool implements ToolModule {
                     sw.setOnToggle(() -> {
                         task.setState(task.state() == ScanTask.State.RUNNING
                                 ? ScanTask.State.PAUSED : ScanTask.State.RUNNING);
+                        // The live audit toggle drives live passive scanning.
+                        if (task == liveAudit && passiveScanner != null)
+                            passiveScanner.setEnabled(task.state() == ScanTask.State.RUNNING);
                         ctx.taskChanged(task);
                     });
                     stateRow.add(sw);
@@ -658,6 +697,15 @@ public class DashboardTool implements ToolModule {
         all.sort(java.util.Comparator.comparingInt(Issue::rank));
         summaryModel.setIssues(all);
         issuesModel.setIssues(all);
+        // The live audit task reflects the shared issue set.
+        if (liveAudit != null) {
+            int h = 0, m = 0, l = 0, i = 0;
+            for (Issue is : all) switch (is.severity()) {
+                case HIGH -> h++; case MEDIUM -> m++; case LOW -> l++; default -> i++;
+            }
+            liveAudit.setCounts(h, m, l, i);
+            if (ctx != null) ctx.taskChanged(liveAudit);
+        }
         refreshRight();
     }
 
@@ -685,36 +733,11 @@ public class DashboardTool implements ToolModule {
     // ------------------------------------------------------------- actions
 
     private void newScan() {
-        // Scan options: target, what to run, and how far/long to crawl. A scan
-        // always crawls first and then audits what the crawl discovered; it must
-        // never skip straight to the audit, or it would only test the single seed
-        // request and find nothing on a site it has not mapped.
-        JTextField urlField = Ui.field("https://", 30);
-        JComboBox<String> typeBox = new JComboBox<>(new String[]{"Crawl and audit", "Crawl only"});
-        typeBox.setFont(Ui.PLAIN);
-        JSpinner depth = new JSpinner(new SpinnerNumberModel(DEFAULT_CRAWL_DEPTH, 0, 50, 1));
-        JSpinner duration = new JSpinner(new SpinnerNumberModel(60, 0, 600, 1));
-        JPanel form = Ui.form(
-                "Target URL:", urlField,
-                "Scan type:", typeBox,
-                "Crawl depth:", depth,
-                "Max crawl time (mins, 0 = none):", duration);
-        int ok = JOptionPane.showConfirmDialog(ctx == null ? root : ctx.frame(), form,
-                "New scan", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (ok != JOptionPane.OK_OPTION) return;
-
-        String url = urlField.getText().trim();
-        if (url.isEmpty()) return;
-        if (HttpService.parse(url) == null) {
-            JOptionPane.showMessageDialog(ctx == null ? root : ctx.frame(),
-                    "Could not parse that URL. Use the form https://host/path.",
-                    "New scan", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        boolean audit = typeBox.getSelectedIndex() == 0;
-        int maxDepth = (Integer) depth.getValue();
-        int maxMinutes = (Integer) duration.getValue();
-        startSpiderFor(url, audit, maxDepth, maxMinutes);
+        // The Burp-style wizard: scan type, URLs, configuration, login, resource pool.
+        NewScanWizard w = new NewScanWizard(ctx, ctx == null ? null : ctx.frame());
+        w.setVisible(true);
+        if (!w.started()) return;
+        startSpiderFor(w.targetUrl(), w.crawlAndAudit(), w.crawlDepth(), w.crawlDuration(), w.threads());
     }
 
     private void startSpider() {
@@ -734,10 +757,14 @@ public class DashboardTool implements ToolModule {
     /** Crawl the given URL. The spider button calls this directly (crawl only). */
     private static final int DEFAULT_CRAWL_DEPTH = 5;
 
-    private void startSpiderFor(String url) { startSpiderFor(url, false, DEFAULT_CRAWL_DEPTH, 0); }
+    private void startSpiderFor(String url) { startSpiderFor(url, false, DEFAULT_CRAWL_DEPTH, 0, 10); }
 
     private void startSpiderFor(String url, boolean thenAudit) {
-        startSpiderFor(url, thenAudit, DEFAULT_CRAWL_DEPTH, 0);
+        startSpiderFor(url, thenAudit, DEFAULT_CRAWL_DEPTH, 0, 10);
+    }
+
+    private void startSpiderFor(String url, boolean thenAudit, int maxDepth, int maxDurationMin) {
+        startSpiderFor(url, thenAudit, maxDepth, maxDurationMin, 10);
     }
 
     /**
@@ -746,7 +773,7 @@ public class DashboardTool implements ToolModule {
      * ZAP's job, so there is no home-grown fall-back scanner. If the engine is not
      * installed, scanning is unavailable until it is fetched.
      */
-    private void startSpiderFor(String url, boolean thenAudit, int maxDepth, int maxDurationMin) {
+    private void startSpiderFor(String url, boolean thenAudit, int maxDepth, int maxDurationMin, int threads) {
         HttpService svc = HttpService.parse(url.trim());
         if (svc == null) {
             JOptionPane.showMessageDialog(ctx.frame(),
@@ -786,6 +813,8 @@ public class DashboardTool implements ToolModule {
         Thread zth = new Thread(() -> {
             try {
                 ze.start();
+                try { ze.api().setSpiderThreads(threads); ze.api().setActiveThreadPerHost(threads); }
+                catch (Exception ignored) {}
                 task.log("Engine ready. Crawling " + seedUrl);
                 ctx.taskChanged(task);
                 // The audit, if requested, runs only after the crawl finishes, and
@@ -807,12 +836,13 @@ public class DashboardTool implements ToolModule {
     /** Backs both the summary and issues tables from a shared issue list. */
     private static final class IssueTableModel extends AbstractTableModel {
         private final String[] columns;
-        private final boolean withPath;
+        private final boolean full;   // the Issues tab: the full Burp column set
         private List<Issue> rows = new ArrayList<>();
+        private final java.text.DateFormat fmt = java.text.DateFormat.getTimeInstance(java.text.DateFormat.MEDIUM);
 
         IssueTableModel(String[] columns) {
             this.columns = columns;
-            this.withPath = columns.length == 5;
+            this.full = columns.length >= 9;
         }
 
         void setIssues(List<Issue> issues) {
@@ -827,18 +857,26 @@ public class DashboardTool implements ToolModule {
         @Override public int getRowCount() { return rows.size(); }
         @Override public int getColumnCount() { return columns.length; }
         @Override public String getColumnName(int c) { return columns[c]; }
-        @Override public boolean isCellEditable(int r, int c) { return false; }
+
+        // Only the Comment column of the full Issues table is editable.
+        @Override public boolean isCellEditable(int r, int c) { return full && c == 8; }
+        @Override public void setValueAt(Object v, int r, int c) {
+            if (full && c == 8) rows.get(r).setComment(v == null ? "" : v.toString());
+        }
 
         @Override public Object getValueAt(int r, int c) {
             Issue i = rows.get(r);
-            if (withPath) {
+            if (full) {
                 return switch (c) {
-                    case 0 -> i.title();
-                    case 1 -> i.host();
-                    case 2 -> i.path();
-                    case 3 -> i.severity().label();
-                    case 4 -> i.confidence().label();
-                    default -> "";
+                    case 0 -> fmt.format(new java.util.Date(i.time()));
+                    case 1 -> i.source();
+                    case 2 -> i.title();
+                    case 3 -> i.host();
+                    case 4 -> i.path();
+                    case 5 -> i.param() == null ? "" : i.param();
+                    case 6 -> i.severity().label();
+                    case 7 -> i.confidence().label();
+                    default -> i.comment();
                 };
             }
             return switch (c) {

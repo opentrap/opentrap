@@ -62,6 +62,7 @@ public class SequencerTool implements ToolModule {
 
     // ---- options ----
     private JCheckBox optCount, optTransitions, optMonobit, optPoker, optRuns, optLongRun;
+    private JCheckBox optChiSquare, optSerial, optCompression;
 
     // cached tab components
     private JComponent liveTab, manualTab, optionsTab;
@@ -104,6 +105,9 @@ public class SequencerTool implements ToolModule {
         optPoker       = Ui.check("FIPS poker", true);
         optRuns        = Ui.check("FIPS runs", true);
         optLongRun     = Ui.check("FIPS long runs", true);
+        optChiSquare   = Ui.check("chi-square (bit distribution)", true);
+        optSerial      = Ui.check("serial correlation (lag-1)", true);
+        optCompression = Ui.check("compression", true);
 
         JPanel body = Ui.vbox(
             Ui.heading("character-level analysis"),
@@ -114,7 +118,10 @@ public class SequencerTool implements ToolModule {
             optMonobit,
             optPoker,
             optRuns,
-            optLongRun
+            optLongRun,
+            optChiSquare,
+            optSerial,
+            optCompression
         );
         body.setBorder(Ui.pad(12, 12, 12, 12));
 
@@ -458,6 +465,8 @@ public class SequencerTool implements ToolModule {
         HttpClient client = new HttpClient();
         HttpClient.Options opt = new HttpClient.Options();
         opt.updateContentLength = false;
+        opt.session = ctx.sessions();
+        opt.sessionTool = "sequencer";
         while (capturing) {
             HttpClient.Result r = client.send(svc, req, opt);
             liveRequests.incrementAndGet();
@@ -668,8 +677,82 @@ public class SequencerTool implements ToolModule {
             if (optLongRun.isSelected()) {
                 sb.append(longRun(bits)).append('\n');
             }
+            if (optChiSquare.isSelected()) {
+                sb.append(chiSquare(bits)).append('\n');
+            }
+            if (optSerial.isSelected()) {
+                sb.append(serialCorrelation(bits)).append('\n');
+            }
+            if (optCompression.isSelected()) {
+                sb.append(compressionTest(t)).append('\n');
+            }
             return sb.toString();
         }
+    }
+
+    // ---- additional randomness tests (chi-square, serial correlation, compression) ----
+
+    /** Chi-square test of the 0/1 bit distribution (1 degree of freedom) with a p-value. */
+    static String chiSquare(boolean[] bits) {
+        int n = bits.length;
+        if (n == 0) return "Chi-square (bit uniformity)\n  (no bits to test)\n";
+        int ones = 0;
+        for (boolean b : bits) if (b) ones++;
+        double e = n / 2.0;
+        double chi = Math.pow(ones - e, 2) / e + Math.pow((n - ones) - e, 2) / e;
+        double p = erfc(Math.sqrt(chi / 2.0));
+        return "Chi-square (bit uniformity)\n"
+                + "  chi-square : " + fmt(chi) + "\n"
+                + "  p-value    : " + fmt(p) + "\n"
+                + "  result     : " + (p >= 0.01 ? "PASS" : "FAIL") + "\n";
+    }
+
+    /** Lag-1 serial correlation of the bit stream; near zero indicates no linear dependence. */
+    static String serialCorrelation(boolean[] bits) {
+        int n = bits.length;
+        if (n < 2) return "Serial correlation (lag-1)\n  (insufficient data)\n";
+        double sum = 0, sumSq = 0, prod = 0;
+        for (int i = 0; i < n; i++) {
+            double x = bits[i] ? 1 : 0;
+            sum += x;
+            sumSq += x * x;
+            prod += x * (bits[(i + 1) % n] ? 1 : 0);
+        }
+        double den = n * sumSq - sum * sum;
+        double scc = den == 0 ? 0 : (n * prod - sum * sum) / den;
+        return "Serial correlation (lag-1)\n"
+                + "  coefficient : " + fmt(scc) + "\n"
+                + "  result      : " + (Math.abs(scc) < 0.10 ? "PASS" : "review") + " (near 0 is ideal)\n";
+    }
+
+    /** Compression ratio of the concatenated tokens; a ratio near or above 1.0 means high entropy. */
+    static String compressionTest(List<String> tokens) {
+        java.io.ByteArrayOutputStream raw = new java.io.ByteArrayOutputStream();
+        for (String s : tokens) raw.writeBytes(s.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
+        byte[] data = raw.toByteArray();
+        if (data.length == 0) return "Compression\n  (no data)\n";
+        int clen;
+        try {
+            java.io.ByteArrayOutputStream gz = new java.io.ByteArrayOutputStream();
+            try (java.util.zip.GZIPOutputStream g = new java.util.zip.GZIPOutputStream(gz)) { g.write(data); }
+            clen = gz.size();
+        } catch (Exception e) { return "Compression\n  (failed)\n"; }
+        double ratio = (double) clen / data.length;
+        return "Compression\n"
+                + "  original : " + data.length + " bytes\n"
+                + "  gzipped  : " + clen + " bytes\n"
+                + "  ratio    : " + fmt(ratio) + "\n"
+                + "  result   : " + (ratio >= 0.95 ? "PASS" : "review") + " (ratio near/above 1.0 = high entropy)\n";
+    }
+
+    /** Complementary error function (Abramowitz &amp; Stegun 7.1.26), for the chi-square p-value. */
+    static double erfc(double x) {
+        double z = Math.abs(x);
+        double t = 1.0 / (1.0 + 0.5 * z);
+        double r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418
+                + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587
+                + t * (-0.82215223 + t * 0.17087277)))))))));
+        return x >= 0 ? r : 2.0 - r;
     }
 
     private static JTextArea resultArea() {

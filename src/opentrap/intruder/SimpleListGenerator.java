@@ -41,7 +41,7 @@ class SimpleListGenerator extends AbstractGenerator {
         delete.addActionListener(e -> deleteSelected());
         clear.addActionListener(e -> { model.setRowCount(0); changed(); });
 
-        JPanel buttons = Ui.vbox(add, load, paste, delete, clear);
+        JPanel buttons = Ui.buttonColumn(add, load, paste, delete, clear);
         JPanel addRow = Ui.row(entry, add);
 
         panel = new JPanel(new BorderLayout(8, 4));

@@ -39,12 +39,16 @@ public class ScannerTool implements ToolModule {
     private TableRowSorter<RuleTableModel> sorter;
     private boolean loadStarted;
 
-    @Override public String name() { return "passive"; }
+    @Override public String name() { return "scanner"; }
+    @Override public boolean alwaysTabbed() { return true; }
 
     @Override public void init(SuiteContext ctx) { this.ctx = ctx; }
 
     @Override public Tab[] tabs() {
-        return new Tab[]{ new Tab("rules", buildRules()) };
+        return new Tab[]{
+            new Tab("passive", buildRules()),
+            new Tab("active policy", new ActiveScanPanel(ctx))
+        };
     }
 
     private JComponent buildRules() {

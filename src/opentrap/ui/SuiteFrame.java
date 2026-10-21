@@ -21,6 +21,8 @@ public class SuiteFrame extends JFrame {
     private final List<ToolModule> modules = new ArrayList<>();
     private final JLabel statusLabel = new JLabel(" ");
     private final JLabel memoryLabel = new JLabel();
+    private final JButton eventLogLabel = new JButton("Event log (0)");
+    private final JButton issuesLabel = new JButton("All issues (0)");
     private AlertsPanel alertsPanel;
 
     public SuiteFrame(SuiteContext ctx, String title) {
@@ -48,20 +50,46 @@ public class SuiteFrame extends JFrame {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(Theme.SURFACE);
         p.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, Ui.GRID), Ui.pad(4, 10, 4, 10)));
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Ui.GRID), Ui.pad(2, 10, 2, 10)));
         statusLabel.setFont(Ui.PLAIN);
         memoryLabel.setFont(Ui.PLAIN);
         memoryLabel.setForeground(Theme.MUTED);
-        p.add(statusLabel, BorderLayout.WEST);
+
+        linkify(eventLogLabel, () -> selectTool("alerts"));
+        linkify(issuesLabel, () -> selectTool("dashboard"));
+
+        JPanel west = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        west.setOpaque(false);
+        west.add(eventLogLabel);
+        west.add(issuesLabel);
+        west.add(statusLabel);
+        p.add(west, BorderLayout.WEST);
         p.add(memoryLabel, BorderLayout.EAST);
+
+        // Live counters for the status bar.
+        ctx.addAlertListener(a -> SwingUtilities.invokeLater(() ->
+                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")")));
+        ctx.addIssueListener(i -> SwingUtilities.invokeLater(() ->
+                issuesLabel.setText("All issues (" + ctx.issues().size() + ")")));
         return p;
+    }
+
+    /** Make a button read as a flat clickable link in the status bar. */
+    private void linkify(JButton b, Runnable action) {
+        b.setFont(Ui.PLAIN);
+        b.setBorder(BorderFactory.createEmptyBorder(1, 2, 1, 2));
+        b.setContentAreaFilled(false);
+        b.setFocusable(false);
+        b.setForeground(Theme.MUTED);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.addActionListener(e -> action.run());
     }
 
     private void updateMemory() {
         Runtime r = Runtime.getRuntime();
         long used = (r.totalMemory() - r.freeMemory()) / (1024 * 1024);
         long max = r.maxMemory() / (1024 * 1024);
-        memoryLabel.setText("memory: " + used + "MB of " + max + "MB");
+        memoryLabel.setText("Memory: " + used + "MB of " + max + "MB");
     }
 
     public void setStatus(String s) {
@@ -112,6 +140,8 @@ public class SuiteFrame extends JFrame {
         // longer a separate window reached from this menu.
         addItem(suite, "save state", e -> StateIO.saveDialog(ctx, this));
         addItem(suite, "restore state", e -> StateIO.restoreDialog(ctx, this));
+        suite.addSeparator();
+        addItem(suite, "session handling...", e -> opentrap.session.SessionWindow.open(ctx));
         suite.addSeparator();
         addItem(suite, "exit", e -> confirmExit());
         menuBar.add(suite);

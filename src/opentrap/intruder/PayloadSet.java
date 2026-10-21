@@ -77,7 +77,10 @@ public class PayloadSet extends JPanel {
     public List<String> payloads() {
         List<String> raw = current().generate();
         java.util.List<String> out = new java.util.ArrayList<>(raw.size());
-        for (String p : raw) out.add(processor.process(p));
+        for (String p : raw) {
+            String processed = processor.process(p);
+            if (processed != null) out.add(processed); // null = a skip rule dropped it
+        }
         return out;
     }
 }

@@ -5,12 +5,12 @@
   Based on the "knemo-monitor" icon from the Flat Remix icon theme by
   Daniel Ruiz de Alegria (https://github.com/daniruiz/flat-remix), licensed
   GNU GPL v3. Two changes from the original: the fill is pinned to the theme's
-  blue so the icon stays visible on any desktop colour scheme, and the viewBox is
+  orange so the icon stays visible on any desktop colour scheme, and the viewBox is
   cropped to the artwork so it fills an application tile rather than carrying the
   heavy padding a system-tray icon needs. See CREDITS.md.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="3 3.5 18 18" version="1.1">
- <g transform="translate(-524,438)" fill="#3c6ea5">
+ <g transform="translate(-524,438)" fill="#db612f">
   <path d="m 534,-427 -6,4.5 6,4.5 c -0.004,-0.003 0,-1.3333 0,-2 l 3,0 0,-2.1875 0,-0.8125 0,-2 -3,0 z"/>
   <path d="m 538,-424 6,-4.5 -6,-4.5 c 0.004,0.003 0,1.3333 0,2 l -3,0 0,2.1875 0,0.8125 0,2 3,0 z"/>
  </g>

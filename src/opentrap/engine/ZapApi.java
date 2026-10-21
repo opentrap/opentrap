@@ -88,6 +88,16 @@ public final class ZapApi {
         call("spider", "action", "setOptionMaxDuration", p("Integer", String.valueOf(minutes)));
     }
 
+    /** Concurrent crawler threads (resource pool). */
+    public void setSpiderThreads(int n) throws Exception {
+        call("spider", "action", "setOptionThreadCount", p("Integer", String.valueOf(Math.max(1, n))));
+    }
+
+    /** Concurrent active-scan threads per host (resource pool). */
+    public void setActiveThreadPerHost(int n) throws Exception {
+        call("ascan", "action", "setOptionThreadPerHost", p("Integer", String.valueOf(Math.max(1, n))));
+    }
+
     /** Start the spider (crawler); returns the scan id. */
     public String spiderScan(String url, int maxChildren) throws Exception {
         return str(call("spider", "action", "scan",
@@ -164,6 +174,27 @@ public final class ZapApi {
     /** threshold is one of OFF, DEFAULT, LOW, MEDIUM, HIGH. */
     public void setPassiveThreshold(String id, String threshold) throws Exception {
         call("pscan", "action", "setScannerAlertThreshold", p("id", id, "alertThreshold", threshold));
+    }
+
+    // -------------------------------------------------- active scan-rule config
+
+    /** Every active rule ZAP has: id, name, enabled, attackStrength, alertThreshold. */
+    public List<JsonValue> activeScanners() throws Exception {
+        return arr(call("ascan", "view", "scanners", null), "scanners");
+    }
+
+    public void setActiveEnabled(String id, boolean enabled) throws Exception {
+        call("ascan", "action", enabled ? "enableScanners" : "disableScanners", p("ids", id));
+    }
+
+    /** strength is one of LOW, MEDIUM, HIGH, INSANE, DEFAULT. */
+    public void setActiveStrength(String id, String strength) throws Exception {
+        call("ascan", "action", "setScannerAttackStrength", p("id", id, "attackStrength", strength));
+    }
+
+    /** threshold is one of OFF, DEFAULT, LOW, MEDIUM, HIGH. */
+    public void setActiveThreshold(String id, String threshold) throws Exception {
+        call("ascan", "action", "setScannerAlertThreshold", p("id", id, "alertThreshold", threshold));
     }
 
     // ----------------------------------------------------------- json helpers

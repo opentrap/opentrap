@@ -25,9 +25,9 @@ public final class Ui {
 
     // Severity palette, shared by the dashboard badges and the issue tree so a
     // finding's colour means the same thing everywhere.
-    public static final Color SEV_HIGH   = new Color(0xE0, 0x47, 0x4C);
-    public static final Color SEV_MEDIUM = new Color(0x7E, 0x57, 0xC2);
-    public static final Color SEV_LOW    = new Color(0x44, 0x77, 0xCC);
+    public static final Color SEV_HIGH   = new Color(0xD5, 0x1F, 0x3D);
+    public static final Color SEV_MEDIUM = new Color(0xE8, 0x82, 0x0C);
+    public static final Color SEV_LOW    = new Color(0x5C, 0x9A, 0xCF);
     public static final Color SEV_INFO   = new Color(0x88, 0x88, 0x88);
 
     public static Color severityColor(opentrap.core.Issue.Severity s) {
@@ -177,6 +177,32 @@ public final class Ui {
             p.add(c);
         }
         return p;
+    }
+
+    /**
+     * A neat column of equal-width, equal-height buttons (Burp style), hugging
+     * the top. Use this for any vertical group of buttons so they line up instead
+     * of each being sized to its own text.
+     */
+    public static JPanel buttonColumn(AbstractButton... buttons) {
+        JPanel grid = new JPanel(new GridLayout(buttons.length, 1, 0, 5));
+        grid.setOpaque(false);
+        for (AbstractButton b : buttons) grid.add(b);
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setOpaque(false);
+        wrap.add(grid, BorderLayout.NORTH); // keep buttons their natural height, aligned to the top
+        return wrap;
+    }
+
+    /** A neat row of equal-width buttons. */
+    public static JPanel buttonRow(AbstractButton... buttons) {
+        JPanel grid = new JPanel(new GridLayout(1, buttons.length, 5, 0));
+        grid.setOpaque(false);
+        for (AbstractButton b : buttons) grid.add(b);
+        JPanel wrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        wrap.setOpaque(false);
+        wrap.add(grid);
+        return wrap;
     }
 
     /** Configure a table with the conventions used throughout the suite. */

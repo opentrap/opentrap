@@ -8,7 +8,7 @@ under `src/opentrap/ui/icons/`) is based on the **knemo-monitor** icon from the
 - Source: https://github.com/daniruiz/flat-remix
 - Licence: GNU General Public License v3
 
-The only modification is pinning the fill colour to the theme's blue so the icon
+The only modification is pinning the fill colour to the theme's orange so the icon
 stays visible on any desktop colour scheme instead of being recoloured by it.
 
 Flat Remix is GPL-3.0, which is compatible with OpenTRAP's AGPL-3.0 licence. In

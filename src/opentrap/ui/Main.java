@@ -70,6 +70,15 @@ public class Main {
         Path home = Path.of(System.getProperty("user.home"), ".opentrap");
 
         SwingUtilities.invokeLater(() -> {
+            // Ask the user to choose a project before the main window is built,
+            // the way Burp does. Cancelling here exits the app.
+            ProjectStartupDialog startup = new ProjectStartupDialog(TITLE);
+            startup.setVisible(true);
+            if (!startup.proceeded()) {
+                System.exit(0);
+                return;
+            }
+
             SuiteContext ctx = new SuiteContext();
             SuiteFrame frame = new SuiteFrame(ctx, TITLE);
             try {
@@ -96,6 +105,37 @@ public class Main {
             }
             frame.setVisible(true);
             ctx.alert("suite", "OpenTRAP " + VERSION + " started");
+
+            // Resolve the chosen project now that the window and its tools
+            // (whose listeners repopulate on restore) are live.
+            java.io.File projectFile = startup.file();
+            switch (startup.mode()) {
+                case NEW -> {
+                    try {
+                        StateIO.save(ctx, projectFile);
+                        ctx.setProjectFile(projectFile);
+                        RecentProjects.record(startup.projectName(), projectFile);
+                        ctx.alert("suite", "New project: " + projectFile.getName());
+                    } catch (Exception e) {
+                        JOptionPane.showMessageDialog(frame,
+                                "Could not create the project file:\n" + e.getMessage(),
+                                "New project", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+                case OPEN -> {
+                    try {
+                        int n = StateIO.restore(ctx, projectFile);
+                        ctx.setProjectFile(projectFile);
+                        RecentProjects.record(startup.projectName(), projectFile);
+                        ctx.alert("suite", "Opened project " + projectFile.getName() + " (" + n + " items)");
+                    } catch (Exception e) {
+                        JOptionPane.showMessageDialog(frame,
+                                "Could not open the project file:\n" + e.getMessage(),
+                                "Open project", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+                default -> { /* temporary in-memory project: nothing to load */ }
+            }
         });
     }
 }

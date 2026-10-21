@@ -1,5 +1,6 @@
 package opentrap.intruder;
 
+import opentrap.core.HttpMode;
 import opentrap.ui.OptionsPage;
 import opentrap.ui.Ui;
 
@@ -20,6 +21,8 @@ public class OptionsPanel extends OptionsPage {
     private static final String[] DEFAULT_GREP = {"error", "exception", "sql", "warning", "fail"};
 
     private final JTextField threads = Ui.field("5", 4);
+    private final JTextField throttle = Ui.field("0", 6);
+    private final JComboBox<HttpMode> mode = Ui.combo(HttpMode.values());
     private final JCheckBox followRedirects = Ui.check("follow redirects", false);
 
     private final DefaultTableModel grepModel =
@@ -54,12 +57,17 @@ public class OptionsPanel extends OptionsPage {
         JPanel grepPanel = new JPanel(new BorderLayout(8, 4));
         grepPanel.setOpaque(false);
         grepPanel.add(sp, BorderLayout.CENTER);
-        grepPanel.add(Ui.vbox(add, load, paste, delete, clear), BorderLayout.EAST);
+        grepPanel.add(Ui.buttonColumn(add, load, paste, delete, clear), BorderLayout.EAST);
         grepPanel.add(Ui.row(grepEntry, add), BorderLayout.SOUTH);
 
         section("timing",
-                Ui.note("The number of concurrent request threads used to run the attack."),
-                OptionsPage.fieldRow("number of threads:", threads, ""));
+                Ui.note("The number of concurrent request threads used to run the attack, "
+                        + "and an optional pause between requests on each thread."),
+                OptionsPage.fieldRow("number of threads:", threads, ""),
+                OptionsPage.fieldRow("throttle (ms between requests):", throttle, ""));
+        section("protocol",
+                Ui.note("HTTP/1 is raw and byte-exact; HTTP/2 and auto use the JDK transport."),
+                Ui.row(Ui.label("send requests over:"), mode));
         section("redirects", followRedirects);
         section("grep - match",
                 Ui.note("Flag result items whose response contains these expressions. Each "
@@ -102,6 +110,16 @@ public class OptionsPanel extends OptionsPage {
     }
 
     public boolean followRedirects() { return followRedirects.isSelected(); }
+
+    public long throttleMs() {
+        try { return Math.max(0, Long.parseLong(throttle.getText().trim())); }
+        catch (Exception e) { return 0; }
+    }
+
+    public HttpMode mode() {
+        HttpMode m = (HttpMode) mode.getSelectedItem();
+        return m == null ? HttpMode.HTTP_1 : m;
+    }
 
     public List<String> grepExpressions() {
         List<String> out = new ArrayList<>();

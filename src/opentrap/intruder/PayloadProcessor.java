@@ -31,13 +31,17 @@ public class PayloadProcessor extends JPanel {
     private final JTextField prefixField = Ui.field("", 14);
     private final JTextField suffixField = Ui.field("", 14);
 
-    private final JRadioButton encNone = Ui.radio("do not encode", false);
-    private final JRadioButton encUrl  = Ui.radio("URL-encode these characters:", true);
-    private final JRadioButton encB64  = Ui.radio("base-64 encode", false);
-    private final JRadioButton encHash = Ui.radio("hash", false);
+    private final JRadioButton encNone   = Ui.radio("do not encode", false);
+    private final JRadioButton encUrl    = Ui.radio("URL-encode these characters:", true);
+    private final JRadioButton encB64    = Ui.radio("base-64 encode", false);
+    private final JRadioButton encHash   = Ui.radio("hash", false);
+    private final JRadioButton encUrlDec = Ui.radio("URL-decode", false);
+    private final JRadioButton encB64Dec = Ui.radio("base-64 decode", false);
     private final JTextField urlChars  = Ui.field(" ./\\=<>?+&*;:#%@\"'", 14);
     private final JComboBox<String> hashAlgo =
             Ui.combo(new String[]{"MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512"});
+
+    private final JTextField skipField = Ui.field("", 14);
 
     public PayloadProcessor() {
         super();
@@ -46,6 +50,7 @@ public class PayloadProcessor extends JPanel {
 
         ButtonGroup enc = new ButtonGroup();
         enc.add(encNone); enc.add(encUrl); enc.add(encB64); enc.add(encHash);
+        enc.add(encUrlDec); enc.add(encB64Dec);
 
         JLabel heading = Ui.heading("payload processing");
         heading.setAlignmentX(LEFT_ALIGNMENT);
@@ -62,18 +67,41 @@ public class PayloadProcessor extends JPanel {
         add(left(Ui.row(encUrl, urlChars)));
         add(left(encB64));
         add(left(Ui.row(encHash, hashAlgo)));
+        add(left(encUrlDec));
+        add(left(encB64Dec));
+        add(Box.createVerticalStrut(6));
+        add(left(Ui.row(Ui.label("skip payload if it matches regex:"), skipField)));
     }
 
     private JComponent left(JComponent c) { c.setAlignmentX(LEFT_ALIGNMENT); return c; }
 
     // ---------------- processing ----------------
 
+    /** Process one payload, or return null when a skip rule says to drop it. */
     public String process(String payload) {
         String s = applyCase(payload, caseCombo.getSelectedIndex());
         s = applyRegex(s);
         s = prefixField.getText() + s + suffixField.getText();
         s = applyEncoding(s);
+        if (skips(s, skipField.getText())) return null;
         return s;
+    }
+
+    /** True when the payload matches the skip expression (empty = never skip). */
+    static boolean skips(String payload, String regex) {
+        if (regex == null || regex.isEmpty()) return false;
+        try { return Pattern.compile(regex).matcher(payload).find(); }
+        catch (Exception e) { return false; }
+    }
+
+    static String urlDecode(String s) {
+        try { return java.net.URLDecoder.decode(s, StandardCharsets.ISO_8859_1); }
+        catch (Exception e) { return s; }
+    }
+
+    static String b64Decode(String s) {
+        try { return new String(Base64.getDecoder().decode(s), StandardCharsets.ISO_8859_1); }
+        catch (Exception e) { return s; }
     }
 
     private String applyRegex(String s) {
@@ -105,6 +133,8 @@ public class PayloadProcessor extends JPanel {
         if (encB64.isSelected()) {
             return Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.ISO_8859_1));
         }
+        if (encUrlDec.isSelected()) return urlDecode(s);
+        if (encB64Dec.isSelected()) return b64Decode(s);
         if (encHash.isSelected()) {
             try {
                 MessageDigest md = MessageDigest.getInstance((String) hashAlgo.getSelectedItem());

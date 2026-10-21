@@ -12,8 +12,20 @@ public final class RunTests {
         System.out.println("OpenTRAP tests");
         System.out.println();
 
+        new opentrap.core.ParameterParsingTest().run();
+        new opentrap.core.HttpModeTest().run();
+        new opentrap.core.UpstreamProxyTest().run();
+        new opentrap.session.SessionTest().run();
+        new opentrap.intruder.PayloadProcessorTest().run();
+        new opentrap.report.ExportTest().run();
+        new opentrap.discovery.DiscoveryTest().run();
+        new opentrap.decoder.DecoderTransformsTest().run();
+        new opentrap.csrf.CsrfPocTest().run();
+        new opentrap.sequencer.SequencerStatsTest().run();
+        new opentrap.organizer.OrganizerTest().run();
         new opentrap.engine.EngineMappingTest().run();
         new opentrap.proxy.ProxyDefaultsTest().run();
+        new opentrap.proxy.WebSocketFrameTest().run();
         new opentrap.ui.SendToComparerTest().run();
 
         System.exit(Harness.report());

@@ -285,12 +285,240 @@ public class HttpMessage implements Serializable {
             }
         }
 
-        // URL-encoded body.
+        // Structured bodies: form-urlencoded, JSON, XML or multipart. Body char
+        // offsets map one-to-one to byte offsets because Bytes.str is ISO-8859-1.
         String ct = contentType();
-        if (ct.contains("x-www-form-urlencoded") || (ct.isEmpty() && body().length > 0 && bodyText().contains("="))) {
+        if (ct.contains("x-www-form-urlencoded")) {
+            parsePairs(bodyText(), bodyOffset(), Param.Type.BODY, out, '&');
+        } else if (ct.contains("json") || (ct.isEmpty() && looksLikeJson())) {
+            parseJsonParams(bodyText(), bodyOffset(), out);
+        } else if (ct.contains("xml")) {
+            parseXmlParams(bodyText(), bodyOffset(), out);
+        } else if (ct.contains("multipart/")) {
+            parseMultipartParams(out);
+        } else if (ct.isEmpty() && body().length > 0 && bodyText().contains("=")) {
             parsePairs(bodyText(), bodyOffset(), Param.Type.BODY, out, '&');
         }
         return out;
+    }
+
+    private boolean looksLikeJson() {
+        String t = bodyText().trim();
+        return !t.isEmpty() && (t.charAt(0) == '{' || t.charAt(0) == '[');
+    }
+
+    // ---- JSON ----
+    // A tolerant scalar scanner: it records one parameter per string, number or
+    // boolean/null leaf, named by its enclosing object key (array elements share
+    // the array's key). Malformed input stops the scan with whatever was found.
+
+    private void parseJsonParams(String s, int base, List<Param> out) {
+        try {
+            int[] p = {0};
+            jsonValue(s, p, base, "", out);
+        } catch (Exception ignored) {}
+    }
+
+    private static boolean jsonWs(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
+    private static void jsonSkipWs(String s, int[] p) { while (p[0] < s.length() && jsonWs(s.charAt(p[0]))) p[0]++; }
+
+    private void jsonValue(String s, int[] p, int base, String name, List<Param> out) {
+        jsonSkipWs(s, p);
+        if (p[0] >= s.length()) return;
+        char c = s.charAt(p[0]);
+        if (c == '{') { jsonObject(s, p, base, out); }
+        else if (c == '[') { jsonArray(s, p, base, name, out); }
+        else if (c == '"') {
+            int[] span = new int[2];
+            String v = jsonString(s, p, span);
+            out.add(new Param(name, v, Param.Type.JSON, base + span[0], base + span[0], base + span[0], base + span[1]));
+        } else {
+            int start = p[0];
+            while (p[0] < s.length() && "-+.eE0123456789truefalsn".indexOf(s.charAt(p[0])) >= 0) p[0]++;
+            int end = p[0];
+            if (end > start) {
+                out.add(new Param(name, s.substring(start, end), Param.Type.JSON, base + start, base + start, base + start, base + end));
+            } else {
+                p[0]++; // unknown byte: advance so the scan always terminates
+            }
+        }
+    }
+
+    private void jsonObject(String s, int[] p, int base, List<Param> out) {
+        p[0]++; // consume '{'
+        while (p[0] < s.length()) {
+            jsonSkipWs(s, p);
+            if (p[0] < s.length() && s.charAt(p[0]) == '}') { p[0]++; return; }
+            if (p[0] >= s.length() || s.charAt(p[0]) != '"') return;
+            int[] span = new int[2];
+            String key = jsonString(s, p, span);
+            jsonSkipWs(s, p);
+            if (p[0] < s.length() && s.charAt(p[0]) == ':') p[0]++;
+            jsonValue(s, p, base, key, out);
+            jsonSkipWs(s, p);
+            if (p[0] < s.length() && s.charAt(p[0]) == ',') { p[0]++; continue; }
+            if (p[0] < s.length() && s.charAt(p[0]) == '}') { p[0]++; return; }
+            return;
+        }
+    }
+
+    private void jsonArray(String s, int[] p, int base, String name, List<Param> out) {
+        p[0]++; // consume '['
+        while (p[0] < s.length()) {
+            jsonSkipWs(s, p);
+            if (p[0] < s.length() && s.charAt(p[0]) == ']') { p[0]++; return; }
+            jsonValue(s, p, base, name, out);
+            jsonSkipWs(s, p);
+            if (p[0] < s.length() && s.charAt(p[0]) == ',') { p[0]++; continue; }
+            if (p[0] < s.length() && s.charAt(p[0]) == ']') { p[0]++; return; }
+            return;
+        }
+    }
+
+    /** Reads a JSON string at p[0]=='"'. span holds the inner content offsets. */
+    private String jsonString(String s, int[] p, int[] span) {
+        p[0]++; // opening quote
+        int start = p[0];
+        StringBuilder sb = new StringBuilder();
+        while (p[0] < s.length()) {
+            char c = s.charAt(p[0]);
+            if (c == '\\' && p[0] + 1 < s.length()) { sb.append(c).append(s.charAt(p[0] + 1)); p[0] += 2; continue; }
+            if (c == '"') break;
+            sb.append(c);
+            p[0]++;
+        }
+        span[0] = start;
+        span[1] = p[0];
+        if (p[0] < s.length()) p[0]++; // closing quote
+        return sb.toString();
+    }
+
+    // ---- XML ----
+    // Records element text and attribute values. Comments, CDATA, processing
+    // instructions and declarations are skipped.
+
+    private void parseXmlParams(String s, int base, List<Param> out) {
+        try {
+            int i = 0, n = s.length();
+            while (i < n) {
+                if (s.charAt(i) != '<') { i++; continue; }
+                if (s.startsWith("<!--", i)) { int e = s.indexOf("-->", i); i = e < 0 ? n : e + 3; continue; }
+                if (s.startsWith("<![CDATA[", i)) { int e = s.indexOf("]]>", i); i = e < 0 ? n : e + 3; continue; }
+                if (s.startsWith("<?", i)) { int e = s.indexOf("?>", i); i = e < 0 ? n : e + 2; continue; }
+                if (s.startsWith("<!", i)) { int e = s.indexOf('>', i); i = e < 0 ? n : e + 1; continue; }
+                boolean closing = s.startsWith("</", i);
+                int gt = s.indexOf('>', i);
+                if (gt < 0) break;
+                String inner = s.substring(closing ? i + 2 : i + 1, gt).trim();
+                boolean selfClose = inner.endsWith("/");
+                if (selfClose) inner = inner.substring(0, inner.length() - 1).trim();
+                int sp = xmlWs(inner);
+                String ename = sp < 0 ? inner : inner.substring(0, sp);
+                if (!closing) parseXmlAttrs(s, i, gt, base, out);
+                i = gt + 1;
+                if (!closing && !selfClose) {
+                    int lt = s.indexOf('<', i);
+                    int te = lt < 0 ? n : lt;
+                    int ts = i;
+                    while (ts < te && Character.isWhitespace(s.charAt(ts))) ts++;
+                    int tend = te;
+                    while (tend > ts && Character.isWhitespace(s.charAt(tend - 1))) tend--;
+                    if (tend > ts) {
+                        out.add(new Param(ename, s.substring(ts, tend), Param.Type.XML, base + ts, base + ts, base + ts, base + tend));
+                    }
+                    i = te;
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static int xmlWs(String s) {
+        for (int i = 0; i < s.length(); i++) if (Character.isWhitespace(s.charAt(i))) return i;
+        return -1;
+    }
+
+    private void parseXmlAttrs(String s, int from, int to, int base, List<Param> out) {
+        int i = from;
+        while (i < to && !Character.isWhitespace(s.charAt(i))) i++; // skip the element name
+        while (i < to) {
+            int eq = s.indexOf('=', i);
+            if (eq < 0 || eq >= to) break;
+            int ne = eq;
+            while (ne > from && Character.isWhitespace(s.charAt(ne - 1))) ne--;
+            int ns = ne;
+            while (ns > from) {
+                char c = s.charAt(ns - 1);
+                if (Character.isWhitespace(c) || c == '<' || c == '/' || c == '"' || c == '\'') break;
+                ns--;
+            }
+            String aname = s.substring(ns, ne);
+            int q = eq + 1;
+            while (q < to && Character.isWhitespace(s.charAt(q))) q++;
+            if (q >= to) break;
+            char quote = s.charAt(q);
+            if (quote != '"' && quote != '\'') { i = eq + 1; continue; }
+            int vs = q + 1;
+            int ve = s.indexOf(quote, vs);
+            if (ve < 0 || ve > to) break;
+            if (!aname.isEmpty()) {
+                out.add(new Param(aname, s.substring(vs, ve), Param.Type.XML, base + vs, base + vs, base + vs, base + ve));
+            }
+            i = ve + 1;
+        }
+    }
+
+    // ---- multipart/form-data ----
+
+    private void parseMultipartParams(List<Param> out) {
+        String ctFull = header("Content-Type");
+        if (ctFull == null) return;
+        String boundary = null;
+        for (String part : ctFull.split(";")) {
+            String t = part.trim();
+            if (t.toLowerCase(Locale.ROOT).startsWith("boundary=")) {
+                boundary = t.substring("boundary=".length()).trim();
+                if (boundary.length() >= 2 && boundary.startsWith("\"") && boundary.endsWith("\"")) {
+                    boundary = boundary.substring(1, boundary.length() - 1);
+                }
+            }
+        }
+        if (boundary == null || boundary.isEmpty()) return;
+        String body = bodyText();
+        int base = bodyOffset();
+        String delim = "--" + boundary;
+        int i = body.indexOf(delim);
+        while (i >= 0) {
+            int partStart = i + delim.length();
+            int next = body.indexOf(delim, partStart);
+            int partEnd = next < 0 ? body.length() : next;
+            int sep = 4;
+            int hdrEnd = body.indexOf("\r\n\r\n", partStart);
+            if (hdrEnd < 0 || hdrEnd >= partEnd) { hdrEnd = body.indexOf("\n\n", partStart); sep = 2; }
+            if (hdrEnd >= 0 && hdrEnd < partEnd) {
+                String headers = body.substring(partStart, hdrEnd);
+                String name = multipartName(headers);
+                int vs = hdrEnd + sep;
+                int ve = partEnd;
+                while (ve > vs && (body.charAt(ve - 1) == '\n' || body.charAt(ve - 1) == '\r')) ve--;
+                if (!name.isEmpty() && ve >= vs) {
+                    out.add(new Param(name, body.substring(vs, ve), Param.Type.MULTIPART, base + vs, base + vs, base + vs, base + ve));
+                }
+            }
+            if (next < 0) break;
+            i = next;
+        }
+    }
+
+    private static final Pattern MULTIPART_NAME = Pattern.compile("name=\"([^\"]*)\"");
+
+    private static String multipartName(String headers) {
+        for (String line : headers.split("\r\n|\n")) {
+            if (line.toLowerCase(Locale.ROOT).startsWith("content-disposition:")) {
+                Matcher m = MULTIPART_NAME.matcher(line);
+                if (m.find()) return m.group(1);
+            }
+        }
+        return "";
     }
 
     private void parsePairs(String s, int base, Param.Type type, List<Param> out, char sep) {

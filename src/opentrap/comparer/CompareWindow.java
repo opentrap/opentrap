@@ -14,9 +14,10 @@ import java.util.List;
 /** Two panes side by side with the differences between them coloured in. */
 final class CompareWindow extends JFrame {
 
-    private static final Color DELETED  = new Color(0xAA, 0xEE, 0xEC);
-    private static final Color ADDED    = new Color(0xF0, 0xE8, 0xD7);
-    private static final Color MODIFIED = new Color(0xF2, 0xA5, 0xE0);
+    // Burp's comparer key: modified = blue, deleted = red, added = green.
+    private static final Color DELETED  = new Color(0xF7, 0xC9, 0xC9);
+    private static final Color ADDED    = new Color(0xCB, 0xE8, 0xCB);
+    private static final Color MODIFIED = new Color(0xC7, 0xDC, 0xF5);
 
     CompareWindow(ComparerTool.Item one, ComparerTool.Item two, boolean words, Frame owner) {
         List<Diff.Block> blocks = Diff.compare(one.data(), two.data(), words);

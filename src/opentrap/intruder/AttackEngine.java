@@ -30,14 +30,18 @@ public class AttackEngine {
     private final List<String> grep;
     private final int threads;
     private final boolean followRedirects;
+    private final long throttleMs;
+    private final HttpMode mode;
     private final ResultsWindow window;
 
     private volatile ExecutorService pool;
     private volatile boolean stopped;
+    private volatile boolean paused;
 
     public AttackEngine(SuiteContext ctx, HttpService svc, String markedText, AttackType type,
                         int positions, List<List<String>> payloadsPerSet, List<String> grep,
-                        int threads, boolean followRedirects, ResultsWindow window) {
+                        int threads, boolean followRedirects, long throttleMs, HttpMode mode,
+                        ResultsWindow window) {
         this.ctx = ctx;
         this.svc = svc;
         this.markedText = markedText;
@@ -47,8 +51,14 @@ public class AttackEngine {
         this.grep = grep;
         this.threads = Math.max(1, threads);
         this.followRedirects = followRedirects;
+        this.throttleMs = Math.max(0, throttleMs);
+        this.mode = mode == null ? HttpMode.HTTP_1 : mode;
         this.window = window;
     }
+
+    /** Pause or resume the attack; running threads wait between requests while paused. */
+    public void setPaused(boolean p) { this.paused = p; }
+    public boolean isPaused() { return paused; }
 
     /** One request: the per-position payloads (null = keep base) and a label. */
     private record Combo(String[] values, String label) {}
@@ -88,6 +98,13 @@ public class AttackEngine {
     private void finish() { window.finished(); }
 
     private void runOne(int number, Combo combo) {
+        // Honour pause (and throttle) before issuing the request.
+        while (paused && !stopped && !Thread.currentThread().isInterrupted()) {
+            try { Thread.sleep(100); } catch (InterruptedException e) { return; }
+        }
+        if (stopped) return;
+        if (throttleMs > 0) { try { Thread.sleep(throttleMs); } catch (InterruptedException e) { return; } }
+
         String substituted = substitute(markedText, combo.values());
         HttpMessage req = new HttpMessage(Bytes.bytes(substituted));
         req.updateContentLength();
@@ -96,6 +113,9 @@ public class AttackEngine {
         opt.updateContentLength = false;   // already applied above
         opt.unpackGzip = true;
         opt.followRedirects = followRedirects;
+        opt.session = ctx.sessions();
+        opt.sessionTool = "intruder";
+        opt.mode = mode;
 
         long t0 = System.currentTimeMillis();
         HttpClient.Result r = new HttpClient().send(svc, req, opt);

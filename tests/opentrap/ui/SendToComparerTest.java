@@ -45,7 +45,7 @@ public final class SendToComparerTest {
     }
 
     public void run() {
-        Harness.suite("send to comparer");
+        Harness.suite("Send to comparer");
 
         Harness.test("a sink is a pair sink unless it says otherwise", () -> {
             SuiteContext ctx = new SuiteContext();
@@ -63,7 +63,7 @@ public final class SendToComparerTest {
             // the related request is what the old code smuggled in alongside it
             editor.setMessage(service(), message(RESPONSE_TEXT), message(REQUEST_TEXT));
 
-            fire(editor, "send to comparer");
+            fire(editor, "Send to comparer");
 
             Expect.equal(comparer.calls, 1, "sends from one click");
             Expect.isNull(comparer.requests.get(0), "request handed to the comparer");
@@ -77,7 +77,7 @@ public final class SendToComparerTest {
             MessageEditor editor = new MessageEditor(ctx, MessageEditor.REQUEST, true);
             editor.setMessage(service(), message(REQUEST_TEXT));
 
-            fire(editor, "send to comparer");
+            fire(editor, "Send to comparer");
 
             Expect.equal(comparer.calls, 1, "sends from one click");
             Expect.isNull(comparer.responses.get(0), "response handed to the comparer");
@@ -97,12 +97,12 @@ public final class SendToComparerTest {
                     new MessageEditor(ctx, MessageEditor.REQUEST | MessageEditor.RESPONSE, true);
             editor.setMessage(service(), message(RESPONSE_TEXT), message(REQUEST_TEXT));
 
-            fire(editor, "send to comparer");
+            fire(editor, "Send to comparer");
             Expect.equal(comparer.calls, 1, "sends to the comparer");
             Expect.isNull(comparer.requests.get(0), "request handed to the comparer");
             Expect.equal(text(comparer.responses.get(0)), RESPONSE_TEXT, "the response sent");
 
-            fire(editor, "send to repeater");
+            fire(editor, "Send to repeater");
             Expect.equal(text(repeater.requests.get(0)), REQUEST_TEXT,
                     "the request the repeater receives");
             Expect.equal(text(repeater.responses.get(0)), RESPONSE_TEXT,
@@ -116,7 +116,7 @@ public final class SendToComparerTest {
             MessageEditor editor = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
             editor.setMessage(service(), message(RESPONSE_TEXT), message(REQUEST_TEXT));
 
-            fire(editor, "send to repeater");
+            fire(editor, "Send to repeater");
 
             Expect.equal(text(repeater.requests.get(0)), REQUEST_TEXT, "the request sent");
             Expect.equal(text(repeater.responses.get(0)), RESPONSE_TEXT, "the response sent");
@@ -127,7 +127,7 @@ public final class SendToComparerTest {
             SuiteContext ctx = context(comparer);
             MessageEditor editor = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
 
-            Expect.isNull(find(editor.buildMenu(), "send to comparer"),
+            Expect.isNull(find(editor.buildMenu(), "Send to comparer"),
                     "a send entry on an empty view");
         });
     }

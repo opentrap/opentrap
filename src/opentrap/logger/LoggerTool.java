@@ -56,8 +56,11 @@ public class LoggerTool implements ToolModule {
         left.add(search);
         bar.add(left, BorderLayout.WEST);
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+        JButton export = Ui.button("export", "export the filtered traffic as CSV or HAR");
+        export.addActionListener(e -> exportTraffic());
         JButton clear = Ui.button("clear logs");
         clear.addActionListener(e -> model.clear());
+        right.add(export);
         right.add(clear);
         bar.add(right, BorderLayout.EAST);
 
@@ -72,6 +75,21 @@ public class LoggerTool implements ToolModule {
         root.add(bar, BorderLayout.NORTH);
         root.add(split, BorderLayout.CENTER);
         return new Tab[]{ new Tab("logger", root) };
+    }
+
+    private void exportTraffic() {
+        List<LogEntry> entries = new ArrayList<>(model.shown);
+        if (entries.isEmpty()) {
+            JOptionPane.showMessageDialog(ctx.frame(), "There is no traffic to export.",
+                    "export", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        Object[] options = {"CSV", "HAR", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(ctx.frame(), "Export " + entries.size()
+                        + " logged requests as:", "export traffic", JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+        if (choice == 0) opentrap.report.Export.save(ctx.frame(), "opentrap-traffic.csv", opentrap.report.Export.trafficCsv(entries));
+        else if (choice == 1) opentrap.report.Export.save(ctx.frame(), "opentrap-traffic.har", opentrap.report.Export.trafficHar(entries));
     }
 
     private void showSelected() {

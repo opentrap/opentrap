@@ -68,7 +68,7 @@ public class PositionsPanel extends JPanel {
         clearMark.addActionListener(e -> clearMarkers());
         autoMark.addActionListener(e -> autoPlace());
         clear.addActionListener(e -> { area.setText(""); counts(); });
-        JPanel east = Ui.vbox(addMark, clearMark, autoMark, clear);
+        JPanel east = Ui.buttonColumn(addMark, clearMark, autoMark, clear);
 
         // Center-South: position count and length.
         JPanel south = new JPanel(new BorderLayout());
@@ -148,14 +148,14 @@ public class PositionsPanel extends JPanel {
         return sb.toString();
     }
 
-    /** Wrap each URL, body and cookie parameter value in markers. */
+    /** Wrap each parameter value (URL, body, cookie, JSON, XML, multipart) in markers. */
     private void autoPlace() {
         String text = stripMarkers(area.getText());
         HttpMessage m = new HttpMessage(Bytes.bytes(text));
         List<int[]> ranges = new ArrayList<>();
         for (Param p : m.parameters()) {
             Param.Type t = p.type();
-            if (t != Param.Type.URL && t != Param.Type.BODY && t != Param.Type.COOKIE) continue;
+            if (t == Param.Type.HEADER) continue;
             int vs = p.valueStart(), ve = p.valueEnd();
             if (vs >= 0 && ve >= vs && ve <= text.length()) ranges.add(new int[]{vs, ve});
         }

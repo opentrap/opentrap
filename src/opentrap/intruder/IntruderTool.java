@@ -36,7 +36,7 @@ public class IntruderTool implements ToolModule {
 
     @Override public String name() { return "intruder"; }
 
-    @Override public boolean alwaysTabbed() { return true; }
+    @Override public boolean alwaysTabbed() { return false; }
 
     @Override public void init(SuiteContext ctx) {
         ctx.registerSink("intruder", (svc, req, resp, cap) ->
@@ -48,12 +48,18 @@ public class IntruderTool implements ToolModule {
     }
 
     @Override public Tab[] tabs() {
-        return new Tab[]{
-                new Tab("target", target),
-                new Tab("positions", positions),
-                new Tab("payloads", payloads),
-                new Tab("options", options),
-        };
+        // Burp's single-view layout: positions/request on the left, the Payloads
+        // configuration (and Settings/Target) as panels on the right.
+        JTabbedPane right = new JTabbedPane();
+        right.setFont(Ui.PLAIN);
+        right.addTab("Payloads", payloads);
+        right.addTab("Settings", options);
+        right.addTab("Target", target);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, positions, right);
+        split.setDividerSize(5);
+        Ui.balance(split, 0.62);
+        return new Tab[]{ new Tab("intruder", split) };
     }
 
     @Override public JMenu[] menus() {
@@ -109,8 +115,9 @@ public class IntruderTool implements ToolModule {
         ResultsWindow window = new ResultsWindow(ctx, attackCounter.incrementAndGet(), grep);
         AttackEngine engine = new AttackEngine(ctx, svc, positions.markedText(),
                 positions.attackType(), positionCount, materialised, grep,
-                options.threads(), options.followRedirects(), window);
+                options.threads(), options.followRedirects(), options.throttleMs(), options.mode(), window);
         window.setOnClose(engine::stop);
+        window.setPauseControl(engine::setPaused);
         window.setVisible(true);
         engine.start();
     }

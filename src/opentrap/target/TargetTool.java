@@ -45,7 +45,11 @@ public class TargetTool implements ToolModule {
     }
 
     @Override public Tab[] tabs() {
-        return new Tab[]{ new Tab("site map", buildSiteMap()), new Tab("scope", buildScope()) };
+        return new Tab[]{
+                new Tab("Site map", buildSiteMap()),
+                new Tab("Scope", buildScope()),
+                new Tab("Issues", new IssueDefinitionsPanel()),
+        };
     }
 
     private JComponent buildSiteMap() {

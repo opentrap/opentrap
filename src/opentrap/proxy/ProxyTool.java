@@ -57,9 +57,11 @@ public class ProxyTool implements ToolModule {
         historyPanel = new HistoryPanel(ctx, server);
         OptionsPanel options = new OptionsPanel(ctx, server);
         return new Tab[]{
-            new Tab("intercept", interceptPanel),
+            new Tab("Intercept", interceptPanel),
             new Tab("HTTP history", historyPanel),
-            new Tab("options", options)
+            new Tab("WebSockets history", new opentrap.websocket.WebSocketsPanel(ctx)),
+            new Tab("Match and replace", new MatchReplacePanel(server)),
+            new Tab("Proxy settings", options)
         };
     }
 
@@ -271,8 +273,6 @@ public class ProxyTool implements ToolModule {
             interceptResp.addActionListener(e -> server.interceptResponses = interceptResp.isSelected());
             page.section("intercept", interceptReq, interceptResp);
 
-            page.addSection(new MatchReplacePanel(server));
-
             JCheckBox unhide = Ui.check("unhide hidden form fields", false);
             JCheckBox enable = Ui.check("enable disabled form fields", false);
             JCheckBox limits = Ui.check("remove input field length limits", false);
@@ -326,6 +326,9 @@ public class ProxyTool implements ToolModule {
             unpack.addActionListener(e -> server.unpackGzip = unpack.isSelected());
             logoos.addActionListener(e -> server.logOutOfScope = logoos.isSelected());
             page.section("misc", http10, unpack, logoos);
+
+            // Upstream proxy chaining lives in settings (Burp: Settings > Network).
+            page.addSection(new UpstreamProxyPanel(ctx));
 
             add(page, BorderLayout.CENTER);
         }

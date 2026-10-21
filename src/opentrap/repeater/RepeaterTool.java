@@ -76,11 +76,20 @@ public class RepeaterTool implements ToolModule {
         private final JTextField hostField;
         private final JTextField portField;
         private final JCheckBox sslBox;
+        private final JComboBox<HttpMode> modeCombo = Ui.combo(HttpMode.values());
         private final JLabel status = Ui.label("ready");
         private final JLabel lengthLabel = Ui.label("length: 0");
         private final JButton go = Ui.primaryButton("go", "send the request");
         private final JButton cancel = Ui.button("cancel");
+        private final JButton prev = Ui.button("<", "previous request/response in this tab");
+        private final JButton next = Ui.button(">", "next request/response in this tab");
+        private final JLabel histLabel = Ui.label("");
         private volatile Thread worker;
+
+        // Per-tab history of sends, with a browser-style position for back/forward.
+        private record Snapshot(HttpService svc, byte[] request, HttpMessage response, String status, int length) {}
+        private final java.util.List<Snapshot> history = new java.util.ArrayList<>();
+        private int historyPos = -1;
 
         RepeaterTab(HttpService svc, HttpMessage req) {
             super(new BorderLayout());
@@ -88,18 +97,35 @@ public class RepeaterTool implements ToolModule {
             respEditor = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
             reqEditor.setMessage(svc, req);
 
-            JPanel north = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+            // Burp's layout: send controls on the left, the target on the right.
             cancel.setEnabled(false);
             hostField = Ui.field(svc.host(), 16);
             portField = Ui.field(String.valueOf(svc.port()), 5);
-            sslBox = Ui.check("use SSL", svc.secure());
-            north.add(go);
-            north.add(cancel);
-            north.add(Ui.label("host"));
-            north.add(hostField);
-            north.add(Ui.label("port"));
-            north.add(portField);
-            north.add(sslBox);
+            sslBox = Ui.check("SSL", svc.secure());
+            prev.setEnabled(false);
+            next.setEnabled(false);
+            prev.addActionListener(e -> navigate(-1));
+            next.addActionListener(e -> navigate(1));
+            modeCombo.setToolTipText("HTTP/1 is raw and byte-exact; HTTP/2 and auto use the JDK transport");
+
+            JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+            left.add(go);
+            left.add(cancel);
+            left.add(prev);
+            left.add(next);
+            left.add(histLabel);
+
+            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
+            right.add(Ui.bold("Target:"));
+            right.add(hostField);
+            right.add(Ui.label("port"));
+            right.add(portField);
+            right.add(sslBox);
+            right.add(modeCombo);
+
+            JPanel north = new JPanel(new BorderLayout());
+            north.add(left, BorderLayout.WEST);
+            north.add(right, BorderLayout.EAST);
             add(north, BorderLayout.NORTH);
 
             JPanel reqPanel = new JPanel(new BorderLayout());
@@ -108,13 +134,13 @@ public class RepeaterTool implements ToolModule {
             JPanel respPanel = new JPanel(new BorderLayout());
             respPanel.add(bold(" response"), BorderLayout.NORTH);
             respPanel.add(respEditor, BorderLayout.CENTER);
-            JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, reqPanel, respPanel);
-            // Equal halves that stay equal as the window resizes.
+            // Request and response side by side, like Burp.
+            JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, reqPanel, respPanel);
             split.setResizeWeight(0.5);
             split.addComponentListener(new java.awt.event.ComponentAdapter() {
                 private boolean set = false;
                 @Override public void componentResized(java.awt.event.ComponentEvent e) {
-                    if (!set && split.getHeight() > 0) { set = true; split.setDividerLocation(0.5); }
+                    if (!set && split.getWidth() > 0) { set = true; split.setDividerLocation(0.5); }
                 }
             });
             split.setDividerSize(8);
@@ -162,6 +188,9 @@ public class RepeaterTool implements ToolModule {
                 opt.updateContentLength = updateContentLength;
                 opt.followRedirects = followRedirects;
                 opt.unpackGzip = true;
+                opt.session = ctx.sessions();
+                opt.sessionTool = "repeater";
+                opt.mode = (HttpMode) modeCombo.getSelectedItem();
                 long t0 = System.currentTimeMillis();
                 HttpClient.Result r = new HttpClient().send(svc, req, opt);
                 long ms = System.currentTimeMillis() - t0;
@@ -174,9 +203,11 @@ public class RepeaterTool implements ToolModule {
                     }
                     respEditor.setMessage(svc, r.response, req);
                     int redirs = r.redirectsFollowed;
-                    status.setText("done" + (redirs > 0 ? " (followed " + redirs + " redirect"
-                            + (redirs == 1 ? "" : "s") + ")" : "") + "  " + ms + " ms");
+                    String statusText = "done" + (redirs > 0 ? " (followed " + redirs + " redirect"
+                            + (redirs == 1 ? "" : "s") + ")" : "") + "  " + ms + " ms";
+                    status.setText(statusText);
                     lengthLabel.setText("length: " + r.response.length());
+                    pushHistory(new Snapshot(svc, req.raw().clone(), r.response, statusText, r.response.length()));
 
                     LogEntry entry = new LogEntry("repeater", svc, req);
                     entry.setResponse(r.response);
@@ -188,6 +219,39 @@ public class RepeaterTool implements ToolModule {
             }, "repeater-send");
             worker.setDaemon(true);
             worker.start();
+        }
+
+        /** Append a send to this tab's history, truncating any forward entries. */
+        private void pushHistory(Snapshot s) {
+            while (history.size() > historyPos + 1) history.remove(history.size() - 1);
+            history.add(s);
+            historyPos = history.size() - 1;
+            updateNav();
+        }
+
+        private void navigate(int delta) {
+            int target = historyPos + delta;
+            if (target < 0 || target >= history.size()) return;
+            historyPos = target;
+            Snapshot s = history.get(historyPos);
+            hostField.setText(s.svc().host());
+            portField.setText(String.valueOf(s.svc().port()));
+            sslBox.setSelected(s.svc().secure());
+            reqEditor.setMessage(s.svc(), new HttpMessage(s.request().clone()));
+            if (s.response() != null) {
+                respEditor.setMessage(s.svc(), s.response(), new HttpMessage(s.request().clone()));
+                lengthLabel.setText("length: " + s.length());
+            } else {
+                respEditor.setMessage(s.svc(), new HttpMessage(new byte[0]));
+            }
+            status.setText(s.status());
+            updateNav();
+        }
+
+        private void updateNav() {
+            prev.setEnabled(historyPos > 0);
+            next.setEnabled(historyPos >= 0 && historyPos < history.size() - 1);
+            histLabel.setText(history.isEmpty() ? "" : (historyPos + 1) + "/" + history.size());
         }
     }
 }

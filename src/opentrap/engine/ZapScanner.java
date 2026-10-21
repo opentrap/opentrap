@@ -110,7 +110,7 @@ public final class ZapScanner {
             String id = ZapApi.str(a, "id");
             if (id != null && !seen.add(id)) continue;
             Issue is = mapAlert(api, a);
-            if (is != null) ctx.addIssue(is);
+            if (is != null) { is.setSource("Scan " + task.number); ctx.addIssue(is); }
         }
         recount(task, host);
     }

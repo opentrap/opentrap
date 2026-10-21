@@ -24,6 +24,15 @@ public class HttpClient {
         public boolean followRedirects = false;
         public int maxRedirects = 5;
         public boolean keepAlive = false;
+        /** Optional session-handling hook; null disables session handling for this send. */
+        public SessionHook session;
+        /** Which tool is sending, so session rules scoped to a tool can match. */
+        public String sessionTool = "";
+        /** Protocol to use. HTTP/1.x is the raw byte-exact default. */
+        public HttpMode mode = HttpMode.HTTP_1;
+        /** Optional upstream override (e.g. the ZAP engine for live passive scanning);
+         *  falls back to a direct connection if it cannot be reached. */
+        public UpstreamProxy upstream;
     }
 
     public static class Result {
@@ -36,6 +45,12 @@ public class HttpClient {
         public HttpMessage finalRequest;
         public boolean ok() { return error.isEmpty() && response != null; }
     }
+
+    /** Resolves an optional upstream proxy per destination; null routes direct. */
+    public interface ProxyProvider { UpstreamProxy proxyFor(HttpService svc); }
+
+    private static volatile ProxyProvider proxyProvider;
+    public static void setProxyProvider(ProxyProvider p) { proxyProvider = p; }
 
     private static SSLSocketFactory permissiveFactory;
 
@@ -57,7 +72,117 @@ public class HttpClient {
         return permissiveFactory;
     }
 
+    /**
+     * Send, following redirects per the options, and additionally consult the
+     * session hook: cookies are applied before the send and learned from the
+     * response, and a rule may re-authenticate and ask for one resend.
+     */
+    /**
+     * Open a connected socket to a service, with the suite's trust-all TLS and
+     * SNI when secure. Used by the WebSocket relay, which needs a raw persistent
+     * socket rather than the request/response send cycle.
+     */
+    public static Socket openSocket(HttpService svc, int connectTimeoutMs, int readTimeoutMs) throws Exception {
+        return connect(svc, connectTimeoutMs, readTimeoutMs);
+    }
+
+    /**
+     * Connect to a service, routing through an upstream HTTP (CONNECT) or SOCKS
+     * proxy when one is configured for the destination, and layering TLS (with
+     * SNI) on top when the service is secure.
+     */
+    private static Socket connect(HttpService svc, int connectTimeoutMs, int readTimeoutMs) throws Exception {
+        return connect(svc, connectTimeoutMs, readTimeoutMs, null);
+    }
+
+    /**
+     * Connect, optionally through an override upstream (used for live passive
+     * scanning through the ZAP engine). If the override cannot be reached the
+     * connection falls back to direct, so the scan engine being down never breaks
+     * the user's traffic.
+     */
+    private static Socket connect(HttpService svc, int ct, int rt, UpstreamProxy override) throws Exception {
+        if (override != null) {
+            try { return connectVia(svc, ct, rt, override); }
+            catch (Exception e) { return connectVia(svc, ct, rt, null); } // fail-safe: go direct
+        }
+        return connectVia(svc, ct, rt, proxyProvider == null ? null : proxyProvider.proxyFor(svc));
+    }
+
+    private static Socket connectVia(HttpService svc, int connectTimeoutMs, int readTimeoutMs, UpstreamProxy up) throws Exception {
+        Socket base;
+        if (up == null) {
+            base = new Socket();
+            base.connect(new InetSocketAddress(svc.host(), svc.port()), connectTimeoutMs);
+        } else if (up.type == UpstreamProxy.Type.SOCKS) {
+            base = new Socket(new java.net.Proxy(java.net.Proxy.Type.SOCKS, new InetSocketAddress(up.host, up.port)));
+            base.connect(InetSocketAddress.createUnresolved(svc.host(), svc.port()), connectTimeoutMs);
+        } else {
+            base = new Socket();
+            base.connect(new InetSocketAddress(up.host, up.port), connectTimeoutMs);
+            httpConnectTunnel(base, svc, up);
+        }
+        base.setSoTimeout(readTimeoutMs);
+        if (!svc.secure()) return base;
+        SSLSocket s = (SSLSocket) sslFactory().createSocket(base, svc.host(), svc.port(), true);
+        try {
+            SSLParameters p = s.getSSLParameters();
+            p.setServerNames(java.util.List.of(new SNIHostName(svc.host())));
+            s.setSSLParameters(p);
+        } catch (Exception ignored) {}
+        s.startHandshake();
+        return s;
+    }
+
+    /** Establish an HTTP CONNECT tunnel through the upstream proxy to the target. */
+    private static void httpConnectTunnel(Socket s, HttpService target, UpstreamProxy up) throws IOException {
+        String hp = target.host() + ":" + target.port();
+        StringBuilder sb = new StringBuilder();
+        sb.append("CONNECT ").append(hp).append(" HTTP/1.1\r\nHost: ").append(hp).append("\r\n");
+        if (up.user != null && !up.user.isEmpty()) {
+            String cred = java.util.Base64.getEncoder().encodeToString(
+                    (up.user + ":" + up.pass).getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
+            sb.append("Proxy-Authorization: Basic ").append(cred).append("\r\n");
+        }
+        sb.append("\r\n");
+        s.getOutputStream().write(Bytes.bytes(sb.toString()));
+        s.getOutputStream().flush();
+        ByteArrayOutputStream head = new ByteArrayOutputStream();
+        int state = 0;
+        InputStream in = s.getInputStream();
+        while (state < 4) {
+            int b = in.read();
+            if (b < 0) break;
+            head.write(b);
+            if ((state == 0 || state == 2) && b == 13) state++;
+            else if ((state == 1 || state == 3) && b == 10) state++;
+            else state = 0;
+            if (head.size() > 64 * 1024) break;
+        }
+        HttpMessage resp = new HttpMessage(head.toByteArray());
+        if (resp.statusCode() / 100 != 2) {
+            throw new IOException("upstream proxy refused CONNECT: " + resp.startLine());
+        }
+    }
+
     public Result send(HttpService svc, HttpMessage request, Options opt) {
+        Result r = null;
+        for (int attempt = 0; attempt <= 1; attempt++) {
+            HttpMessage start = request.copy();
+            if (opt.session != null) {
+                try { opt.session.beforeSend(opt.sessionTool, svc, start); } catch (Exception ignored) {}
+            }
+            r = sendFollowingRedirects(svc, start, opt);
+            if (opt.session == null || !r.ok()) break;
+            boolean retry;
+            try { retry = opt.session.afterResponse(opt.sessionTool, r.finalService, r.finalRequest, r.response); }
+            catch (Exception e) { retry = false; }
+            if (!retry || attempt >= 1) break;
+        }
+        return r;
+    }
+
+    private Result sendFollowingRedirects(HttpService svc, HttpMessage request, Options opt) {
         Result r = new Result();
         HttpService cur = svc;
         HttpMessage req = request.copy();
@@ -109,24 +234,13 @@ public class HttpClient {
     }
 
     private Result sendOnce(HttpService svc, HttpMessage request, Options opt) {
+        if (opt.mode != null && opt.mode != HttpMode.HTTP_1) {
+            return Http2Client.send(svc, request, opt);
+        }
         Result r = new Result();
         Socket sock = null;
         try {
-            if (svc.secure()) {
-                SSLSocket s = (SSLSocket) sslFactory().createSocket();
-                s.connect(new InetSocketAddress(svc.host(), svc.port()), opt.connectTimeoutMs);
-                try {
-                    SSLParameters p = s.getSSLParameters();
-                    p.setServerNames(java.util.List.of(new SNIHostName(svc.host())));
-                    s.setSSLParameters(p);
-                } catch (Exception ignored) {}
-                s.startHandshake();
-                sock = s;
-            } else {
-                sock = new Socket();
-                sock.connect(new InetSocketAddress(svc.host(), svc.port()), opt.connectTimeoutMs);
-            }
-            sock.setSoTimeout(opt.readTimeoutMs);
+            sock = connect(svc, opt.connectTimeoutMs, opt.readTimeoutMs, opt.upstream);
             try { r.remoteIp = ((InetSocketAddress) sock.getRemoteSocketAddress()).getAddress().getHostAddress(); }
             catch (Exception ignored) {}
 

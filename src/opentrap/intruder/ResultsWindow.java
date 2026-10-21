@@ -33,6 +33,7 @@ public class ResultsWindow extends JFrame {
     private final MessageEditor respEditor;
     private final JLabel status = Ui.label("waiting");
     private final JProgressBar progress = new JProgressBar();
+    private java.util.function.Consumer<Boolean> pauseControl;
 
     public ResultsWindow(SuiteContext ctx, int attackNumber, List<String> grepExpressions) {
         super("intruder attack " + attackNumber);
@@ -99,11 +100,83 @@ public class ResultsWindow extends JFrame {
         south.add(progress, BorderLayout.CENTER);
 
         setLayout(new BorderLayout());
+        add(buildToolbar(), BorderLayout.NORTH);
         add(outer, BorderLayout.CENTER);
         add(south, BorderLayout.SOUTH);
         setSize(820, 560);
         setLocationRelativeTo(ctx.frame());
     }
+
+    private JComponent buildToolbar() {
+        JToggleButton pause = new JToggleButton("pause");
+        pause.setFont(Ui.PLAIN);
+        pause.setFocusable(false);
+        pause.addActionListener(e -> {
+            boolean p = pause.isSelected();
+            pause.setText(p ? "resume" : "pause");
+            if (pauseControl != null) pauseControl.accept(p);
+        });
+        JButton export = Ui.button("export CSV", "save the results table to a CSV file");
+        export.addActionListener(e -> exportCsv());
+
+        JTextField filter = Ui.field("", 18);
+        filter.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e)  { applyFilter(filter.getText()); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e)  { applyFilter(filter.getText()); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { applyFilter(filter.getText()); }
+        });
+
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 3));
+        bar.add(pause);
+        bar.add(export);
+        bar.add(new JSeparator(SwingConstants.VERTICAL));
+        bar.add(Ui.label("filter:"));
+        bar.add(filter);
+        return bar;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applyFilter(String text) {
+        javax.swing.RowSorter<?> rs = table.getRowSorter();
+        if (!(rs instanceof javax.swing.table.TableRowSorter)) return;
+        javax.swing.table.TableRowSorter<javax.swing.table.TableModel> sorter =
+                (javax.swing.table.TableRowSorter<javax.swing.table.TableModel>) rs;
+        if (text == null || text.isEmpty()) { sorter.setRowFilter(null); return; }
+        try { sorter.setRowFilter(javax.swing.RowFilter.regexFilter("(?i)" + java.util.regex.Pattern.quote(text))); }
+        catch (Exception ex) { sorter.setRowFilter(null); }
+    }
+
+    private void exportCsv() {
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle("export results to CSV");
+        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        try (java.io.PrintWriter w = new java.io.PrintWriter(fc.getSelectedFile(), java.nio.charset.StandardCharsets.UTF_8)) {
+            int cols = model.getColumnCount();
+            StringBuilder header = new StringBuilder();
+            for (int c = 0; c < cols; c++) { if (c > 0) header.append(','); header.append(csv(model.getColumnName(c))); }
+            w.println(header);
+            for (int r = 0; r < model.getRowCount(); r++) {
+                StringBuilder line = new StringBuilder();
+                for (int c = 0; c < cols; c++) {
+                    if (c > 0) line.append(',');
+                    Object v = model.getValueAt(r, c);
+                    line.append(csv(v == null ? "" : v.toString()));
+                }
+                w.println(line);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "export failed: " + ex.getMessage());
+        }
+    }
+
+    private static String csv(String s) {
+        if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
+            return '"' + s.replace("\"", "\"\"") + '"';
+        }
+        return s;
+    }
+
+    public void setPauseControl(java.util.function.Consumer<Boolean> c) { this.pauseControl = c; }
 
     private void confirmClose() {
         int choice = JOptionPane.showConfirmDialog(this,
