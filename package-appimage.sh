@@ -48,7 +48,7 @@ echo ">> jpackage: self-contained app image using that runtime"
 jpackage --type app-image --name OpenTRAP \
     --input build/otin --main-jar "$JARNAME" --main-class opentrap.ui.Main \
     --icon src/opentrap/ui/icons/opentrap_256.png \
-    --runtime-image build/runtime --java-options "-Xmx1024m" \
+    --runtime-image build/runtime --java-options "-XX:MaxRAMPercentage=50" \
     --dest build/appimage
 
 echo ">> assembling AppDir (with a scale-probing launcher)"

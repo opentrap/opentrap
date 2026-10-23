@@ -27,4 +27,7 @@ if [[ -n "$SCALE" ]]; then
     ARGS+=("-Dsun.java2d.uiScale=$SCALE" "-Dopentrap.scaled=$SCALE")
 fi
 
-exec java -Xmx1024m "${ARGS[@]}" -jar "$DIR/dist/opentrap.jar" "$@"
+# Size the max heap as a share of the machine's RAM rather than a fixed cap, so
+# the app scales with the host. 50% leaves room for the scan engine and the
+# testing browser, which run as their own processes outside this JVM.
+exec java -XX:MaxRAMPercentage=50 "${ARGS[@]}" -jar "$DIR/dist/opentrap.jar" "$@"
