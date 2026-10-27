@@ -7,8 +7,8 @@ import java.util.List;
  * A very small test runner.
  *
  * <p>OpenTRAP vendors only BouncyCastle and a Brotli decoder, and adding a
- * whole test framework to carry sixty module tests is not a trade worth making.
- * This gives the two things those tests actually need: a named case that is
+ * whole test framework to carry the suite is not a trade worth making.
+ * This gives the two things the tests actually need: a named case that is
  * isolated from its neighbours, and a report that names what failed.
  *
  * <p>Not thread-safe, and deliberately so. Tests run in order on one thread so
