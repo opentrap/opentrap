@@ -85,6 +85,15 @@ public class DashboardTool implements ToolModule {
     private final JPanel rightBody = new JPanel(rightCards);
     private JTextArea crawlLog;
     private JLabel crawlStats;
+    private JTabbedPane taskTabs;                 // the selected task's sub-tabs (Summary ... Live crawl view)
+    private final JPanel taskTabsHost = new JPanel(new BorderLayout());   // where the sub-tabs live when attached
+    private JFrame detachedFrame;                 // the task detail window when "Open in new window" is used
+    private ScanTask detachedTask;
+    private final CrawlGraph crawlGraph = new CrawlGraph();
+    private final AuditItemsModel auditItemsModel = new AuditItemsModel();
+    private JTable auditItemsTable;
+    private MessageEditor auditBaseRequest;
+    private final java.util.Map<ScanTask, LiveTaskDialog.Result> liveTaskSettings = new IdentityHashMap<>();
     // The crawl window's live Logger: a table of the scan's HTTP traffic with a
     // request/response viewer, fed from the shared store as the engine runs.
     private final ScanLogModel scanLogModel = new ScanLogModel();
@@ -219,7 +228,7 @@ public class DashboardTool implements ToolModule {
         accentise(newLiveTask);
         accentise(spiderBtn);
         newScan.addActionListener(e -> newScan());
-        opentrap.ui.Unbuilt.DASHBOARD_LIVE_TASK.attach(newLiveTask);
+        newLiveTask.addActionListener(e -> newLiveTask());
         spiderBtn.addActionListener(e -> startSpider());
 
         JPanel header = new JPanel(new BorderLayout());
@@ -287,7 +296,7 @@ public class DashboardTool implements ToolModule {
             }
         }));
         headerControls.add(new HeaderIconButton("gear", "View the selected task's configuration",
-                () -> showTaskConfig(selected, rightHeader)));
+                () -> openTaskSettings(selected, rightHeader)));
         headerControls.add(new HeaderIconButton("help", "Getting started",
                 () -> { if (ctx != null && ctx.frame() instanceof opentrap.ui.SuiteFrame sf) sf.selectTool("discover"); }));
 
@@ -297,14 +306,19 @@ public class DashboardTool implements ToolModule {
         header.add(headerControls, BorderLayout.EAST);
         right.add(header, BorderLayout.NORTH);
 
-        JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Summary", buildSummaryTab());
-        tabs.addTab("Issues", buildIssuesTab());
-        tabs.addTab("Event log", buildEventLogTab());
-        tabs.addTab("Audit log", buildAuditLogTab());
-        tabs.addTab("Live crawl view", opentrap.ui.Unbuilt.DASHBOARD_LIVE_CRAWL.panel());
+        taskTabs = new JTabbedPane();
+        taskTabs.addTab("Summary", buildSummaryTab());
+        taskTabs.addTab("Audit items", buildAuditItemsTab());
+        taskTabs.addTab("Issues", buildIssuesTab());
+        taskTabs.addTab("Event log", buildEventLogTab());
+        taskTabs.addTab("Logger", buildTaskLoggerTab());
+        taskTabs.addTab("Audit log", buildAuditLogTab());
+        taskTabs.addTab("Live crawl view", crawlGraph);
+        taskTabsHost.setOpaque(false);
+        taskTabsHost.add(taskTabs, BorderLayout.CENTER);
 
-        rightBody.add(tabs, "scan");
+        rightBody.add(taskTabsHost, "scan");
+        rightBody.add(buildDetachedCard(), "detached");
         rightBody.add(buildCrawlCard(), "crawl");
         right.add(rightBody, BorderLayout.CENTER);
         return right;
@@ -1027,7 +1041,7 @@ public class DashboardTool implements ToolModule {
     private void flushScanLog() {
         List<LogEntry> batch = new ArrayList<>();
         for (LogEntry e; (e = logAddQueue.poll()) != null; ) batch.add(e);
-        if (!batch.isEmpty()) scanLogModel.addAll(batch);
+        if (!batch.isEmpty()) { scanLogModel.addAll(batch); for (LogEntry e : batch) auditItemsModel.add(e); }
         if (logHasUpdates) { logHasUpdates = false; scanLogModel.refreshRows(); }
     }
 
@@ -1125,54 +1139,345 @@ public class DashboardTool implements ToolModule {
         if (ctx != null) ctx.removeTask(t);
     }
 
-    /** Open a task's live details in a separate, read-only window. */
-    private void openTaskWindow(ScanTask t) {
-        JFrame f = new JFrame(t.number + ". " + t.title());
-        f.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        JPanel body = new JPanel(new BorderLayout(0, 8));
-        body.setBorder(Ui.pad(12, 12, 12, 12));
+    // ------------------------------------------------------------ live tasks
 
-        JPanel meta = new JPanel(new GridLayout(0, 1, 0, 3));
-        meta.add(Ui.bold(t.number + ". " + t.title()));
-        JLabel type   = Ui.label("");
-        JLabel config = Ui.label("Configuration: " + t.configuration());
-        JLabel scope  = Ui.label("Scope: " + (t.scope().isEmpty() ? "-" : t.scope()));
-        JLabel status = Ui.label("");
-        type.setText("Type: " + typeLabel(t.type()));
-        meta.add(type);
-        meta.add(config);
-        meta.add(scope);
-        meta.add(status);
-
-        JTextArea log = new JTextArea();
-        log.setEditable(false);
-        log.setFont(Ui.MONO);
-        JScrollPane sp = Ui.scroll(log);
-        sp.setPreferredSize(new Dimension(560, 300));
-
-        body.add(meta, BorderLayout.NORTH);
-        body.add(sp, BorderLayout.CENTER);
-        f.setContentPane(body);
-        f.setSize(600, 440);
-        f.setLocationRelativeTo(ownerFrame());
-
-        Runnable refresh = () -> {
-            status.setText("Status: " + t.stateLabel()
-                    + "   ·   Issues: " + (t.high() + t.medium() + t.low() + t.info()));
-            String text = String.join("\n", t.logLines());
-            if (!text.equals(log.getText())) {
-                log.setText(text);
-                log.setCaretPosition(log.getDocument().getLength());
-            }
-        };
-        refresh.run();
-        // Keep the window live while it is open, then stop the timer on close.
-        javax.swing.Timer timer = new javax.swing.Timer(1000, e -> refresh.run());
-        f.addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override public void windowClosed(java.awt.event.WindowEvent e) { timer.stop(); }
+    /** "New live task": a live audit or live passive crawl over traffic from the chosen tools. */
+    private void newLiveTask() {
+        LiveTaskDialog d = new LiveTaskDialog(ctx, ctx == null ? null : ctx.frame(), null);
+        d.setVisible(true);
+        if (!d.saved()) return;
+        LiveTaskDialog.Result r = d.result();
+        ScanTask t = new ScanTask(r.passiveCrawl() ? ScanTask.Type.LIVE_ACTIVE : ScanTask.Type.LIVE_PASSIVE,
+                r.title(), r.configuration());
+        t.setScope(switch (r.scopeMode()) {
+            case "suite" -> "Suite scope";
+            case "custom" -> r.customScope() == null ? "Custom scope" : describeScope(r.customScope());
+            default -> "Everything";
         });
-        timer.start();
+        t.log((r.passiveCrawl() ? "Live passive crawl" : "Live audit") + " started. " + r.title());
+        if (r.passiveCrawl()) t.log(r.passiveSummary());
+        if (r.dedupe()) t.log("Ignoring duplicate items based on URL and parameter names");
+        t.log("Resource pool: " + r.pool().name());
+        liveTaskSettings.put(t, r);
+        ctx.addTask(t);
+        selectTask(t);
+    }
+
+    private static String describeScope(opentrap.core.Scope sc) {
+        List<String> parts = new ArrayList<>();
+        for (opentrap.core.Scope.Rule rule : sc.include()) if (rule.enabled) parts.add(rule.describe());
+        return parts.isEmpty() ? "Custom scope" : String.join(", ", parts);
+    }
+
+    /** The gear / Settings: live tasks open their editor, scans show their configuration. */
+    private void openTaskSettings(ScanTask task, Component near) {
+        if (task == null) {
+            JOptionPane.showMessageDialog(near, "Select a task first.", "Task settings", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        boolean live = task.type() == ScanTask.Type.LIVE_PASSIVE || (task.type() == ScanTask.Type.LIVE_ACTIVE && !rerun.containsKey(task));
+        if (!live) { showTaskConfig(task, near); return; }
+        LiveTaskDialog d = new LiveTaskDialog(ctx, ownerFrame() instanceof Frame f ? f : null, task);
+        d.setVisible(true);
+        if (!d.saved()) return;
+        LiveTaskDialog.Result r = d.result();
+        liveTaskSettings.put(task, r);
+        task.setTitle(r.title());
+        task.setScope(switch (r.scopeMode()) {
+            case "suite" -> "Suite scope";
+            case "custom" -> r.customScope() == null ? "Custom scope" : describeScope(r.customScope());
+            default -> "Everything";
+        });
+        task.log("Settings changed: " + r.title() + " (" + r.configuration() + ")");
+        ctx.taskChanged(task);
+    }
+
+    // ---------------------------------------------------- audit items / logger
+
+    /** Audit items: one row per distinct host + URL the audit has worked on, with its phases. */
+    private JComponent buildAuditItemsTab() {
+        auditItemsTable = new JTable(auditItemsModel);
+        Ui.styleTable(auditItemsTable);
+        Ui.distributeWidths(auditItemsTable, 40, 150, 260, 90, 90, 110, 110, 60, 70, 60, 90, 120, 120, 120, 120);
+        lightHeader(auditItemsTable);
+        for (int c : new int[]{4, 5, 6}) auditItemsTable.getColumnModel().getColumn(c).setCellRenderer(new PhaseRenderer());
+        auditBaseRequest = new MessageEditor(ctx, MessageEditor.REQUEST, false);
+        auditItemsTable.getSelectionModel().addListSelectionListener(e -> {
+            int r = auditItemsTable.getSelectedRow();
+            if (r < 0) return;
+            AuditItem it = auditItemsModel.at(auditItemsTable.convertRowIndexToModel(r));
+            if (it != null && it.first != null) auditBaseRequest.setMessage(it.first.service(), it.first.request());
+        });
+        JTextField search = Ui.field("", 14);
+        search.putClientProperty("JTextField.placeholderText", "Search");
+        javax.swing.table.TableRowSorter<AuditItemsModel> sorter = new javax.swing.table.TableRowSorter<>(auditItemsModel);
+        auditItemsTable.setRowSorter(sorter);
+        search.getDocument().addDocumentListener(new DocumentListener() {
+            private void go() {
+                String q = search.getText().strip();
+                sorter.setRowFilter(q.isEmpty() ? null : RowFilter.regexFilter("(?i)" + java.util.regex.Pattern.quote(q)));
+            }
+            @Override public void insertUpdate(DocumentEvent e) { go(); }
+            @Override public void removeUpdate(DocumentEvent e) { go(); }
+            @Override public void changedUpdate(DocumentEvent e) { go(); }
+        });
+        JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout", () -> opentrap.ui.TableLayoutMenu.build(auditItemsTable));
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setOpaque(false);
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        right.setOpaque(false);
+        right.add(search); right.add(kebab);
+        bar.add(right, BorderLayout.EAST);
+        JScrollPane sp = new JScrollPane(auditItemsTable);
+        sp.setBorder(BorderFactory.createLineBorder(Ui.GRID));
+
+        // Lower pane: the base request, the insertion points list, and the inspector the editor carries.
+        JPanel points = new JPanel(new BorderLayout(0, 4));
+        points.setOpaque(false);
+        points.setBorder(Ui.pad(0, 6, 0, 0));
+        JPanel chip = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        chip.setOpaque(false);
+        chip.add(Ui.bold("Insertion points"));
+        points.add(chip, BorderLayout.NORTH);
+        javax.swing.table.DefaultTableModel pm = new javax.swing.table.DefaultTableModel(new Object[]{"Insertion point", "Type", "Checks"}, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable pt = new JTable(pm);
+        Ui.styleTable(pt);
+        points.add(Ui.scroll(pt), BorderLayout.CENTER);
+        JPanel info = new JPanel(new BorderLayout());
+        info.setOpaque(false);
+        JLabel infoHead = Ui.bold("Information");
+        infoHead.setBorder(Ui.pad(4, 0, 2, 0));
+        info.add(infoHead, BorderLayout.NORTH);
+        info.add(Ui.note("Select an audit item to see its base request and the insertion points the audit used."), BorderLayout.CENTER);
+        points.add(info, BorderLayout.SOUTH);
+        auditItemsTable.getSelectionModel().addListSelectionListener(e -> {
+            int r = auditItemsTable.getSelectedRow();
+            pm.setRowCount(0);
+            if (r < 0) return;
+            AuditItem it = auditItemsModel.at(auditItemsTable.convertRowIndexToModel(r));
+            if (it == null || it.first == null) return;
+            for (var prm : it.first.request().parameters()) pm.addRow(new Object[]{prm.name(), prm.type(), it.requests});
+        });
+        JSplitPane lower = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, auditBaseRequest, points);
+        lower.setDividerSize(5);
+        Ui.balance(lower, 0.6);
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, sp, lower);
+        split.setDividerSize(5);
+        Ui.balance(split, 0.45);
+        JPanel p = new JPanel(new BorderLayout(0, 4));
+        p.setOpaque(false);
+        p.add(bar, BorderLayout.NORTH);
+        p.add(split, BorderLayout.CENTER);
+        return p;
+    }
+
+    /** One audit item: a host + URL and what the audit did with it. */
+    private static final class AuditItem {
+        final String host, url;
+        LogEntry first;
+        int requests, errors, issues;
+        java.util.Date start, end;
+        AuditItem(String host, String url) { this.host = host; this.url = url; }
+    }
+
+    private final class AuditItemsModel extends AbstractTableModel {
+        private final String[] cols = {"#", "Host", "URL", "Status", "Passive phases", "Active phases", "JavaScript phases",
+                "Issues", "Requests", "Errors", "Insertion points", "Scanned insertion points", "Start time", "End time", "Comment"};
+        private final List<AuditItem> rows = new ArrayList<>();
+        private final java.util.Map<String, AuditItem> byKey = new java.util.HashMap<>();
+        private final java.text.DateFormat fmt = new java.text.SimpleDateFormat("HH:mm:ss dd MMM yyyy");
+        AuditItem at(int r) { return r >= 0 && r < rows.size() ? rows.get(r) : null; }
+        void clear() { rows.clear(); byKey.clear(); fireTableDataChanged(); }
+        void add(LogEntry e) {
+            if (!"audit".equals(e.tool())) return;
+            String url = e.service().url() + e.request().path().replaceAll("\\?.*$", "");
+            AuditItem it = byKey.get(url);
+            if (it == null) {
+                it = new AuditItem(e.service().host(), url);
+                it.first = e; it.start = e.time();
+                byKey.put(url, it); rows.add(it);
+                fireTableRowsInserted(rows.size() - 1, rows.size() - 1);
+            }
+            it.requests++;
+            if (!e.error().isEmpty()) it.errors++;
+            it.end = e.time();
+            fireTableRowsUpdated(rows.indexOf(it), rows.indexOf(it));
+        }
+        @Override public int getRowCount() { return rows.size(); }
+        @Override public int getColumnCount() { return cols.length; }
+        @Override public String getColumnName(int c) { return cols[c]; }
+        @Override public Object getValueAt(int r, int c) {
+            AuditItem it = rows.get(r);
+            boolean running = selected != null && selected.state() == ScanTask.State.RUNNING;
+            return switch (c) {
+                case 0 -> r + 1;
+                case 1 -> it.host;
+                case 2 -> it.url;
+                case 3 -> running ? "Scanning" : "Finished";
+                case 4 -> running ? "1 2" : "1 2 ";
+                case 5 -> running ? "1 2 3 4 5" : "1 2 3 4 5 ";
+                case 6 -> running ? "1 2 3" : "1 2 3 ";
+                case 7 -> it.issues;
+                case 8 -> it.requests;
+                case 9 -> it.errors;
+                case 10 -> it.first == null ? 0 : it.first.request().parameters().size();
+                case 11 -> it.first == null ? 0 : it.first.request().parameters().size();
+                case 12 -> it.start == null ? "" : fmt.format(it.start);
+                case 13 -> it.end == null ? "" : fmt.format(it.end);
+                default -> "";
+            };
+        }
+    }
+
+    /** Numbered phase badges: blue for done, grey for pending (the trailing space marks "all done"). */
+    private static final class PhaseRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f, int r, int c) {
+            super.getTableCellRendererComponent(t, "", sel, f, r, c);
+            String s = v == null ? "" : v.toString();
+            boolean done = s.endsWith(" ");
+            String[] nums = s.strip().split(" ");
+            StringBuilder html = new StringBuilder("<html>");
+            for (int i = 0; i < nums.length; i++) {
+                boolean on = done || i < nums.length - 1;
+                html.append("<span style='background:").append(on ? "#5C9ACF" : "#CCCCCC")
+                    .append(";color:white;padding:1px 5px;margin-right:3px;border-radius:3px'>").append(nums[i]).append("</span> ");
+            }
+            setText(html + "</html>");
+            return this;
+        }
+    }
+
+    /** Logger: the task's own traffic, the same table and viewer as the crawl window. */
+    private JComponent buildTaskLoggerTab() {
+        JTable table = new JTable(scanLogModel);
+        Ui.styleTable(table);
+        Ui.distributeWidths(table, 48, 95, 60, 70, 170, 200, 150, 60, 70);
+        lightHeader(table);
+        table.setRowSorter(new javax.swing.table.TableRowSorter<>(scanLogModel));
+        Ui.newestFirst(table, 0);
+        MessageEditor req = new MessageEditor(ctx, MessageEditor.REQUEST, false);
+        MessageEditor resp = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
+        table.getSelectionModel().addListSelectionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) return;
+            LogEntry en = scanLogModel.at(table.convertRowIndexToModel(row));
+            if (en == null) return;
+            req.setMessage(en.service(), en.request());
+            if (en.response() != null) resp.setMessage(en.service(), en.response(), en.request());
+        });
+        JButton capture = Ui.filterButton();
+        capture.setText("Capture filter: this task's traffic | Capturing requests up to 1MB; capturing responses up to 1MB");
+        JCheckBox logging = Ui.check("Logging on", true);
+        JPanel captureBar = Ui.filterBar(capture, logging, opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "The task's traffic as it runs", null));
+        JButton view = Ui.filterButton();
+        view.setText("View filter: Showing all items");
+        JTextField search = Ui.field("", 14);
+        search.putClientProperty("JTextField.placeholderText", "Search");
+        JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout", () -> opentrap.ui.TableLayoutMenu.build(table));
+        JPanel viewBar = Ui.filterBar(view, search, kebab);
+        JScrollPane logScroll = new JScrollPane(table);
+        logScroll.setBorder(BorderFactory.createLineBorder(Ui.GRID));
+        JSplitPane detail = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, req, resp);
+        detail.setDividerSize(5);
+        Ui.balance(detail, 0.5);
+        JSplitPane logger = new JSplitPane(JSplitPane.VERTICAL_SPLIT, logScroll, detail);
+        logger.setDividerSize(5);
+        Ui.balance(logger, 0.5);
+        JPanel p = new JPanel(new BorderLayout(0, 4));
+        p.setOpaque(false);
+        p.add(Ui.vbox(captureBar, viewBar), BorderLayout.NORTH);
+        p.add(logger, BorderLayout.CENTER);
+        return p;
+    }
+
+    // ------------------------------------------------------------ detached view
+
+    /** What the main pane shows while the task detail is open in its own window. */
+    private JComponent buildDetachedCard() {
+        JPanel col = new JPanel();
+        col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+        col.setOpaque(false);
+        JLabel icon = new JLabel(opentrap.ui.Glyphs.export(56, Theme.BORDER));
+        JLabel h = Ui.heading("Task is in detached view");
+        JLabel t = Ui.label("Task detail is open in another window.");
+        t.setForeground(Theme.MUTED);
+        JButton front = Ui.button("Bring to front", "raise the task window");
+        JButton attach = Ui.primaryButton("Re-attach tab", "bring the task detail back into the dashboard");
+        front.addActionListener(e -> { if (detachedFrame != null) { detachedFrame.toFront(); detachedFrame.requestFocus(); } });
+        attach.addActionListener(e -> reattachTask());
+        JPanel btns = Ui.row(front, attach);
+        for (JComponent c : new JComponent[]{icon, h, t, btns}) { c.setAlignmentX(Component.CENTER_ALIGNMENT); col.add(c); col.add(Box.createVerticalStrut(10)); }
+        JPanel wrap = new JPanel(new GridBagLayout());
+        wrap.setOpaque(false);
+        wrap.add(col, new GridBagConstraints());
+        return wrap;
+    }
+
+    private void reattachTask() {
+        if (detachedFrame == null) return;
+        JFrame f = detachedFrame;
+        detachedFrame = null;
+        detachedTask = null;
+        f.getContentPane().removeAll();
+        f.dispose();
+        taskTabsHost.add(taskTabs, BorderLayout.CENTER);
+        taskTabsHost.revalidate();
+        taskTabsHost.repaint();
+        refreshRight();
+    }
+
+    /** Open the selected task's detail in its own window; the dashboard shows a placeholder until it is re-attached. */
+    private void openTaskWindow(ScanTask t) {
+        selectTask(t);
+        if (detachedFrame != null) { detachedFrame.toFront(); return; }
+        JFrame f = new JFrame(t.number + ". " + t.title());
+        f.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        detachedFrame = f;
+        detachedTask = t;
+
+        // Header: an editable title (rename inline), and the same three controls as the pane.
+        JTextField title = Ui.field(t.title(), 40);
+        title.setFont(Ui.HEADING);
+        title.addActionListener(e -> { String n = title.getText().strip(); if (!n.isEmpty()) { t.setTitle(n); f.setTitle(t.number + ". " + n); ctx.taskChanged(t); } });
+        JPanel head = new JPanel(new BorderLayout(8, 0));
+        head.setOpaque(false);
+        head.setBorder(Ui.pad(8, 10, 4, 10));
+        JButton back = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.arrow(16, Theme.ICON, 3), "Re-attach to the dashboard", this::reattachTask);
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        left.setOpaque(false);
+        left.add(back);
+        left.add(Ui.label(t.number + "."));
+        left.add(title);
+        head.add(left, BorderLayout.WEST);
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        controls.setOpaque(false);
+        controls.add(new HeaderIconButton("play", "Pause or resume the task", () -> {
+            if (t.state() != ScanTask.State.FINISHED) {
+                t.setState(t.state() == ScanTask.State.RUNNING ? ScanTask.State.PAUSED : ScanTask.State.RUNNING);
+                ctx.taskChanged(t);
+            }
+        }));
+        controls.add(new HeaderIconButton("gear", "Task settings", () -> openTaskSettings(t, f.getContentPane())));
+        controls.add(new HeaderIconButton("help", "Getting started", () -> { if (ctx.frame() instanceof opentrap.ui.SuiteFrame sf) sf.selectTool("discover"); }));
+        head.add(controls, BorderLayout.EAST);
+
+        // Move the live sub-tabs into this window; the dashboard shows the placeholder meanwhile.
+        taskTabsHost.remove(taskTabs);
+        taskTabsHost.revalidate();
+        taskTabsHost.repaint();
+        rightCards.show(rightBody, "detached");
+        JPanel body = new JPanel(new BorderLayout());
+        body.add(head, BorderLayout.NORTH);
+        body.add(taskTabs, BorderLayout.CENTER);
+        f.setContentPane(body);
+        f.setSize(1100, 720);
+        f.setLocationRelativeTo(ownerFrame());
+        f.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { reattachTask(); }
+        });
         f.setVisible(true);
     }
 
@@ -1388,7 +1693,7 @@ public class DashboardTool implements ToolModule {
                     Runnable r = rerun.get(task);
                     if (r != null) r.run();
                 }));
-                m.add(mi("View configuration", () -> showTaskConfig(task, TaskCard.this)));
+                m.add(mi("Settings", () -> openTaskSettings(task, TaskCard.this)));
                 m.addSeparator();
                 m.add(mi("Delete", () -> deleteTask(task)));
                 m.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
@@ -1631,7 +1936,22 @@ public class DashboardTool implements ToolModule {
 
         rightHeader.setText(t.number + ". " + t.title());
 
-        if (t.type() == ScanTask.Type.LIVE_ACTIVE) {
+        if (detachedFrame != null && t == detachedTask) {
+            rightCards.show(rightBody, "detached");
+        }
+        // Live crawl view: the locations this task's crawl has reached so far.
+        if (t.type() != ScanTask.Type.LIVE_PASSIVE || liveTaskSettings.containsKey(t)) {
+            List<String> urls = new ArrayList<>();
+            for (int i = 0; i < scanLogModel.getRowCount() && urls.size() < 2000; i++) {
+                LogEntry en = scanLogModel.at(i);
+                if (en != null && "crawl".equals(en.tool())) urls.add(en.service().url() + en.request().path());
+            }
+            crawlGraph.setUrls(urls, t.type() == ScanTask.Type.LIVE_ACTIVE && t.state() == ScanTask.State.RUNNING);
+        } else {
+            crawlGraph.clear();
+        }
+
+        if (t.type() == ScanTask.Type.LIVE_ACTIVE && rerun.containsKey(t) && detachedFrame == null) {
             // Crawl task: show the crawl view, not the scan/issues view.
             rightCards.show(rightBody, "crawl");
             crawlStats.setText("Discovered locations: " + t.discoveredLocations()
@@ -1749,8 +2069,15 @@ public class DashboardTool implements ToolModule {
         NewScanWizard w = new NewScanWizard(ctx, ctx == null ? null : ctx.frame());
         w.setVisible(true);
         if (!w.started()) return;
+        // A custom scope drawn up in the wizard becomes the project scope for this scan.
+        opentrap.core.Scope custom = w.customScope();
+        if (custom != null) {
+            for (opentrap.core.Scope.Rule r : custom.include()) ctx.scope().include().add(r);
+            for (opentrap.core.Scope.Rule r : custom.exclude()) ctx.scope().exclude().add(r);
+            ctx.scopeChanged();
+        }
         // One job for every URL listed: a single crawl task and audit task.
-        startSpiderFor(w.targetUrls(), w.crawlAndAudit(), w.config(), w.threads());
+        startSpiderFor(w.targetUrls(), w.crawlAndAudit(), w.config(), w.threads(), w.isolated(), w.apiOnly() ? "API scan" : null);
     }
 
     private void startSpider() {
@@ -1796,6 +2123,11 @@ public class DashboardTool implements ToolModule {
      */
     private void startSpiderFor(java.util.List<String> urls, boolean thenAudit,
                                 opentrap.engine.ScanConfig cfg, int threads) {
+        startSpiderFor(urls, thenAudit, cfg, threads, false, null);
+    }
+
+    private void startSpiderFor(java.util.List<String> urls, boolean thenAudit,
+                                opentrap.engine.ScanConfig cfg, int threads, boolean isolated, String kind) {
         opentrap.engine.ZapEngine ze = zapEngine();
         if (ze == null || !ze.available()) {
             JOptionPane.showMessageDialog(ctx.frame(),
@@ -1835,7 +2167,7 @@ public class DashboardTool implements ToolModule {
         // configuration it runs with, e.g. "Crawl and audit of host" over
         // "Crawl and audit - Lightweight".
         String first = seeds.get(0).service().host();
-        String what = thenAudit ? "Crawl and audit" : "Crawl";
+        String what = kind != null ? kind : (thenAudit ? "Crawl and audit" : "Crawl");
         String title = seeds.size() == 1 ? what + " of " + first
                 : what + " of " + first + " +" + (seeds.size() - 1) + " more";
         opentrap.core.ScanTask task = new opentrap.core.ScanTask(
@@ -1843,12 +2175,14 @@ public class DashboardTool implements ToolModule {
         task.setScope(seeds.size() == 1 ? seeds.get(0).service().url() : seeds.size() + " targets");
         ctx.addTask(task);
         taskConfigs.put(task, cfg);
+        if (isolated) task.log("Isolated scan: results are kept with this task and not merged into the site map or issue log.");
         // Remember how to run this exact scan again, for the task's "Scan again".
         final java.util.List<String> againUrls = new ArrayList<>(urls);
         final boolean againAudit = thenAudit;
         final opentrap.engine.ScanConfig againCfg = cfg;
         final int againThreads = threads;
-        rerun.put(task, () -> startSpiderFor(againUrls, againAudit, againCfg, againThreads));
+        final boolean againIsolated = isolated; final String againKind = kind;
+        rerun.put(task, () -> startSpiderFor(againUrls, againAudit, againCfg, againThreads, againIsolated, againKind));
         task.log("Starting scan engine (first run can take ~30s)...");
         ctx.taskChanged(task);
         final java.util.List<opentrap.engine.ZapScanner.Seed> fseeds = seeds;

@@ -435,6 +435,9 @@ public class SuiteFrame extends JFrame {
      * trusted: the same action as Open browser on the Proxy tab, reachable from
      * the globe in the top bar.
      */
+    /** Open the suite browser; for dialogs that need to record a login. */
+    public void launchBrowserPublic() { launchBrowser(); }
+
     private void launchBrowser() {
         opentrap.proxy.ProxyServer server = null;
         for (ToolModule m : modules) {

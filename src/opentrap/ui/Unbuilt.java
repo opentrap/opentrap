@@ -47,14 +47,6 @@ public final class Unbuilt {
     // ---- Registry of unbuilt features = the roadmap ------------------------
     // Declaration order is the order shown on the roadmap, grouped by tool.
 
-    // Dashboard
-    public static final Unbuilt DASHBOARD_LIVE_TASK  = of("OT-DASHBOARD-LIVE-TASK",  "Dashboard > New live task");
-    public static final Unbuilt DASHBOARD_LIVE_CRAWL = of("OT-DASHBOARD-LIVE-CRAWL", "Dashboard > Live crawl view");
-
-    // New scan wizard
-    public static final Unbuilt SCAN_TYPE_API        = of("OT-SCAN-TYPE-API",        "New scan > API-only scan");
-    public static final Unbuilt SCAN_LOGIN           = of("OT-SCAN-LOGIN",           "New scan > Application login");
-
     // Suite chrome (the browser and search in the top bar are real features)
     public static final Unbuilt CONSOLE              = of("OT-CONSOLE",              "Console");
 
