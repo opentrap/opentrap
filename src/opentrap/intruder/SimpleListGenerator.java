@@ -18,7 +18,7 @@ class SimpleListGenerator extends AbstractGenerator {
                 @Override public boolean isCellEditable(int r, int c) { return false; }
             };
     private final JTable table = new JTable(model);
-    private final JTextField entry = Ui.field("", 18);
+    private final JTextField entry = Ui.field("");
     private final JLabel countLabel = Ui.label("0 items");
     private final JPanel panel;
 

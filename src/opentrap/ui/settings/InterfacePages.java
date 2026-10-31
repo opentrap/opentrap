@@ -194,7 +194,7 @@ public final class InterfacePages {
             JButton remove = Ui.button("Remove"), clear = Ui.button("Clear");
             remove.addActionListener(e -> { int i = list.getSelectedIndex(); if (i >= 0) { m.remove(i); save.run(); } });
             clear.addActionListener(e -> { m.clear(); save.run(); });
-            JTextField entry = Ui.field("", 24);
+            JTextField entry = Ui.field("");
             entry.putClientProperty("JTextField.placeholderText", placeholder);
             JButton add = Ui.button("Add");
             add.addActionListener(e -> { if (!entry.getText().isBlank()) { m.addElement(entry.getText().strip()); entry.setText(""); save.run(); } });
@@ -210,7 +210,7 @@ public final class InterfacePages {
     public static SettingsPage hotkeys(SuiteContext ctx) {
         Settings s = ctx.settings();
         SettingsPage p = new SettingsPage();
-        JTextField search = Ui.field("", 24);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Search");
         HotkeyTable table = new HotkeyTable(s);
         search.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
@@ -451,7 +451,7 @@ public final class InterfacePages {
             model.fireTableDataChanged();
         }
         private void edit(Action a) {
-            JTextField f = Ui.field(s.get("hotkey." + a.name(), a.def()), 18);
+            JTextField f = Ui.field(s.get("hotkey." + a.name(), a.def()));
             f.setEditable(false);
             f.addKeyListener(new java.awt.event.KeyAdapter() {
                 @Override public void keyPressed(java.awt.event.KeyEvent e) {

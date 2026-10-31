@@ -145,7 +145,7 @@ public class MessageEditor extends JPanel {
     private final HexView hexView;
     private final JEditorPane renderPane = new JEditorPane();
 
-    private final JTextField searchField = Ui.field("", 18);
+    private final JTextField searchField = Ui.field("");
     private final JLabel matchLabel = Ui.label("0 highlights");
     private final JLabel selectionLabel = Ui.label("");
 
@@ -1052,7 +1052,7 @@ public class MessageEditor extends JPanel {
 
         private void addRow() {
             if (!editable) { JOptionPane.showMessageDialog(this, "This message is read-only. Send it to Repeater to edit it.", "Inspector", JOptionPane.INFORMATION_MESSAGE); return; }
-            JTextField name = Ui.field("", 18), value = Ui.field("", 24);
+            JTextField name = Ui.field(""), value = Ui.field("");
             JPanel f = Ui.form("Name:", name, "Value:", value);
             if (JOptionPane.showConfirmDialog(this, f, "Add", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION && !name.getText().isBlank()) {
                 String line = name.getText().strip() + ": " + value.getText();

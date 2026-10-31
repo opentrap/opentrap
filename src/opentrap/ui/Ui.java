@@ -240,8 +240,44 @@ public final class Ui {
         return Theme.primary(b);
     }
 
+    /**
+     * The width a text input takes when nothing stretches it. Inside a form a
+     * field fills the row instead, so this only decides how wide one looks on
+     * a loose row.
+     */
+    public static final int FIELD_COLUMNS = 24;
+
+    /** The width of an input that holds a number: a port, a count, a timeout. */
+    public static final int SHORT_COLUMNS = 6;
+
+    /**
+     * A text input of the standard width. In a form it stretches to the row,
+     * so every field in that form starts and ends at the same place.
+     *
+     * <p>The application used to pick a column count per call site, twenty
+     * different ones across a hundred-odd fields, which is why no two forms
+     * lined up. Prefer this and {@link #shortField}; reach for the explicit
+     * width only when a field genuinely has to be a particular size.
+     */
+    public static JTextField field(String text) { return field(text, FIELD_COLUMNS); }
+
+    /**
+     * A narrow input for a number. Marked so a form leaves it at its own
+     * width rather than stretching it across the row.
+     */
+    public static JTextField shortField(String text) {
+        return natural(field(text, SHORT_COLUMNS));
+    }
+
     public static JTextField field(String text, int columns) {
         JTextField f = new PlaceholderField(text, columns);
+        f.setFont(PLAIN);
+        return f;
+    }
+
+    /** A password input of the standard width, matching {@link #field}. */
+    public static JPasswordField passwordField(String text) {
+        JPasswordField f = new JPasswordField(text == null ? "" : text, FIELD_COLUMNS);
         f.setFont(PLAIN);
         return f;
     }
@@ -361,6 +397,19 @@ public final class Ui {
 
     public static Border pad(int t, int l, int b, int r) {
         return BorderFactory.createEmptyBorder(t, l, b, r);
+    }
+
+    /**
+     * A field with something on its right, as a "File: [___] [Select file ...]"
+     * row needs. The field stretches and the trailing component keeps its own
+     * width, so the row still ends where every other row in the form ends.
+     */
+    public static JPanel fieldWith(JComponent field, JComponent trailing) {
+        JPanel p = new JPanel(new BorderLayout(6, 0));
+        p.setOpaque(false);
+        p.add(field, BorderLayout.CENTER);
+        p.add(trailing, BorderLayout.EAST);
+        return p;
     }
 
     public static JPanel row(Component... parts) {
@@ -581,29 +630,6 @@ public final class Ui {
      * <p>Pass a field wrapped in {@link #natural} to keep it at its own width
      * on a row that would otherwise stretch it.
      */
-    public static JPanel leftForm(Object... labelThenComponent) {
-        JPanel p = new JPanel(new GridBagLayout());
-        p.setOpaque(false);
-        GridBagConstraints c = new GridBagConstraints();
-        for (int i = 0, row = 0; i + 1 < labelThenComponent.length; i += 2, row++) {
-            c.gridy = row;
-            c.gridx = 0; c.weightx = 0;
-            c.anchor = GridBagConstraints.LINE_START;
-            c.fill = GridBagConstraints.NONE;
-            c.insets = new Insets(3, 0, 3, 10);
-            Object l = labelThenComponent[i];
-            p.add(l instanceof Component lc ? lc : label(String.valueOf(l)), c);
-
-            Component field = (Component) labelThenComponent[i + 1];
-            boolean stretch = !(field instanceof JComponent jc
-                    && Boolean.TRUE.equals(jc.getClientProperty(NATURAL_WIDTH)));
-            c.gridx = 1; c.weightx = 1;
-            c.fill = stretch ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
-            c.insets = new Insets(3, 0, 3, 0);
-            p.add(field, c);
-        }
-        return p;
-    }
 
     private static final String NATURAL_WIDTH = "opentrap.naturalWidth";
 
@@ -657,40 +683,50 @@ public final class Ui {
         return p;
     }
 
+    /**
+     * The one label-and-field form in the suite: labels left-aligned in a
+     * shared first column, fields stretched across the rest of the row. Every
+     * field in a form therefore starts at the same place and ends at the same
+     * place.
+     *
+     * <p>Wrap a field in {@link #natural} to keep it at its own width, which
+     * is what a number input or a combo box usually wants. There used to be
+     * two helpers here, one right-aligned and one left, and screens that mixed
+     * them had fields starting at different places on the same page.
+     */
     public static JPanel form(Object... labelThenComponent) {
         JPanel p = new JPanel(new GridBagLayout());
         p.setOpaque(false);
         GridBagConstraints c = new GridBagConstraints();
-        int rows = 0;
-        for (int i = 0; i + 1 < labelThenComponent.length; i += 2, rows++) {
-            Object l = labelThenComponent[i];
-            c.gridy = rows;
-            c.insets = new Insets(3, 0, 3, 10);
+        for (int i = 0, row = 0; i + 1 < labelThenComponent.length; i += 2, row++) {
+            c.gridy = row;
             c.gridx = 0; c.weightx = 0;
-            c.fill = GridBagConstraints.NONE;
-            if (l instanceof Component lc) {
-                // A control standing in for the label (a radio button, say)
-                // keeps its own text left-aligned, as a row of options reads.
-                c.anchor = GridBagConstraints.LINE_START;
-                p.add(lc, c);
-            } else {
-                c.anchor = GridBagConstraints.LINE_END;
-                p.add(label(String.valueOf(l)), c);
-            }
-
-            // The field keeps its natural width and starts at the shared edge.
-            c.insets = new Insets(3, 0, 3, 0);
-            c.gridx = 1; c.weightx = 0;
             c.anchor = GridBagConstraints.LINE_START;
             c.fill = GridBagConstraints.NONE;
-            p.add((Component) labelThenComponent[i + 1], c);
+            c.insets = new Insets(3, 0, 3, 10);
+            Object l = labelThenComponent[i];
+            Component labelComponent = l instanceof Component lc ? lc : label(String.valueOf(l));
+
+            // A null value means the row owns the whole width: a radio button
+            // or a check box that the rows beneath it belong to. Its fields
+            // still share the one column, so nothing drifts out of line.
+            if (labelThenComponent[i + 1] == null) {
+                c.gridwidth = 2; c.weightx = 1;
+                c.fill = GridBagConstraints.HORIZONTAL;
+                p.add(labelComponent, c);
+                c.gridwidth = 1;
+                continue;
+            }
+            p.add(labelComponent, c);
+
+            Component fieldComponent = (Component) labelThenComponent[i + 1];
+            boolean stretch = !(fieldComponent instanceof JComponent jc
+                    && Boolean.TRUE.equals(jc.getClientProperty(NATURAL_WIDTH)));
+            c.gridx = 1; c.weightx = 1;
+            c.fill = stretch ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
+            c.insets = new Insets(3, 0, 3, 0);
+            p.add(fieldComponent, c);
         }
-        // Spare width goes to a trailing column, so the two columns stay packed
-        // to the left instead of drifting towards the centre of a wide panel.
-        c.gridx = 2; c.gridy = 0; c.gridheight = Math.max(1, rows);
-        c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(0, 0, 0, 0);
-        p.add(Box.createHorizontalGlue(), c);
         return p;
     }
 

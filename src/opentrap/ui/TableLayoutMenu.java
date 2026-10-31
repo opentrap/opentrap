@@ -88,7 +88,7 @@ public final class TableLayoutMenu {
 
     /** A custom column: a name and a script; shown as a column whose cells say what it would compute. */
     private static void addCustomColumn(JTable t) {
-        JTextField name = Ui.field("", 24);
+        JTextField name = Ui.field("");
         JTextArea script = new JTextArea("return requestResponse.response() == null ? \"\" : requestResponse.response().statusCode();", 6, 48);
         script.setFont(Ui.MONO);
         JPanel form = new JPanel(new java.awt.BorderLayout(0, 6));

@@ -20,8 +20,8 @@ public class OptionsPanel extends OptionsPage {
 
     private static final String[] DEFAULT_GREP = {"error", "exception", "sql", "warning", "fail"};
 
-    private final JTextField threads = Ui.field("5", 4);
-    private final JTextField throttle = Ui.field("0", 6);
+    private final JTextField threads = Ui.shortField("5");
+    private final JTextField throttle = Ui.shortField("0");
     private final JComboBox<HttpMode> mode = Ui.combo(HttpMode.values());
     private final JCheckBox followRedirects = Ui.check("follow redirects", false);
 
@@ -30,7 +30,7 @@ public class OptionsPanel extends OptionsPage {
                 @Override public boolean isCellEditable(int r, int c) { return false; }
             };
     private final JTable grepTable = new JTable(grepModel);
-    private final JTextField grepEntry = Ui.field("", 16);
+    private final JTextField grepEntry = Ui.field("");
 
     public OptionsPanel() {
         for (String g : DEFAULT_GREP) grepModel.addRow(new Object[]{g});

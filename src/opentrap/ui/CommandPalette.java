@@ -41,7 +41,7 @@ public final class CommandPalette {
             entries.add(new Entry(path, true, () -> SettingsDialog.open(owner, ctx, path), null));
 
         final JWindow w = new JWindow(owner);
-        JTextField search = Ui.field("", 40);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Type to search actions and settings");
         DefaultListModel<Entry> model = new DefaultListModel<>();
         JList<Entry> list = new JList<>(model);

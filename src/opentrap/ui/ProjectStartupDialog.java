@@ -22,9 +22,9 @@ public final class ProjectStartupDialog extends JDialog {
     private final JRadioButton temporary = new JRadioButton("Temporary project in memory", true);
     private final JRadioButton newOnDisk = new JRadioButton("New project on disk");
     private final JRadioButton openExisting = new JRadioButton("Open existing project");
-    private final JTextField newName = Ui.field("", 24);
-    private final JTextField newFile = Ui.field("", 24);
-    private final JTextField openFile = Ui.field("", 24);
+    private final JTextField newName = Ui.field("");
+    private final JTextField newFile = Ui.field("");
+    private final JTextField openFile = Ui.field("");
     private final JCheckBox trust = new JCheckBox("Trust this project file", true);
     private final JCheckBox pause = new JCheckBox("Pause automated tasks");
     private final List<RecentProjects.Entry> recents = RecentProjects.load();

@@ -19,10 +19,10 @@ public class DiscoveryWindow extends JFrame {
     private final SuiteContext ctx;
     private final ContentDiscovery engine;
 
-    private final JTextField target = Ui.field("http://", 36);
-    private final JTextField extensions = Ui.field("php,bak,txt,zip,old", 20);
-    private final JTextField threads = Ui.field("10", 4);
-    private final JTextField throttle = Ui.field("0", 6);
+    private final JTextField target = Ui.field("http://");
+    private final JTextField extensions = Ui.field("php,bak,txt,zip,old");
+    private final JTextField threads = Ui.shortField("10");
+    private final JTextField throttle = Ui.shortField("0");
     private final JTextArea words = new JTextArea(String.join("\n", Wordlist.DEFAULT));
     private final ResultModel results = new ResultModel();
     private final JProgressBar progress = new JProgressBar();

@@ -60,12 +60,12 @@ public class UpstreamProxyPanel extends JPanel {
     private boolean editRule(UpstreamProxy p) {
         JComboBox<UpstreamProxy.Type> type = Ui.combo(UpstreamProxy.Type.values());
         type.setSelectedItem(p.type);
-        JTextField host = Ui.field(p.host, 18);
-        JTextField port = Ui.field(String.valueOf(p.port), 6);
-        JTextField user = Ui.field(p.user, 14);
-        JPasswordField pass = new JPasswordField(p.pass, 14);
+        JTextField host = Ui.field(p.host);
+        JTextField port = Ui.shortField(String.valueOf(p.port));
+        JTextField user = Ui.field(p.user);
+        JPasswordField pass = Ui.passwordField(p.pass);
         pass.setFont(Ui.PLAIN);
-        JTextField pattern = Ui.field(p.hostPattern, 18);
+        JTextField pattern = Ui.field(p.hostPattern);
         JCheckBox enabled = Ui.check("enabled", p.enabled);
 
         JPanel form = Ui.form(

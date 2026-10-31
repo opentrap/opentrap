@@ -110,9 +110,9 @@ public final class KeyedTable extends JPanel {
         JTextField[] fields = new JTextField[cols.length];
         Object[] formParts = new Object[(cols.length - from) * 2];
         for (int c = from, i = 0; c < cols.length; c++, i += 2) {
-            fields[c] = Ui.field(editing == null || c >= editing.length ? "" : editing[c], 28);
+            fields[c] = Ui.field(editing == null || c >= editing.length ? "" : editing[c]);
             if (cols[c].toLowerCase().contains("password")) {
-                JPasswordField pf = new JPasswordField(fields[c].getText(), 28);
+                JPasswordField pf = Ui.passwordField(fields[c].getText());
                 pf.setFont(Ui.PLAIN);
                 fields[c] = pf;
             }

@@ -49,7 +49,7 @@ public class PayloadSet extends JPanel {
             if (onChange != null) onChange.run();
         });
 
-        this.typeRow = Ui.leftForm("Payload type:", typeCombo);
+        this.typeRow = Ui.form("Payload type:", typeCombo);
         JPanel top = this.typeRow;
         top.setAlignmentX(LEFT_ALIGNMENT);
         top.setMaximumSize(new Dimension(Integer.MAX_VALUE, top.getPreferredSize().height));
@@ -71,7 +71,7 @@ public class PayloadSet extends JPanel {
     void setSummary(javax.swing.JLabel payloadCount, javax.swing.JLabel requestCount) {
         int at = getComponentZOrder(typeRow);
         remove(typeRow);
-        typeRow = Ui.leftForm("Payload type:", typeCombo,
+        typeRow = Ui.form("Payload type:", typeCombo,
                 "Payload count:", Ui.natural(payloadCount),
                 "Request count:", Ui.natural(requestCount));
         typeRow.setAlignmentX(LEFT_ALIGNMENT);

@@ -14,11 +14,11 @@ import java.util.List;
 /** Date payloads stepped from one date to another and formatted to a pattern. */
 class DatesGenerator extends AbstractGenerator {
 
-    private final JTextField from = Ui.field("2020-01-01", 10);
-    private final JTextField to   = Ui.field("2020-12-31", 10);
-    private final JTextField step = Ui.field("1", 4);
+    private final JTextField from = Ui.field("2020-01-01");
+    private final JTextField to   = Ui.field("2020-12-31");
+    private final JTextField step = Ui.shortField("1");
     private final JComboBox<String> unit = Ui.combo(new String[]{"days", "weeks", "months", "years"});
-    private final JTextField pattern = Ui.field("yyyy-MM-dd", 12);
+    private final JTextField pattern = Ui.field("yyyy-MM-dd");
     private final JPanel panel;
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd");

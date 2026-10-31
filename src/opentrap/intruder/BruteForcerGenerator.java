@@ -11,9 +11,9 @@ import java.util.List;
 /** Every string over a character set, between a minimum and maximum length. */
 class BruteForcerGenerator extends AbstractGenerator {
 
-    private final JTextField charset = Ui.field("abcdefghijklmnopqrstuvwxyz0123456789", 30);
-    private final JTextField min = Ui.field("1", 3);
-    private final JTextField max = Ui.field("3", 3);
+    private final JTextField charset = Ui.field("abcdefghijklmnopqrstuvwxyz0123456789");
+    private final JTextField min = Ui.shortField("1");
+    private final JTextField max = Ui.shortField("3");
     private final JPanel panel;
 
     BruteForcerGenerator() {

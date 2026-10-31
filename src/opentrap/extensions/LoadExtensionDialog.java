@@ -27,7 +27,7 @@ public final class LoadExtensionDialog {
         ButtonGroup types = new ButtonGroup();
         types.add(java); types.add(python); types.add(ruby);
 
-        JTextField file = Ui.field("", 34);
+        JTextField file = Ui.field("");
         JButton pick = Ui.button("Select file ...");
         pick.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(file.getText().isBlank() ? System.getProperty("user.home") : file.getText());
@@ -39,7 +39,7 @@ public final class LoadExtensionDialog {
         JRadioButton toUi = Ui.radio("Show in UI", false);
         ButtonGroup outs = new ButtonGroup();
         outs.add(toConsole); outs.add(toFile); outs.add(toUi);
-        JTextField outFile = Ui.field("", 26);
+        JTextField outFile = Ui.field("");
         JButton pickOut = Ui.button("Select file ...");
         outFile.setEnabled(false); pickOut.setEnabled(false);
         toFile.addItemListener(e -> { outFile.setEnabled(toFile.isSelected()); pickOut.setEnabled(toFile.isSelected()); });

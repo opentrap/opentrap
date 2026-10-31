@@ -61,9 +61,9 @@ public class MatchReplacePanel extends JPanel {
         entry.setOpaque(false);
         entry.setAlignmentX(LEFT_ALIGNMENT);
         JComboBox<String> type = Ui.combo(MatchReplaceRule.TYPES);
-        JTextField match = Ui.field("", 14);
-        JTextField replace = Ui.field("", 14);
-        JTextField comment = Ui.field("", 10);
+        JTextField match = Ui.field("");
+        JTextField replace = Ui.field("");
+        JTextField comment = Ui.field("");
         type.setToolTipText("applies to request/response header/body");
         match.setToolTipText("regex to match (leave blank to insert new header)");
         replace.setToolTipText("replacement string (leave blank to remove matched header)");
@@ -144,9 +144,9 @@ public class MatchReplacePanel extends JPanel {
         entry.setOpaque(false);
         entry.setAlignmentX(LEFT_ALIGNMENT);
         JComboBox<String> dir = Ui.combo(MatchReplaceRule.WS_TYPES);
-        JTextField match = Ui.field("", 14);
-        JTextField replace = Ui.field("", 14);
-        JTextField comment = Ui.field("", 10);
+        JTextField match = Ui.field("");
+        JTextField replace = Ui.field("");
+        JTextField comment = Ui.field("");
         dir.setToolTipText("which direction the message must be travelling in");
         match.setToolTipText("regex to match in the message text");
         replace.setToolTipText("replacement string");

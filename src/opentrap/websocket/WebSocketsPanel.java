@@ -69,7 +69,7 @@ public class WebSocketsPanel extends JPanel implements WsInterceptor {
         clear.addActionListener(e -> { ctx.wsStore().clear(); model.clear(); });
 
         connCombo = Ui.combo(new WebSocketConnection[0]);
-        sendField = Ui.field("", 30);
+        sendField = Ui.field("");
         JButton send = Ui.primaryButton("send frame", "inject a text frame into the selected live connection");
         send.addActionListener(e -> replay());
         refreshConnections();

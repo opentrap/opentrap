@@ -57,7 +57,7 @@ public final class ScriptLibraryPanel extends JPanel {
     private final JTable table = new JTable(model);
     private final JPanel right = new JPanel(new BorderLayout());
     private final JTextArea editor = new JTextArea();
-    private final JTextField nameField = Ui.field("", 24);
+    private final JTextField nameField = Ui.field("");
     private final JComboBox<String> functionBox;
     private Script editing;
     private final JButton edit, duplicate, export, delete;
@@ -112,7 +112,7 @@ public final class ScriptLibraryPanel extends JPanel {
 
         JButton filter = Ui.filterButton();
         filter.setText("Filter settings: Showing all items");
-        JTextField search = Ui.field("", 14);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Search");
         JButton kebab = Glyphs.menuButton("More", () -> {
             JPopupMenu m = new JPopupMenu();

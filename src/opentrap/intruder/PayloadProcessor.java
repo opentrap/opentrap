@@ -76,7 +76,7 @@ public class PayloadProcessor extends JPanel {
     private final JTable table = new JTable(model);
 
     private final JCheckBox encodeOn = Ui.check("URL-encode these characters:", true);
-    private final JTextField urlChars = Ui.field(".\\=<>?+&*;:\"{}|^`#", 18);
+    private final JTextField urlChars = Ui.field(".\\=<>?+&*;:\"{}|^`#");
 
     public PayloadProcessor() {
         super();
@@ -120,7 +120,7 @@ public class PayloadProcessor extends JPanel {
         // on one line and the field keeps its own height.
         JPanel encoding = new JPanel(new BorderLayout());
         encoding.setOpaque(false);
-        encoding.add(Ui.leftForm(encodeOn, urlChars), BorderLayout.NORTH);
+        encoding.add(Ui.form(encodeOn, urlChars), BorderLayout.NORTH);
 
         add(Ui.section("Payload processing",
                 "You can define rules to perform various processing tasks on each payload "
@@ -275,8 +275,8 @@ public class PayloadProcessor extends JPanel {
     private static final class RuleDialog {
         static Rule show(Component parent, Rule existing) {
             JComboBox<Kind> kind = Ui.combo(Kind.values());
-            JTextField a = Ui.field("", 18);
-            JTextField b = Ui.field("", 18);
+            JTextField a = Ui.field("");
+            JTextField b = Ui.field("");
             JCheckBox all = Ui.check("Replace all", true);
             JComboBox<String> caseCombo = Ui.combo(CASE_OPTIONS);
             JComboBox<String> hashAlgo = Ui.combo(new String[]{"MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512"});
@@ -292,11 +292,11 @@ public class PayloadProcessor extends JPanel {
             JPanel fields = new JPanel(new CardLayout());
             fields.setOpaque(false);
             fields.add(new JPanel(), "none");
-            fields.add(Ui.leftForm("Case:", Ui.natural(caseCombo)), "case");
-            fields.add(Ui.leftForm("Match regex:", a, "Replace with:", b, "", all), "replace");
-            fields.add(Ui.leftForm("Text:", a), "text");
-            fields.add(Ui.leftForm("Regex:", a), "regex");
-            fields.add(Ui.leftForm("Algorithm:", Ui.natural(hashAlgo)), "hash");
+            fields.add(Ui.form("Case:", Ui.natural(caseCombo)), "case");
+            fields.add(Ui.form("Match regex:", a, "Replace with:", b, "", all), "replace");
+            fields.add(Ui.form("Text:", a), "text");
+            fields.add(Ui.form("Regex:", a), "regex");
+            fields.add(Ui.form("Algorithm:", Ui.natural(hashAlgo)), "hash");
 
             Runnable showCard = () -> {
                 Kind k = (Kind) kind.getSelectedItem();
@@ -315,7 +315,7 @@ public class PayloadProcessor extends JPanel {
 
             JPanel body = new JPanel(new BorderLayout(0, 8));
             body.setOpaque(false);
-            body.add(Ui.leftForm("Rule type:", Ui.natural(kind)), BorderLayout.NORTH);
+            body.add(Ui.form("Rule type:", Ui.natural(kind)), BorderLayout.NORTH);
             body.add(fields, BorderLayout.CENTER);
 
             int ok = JOptionPane.showConfirmDialog(parent, body,

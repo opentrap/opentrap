@@ -46,7 +46,7 @@ public final class CoreExtensionSettingsPanel extends OptionsPage {
     private static JPanel fileRow(Settings s, String key, String def) { return pathRow(s, key, def, false); }
 
     private static JPanel pathRow(Settings s, String key, String def, boolean folder) {
-        JTextField f = Ui.field(s.get(key, def), 40);
+        JTextField f = Ui.field(s.get(key, def));
         f.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             public void insertUpdate(javax.swing.event.DocumentEvent e) { s.set(key, f.getText()); }
             public void removeUpdate(javax.swing.event.DocumentEvent e) { s.set(key, f.getText()); }

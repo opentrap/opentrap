@@ -120,7 +120,7 @@ public class ResultsWindow extends JFrame {
         JButton export = Ui.button("export CSV", "save the results table to a CSV file");
         export.addActionListener(e -> exportCsv());
 
-        JTextField filter = Ui.field("", 18);
+        JTextField filter = Ui.field("");
         filter.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             public void insertUpdate(javax.swing.event.DocumentEvent e)  { applyFilter(filter.getText()); }
             public void removeUpdate(javax.swing.event.DocumentEvent e)  { applyFilter(filter.getText()); }

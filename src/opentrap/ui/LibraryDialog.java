@@ -61,7 +61,7 @@ public final class LibraryDialog {
         builtIn.setFont(Ui.PLAIN); custom.setFont(Ui.PLAIN);
         builtIn.setFocusable(false); custom.setFocusable(false);
         custom.setSelected(true);
-        JTextField search = Ui.field("", 18);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Search");
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         bar.setOpaque(false);

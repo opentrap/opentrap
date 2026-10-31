@@ -567,7 +567,7 @@ public final class ScanConfigPanel extends JPanel {
             JComboBox<String> param = Ui.combo(new String[]{"Any parameter", "URL parameter", "Body parameter", "Cookie", "HTTP header", "XML attribute", "JSON parameter"});
             JComboBox<String> item = Ui.combo(new String[]{"Name", "Value"});
             JComboBox<String> match = Ui.combo(new String[]{"Matches", "Matches regex"});
-            JTextField expr = Ui.field(editing == null ? "" : editing.expression(), 28);
+            JTextField expr = Ui.field(editing == null ? "" : editing.expression());
             if (editing != null) { param.setSelectedItem(editing.parameter()); item.setSelectedItem(editing.item()); match.setSelectedItem(editing.matchType()); }
             JPanel form = Ui.form("Parameter:", param, "Item:", item, "Match type:", match, "Expression:", expr);
             form.setBorder(Ui.pad(10, 10, 10, 10));
@@ -637,7 +637,7 @@ public final class ScanConfigPanel extends JPanel {
                 b.addActionListener(e -> { if (b.isSelected()) typeFilter.add(t); else typeFilter.remove(t); refilter(); });
                 chips.add(b);
             }
-            JTextField search = Ui.field("", 16);
+            JTextField search = Ui.field("");
             search.putClientProperty("JTextField.placeholderText", "Search");
             search.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
                 public void insertUpdate(javax.swing.event.DocumentEvent e) { query = search.getText(); refilter(); }

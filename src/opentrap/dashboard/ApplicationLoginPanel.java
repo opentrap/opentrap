@@ -147,9 +147,9 @@ public final class ApplicationLoginPanel extends JPanel {
             Window owner = parent == null ? null : SwingUtilities.getWindowAncestor(parent);
             JDialog d = new JDialog(owner, editing == null ? "New Login Credentials" : "Edit Login Credentials", Dialog.ModalityType.APPLICATION_MODAL);
             LoginStore.Credentials[] out = {null};
-            JTextField label = Ui.field(editing == null ? "" : editing.label, 30);
-            JTextField user = Ui.field(editing == null ? "" : editing.username, 30);
-            JPasswordField pass = new JPasswordField(editing == null ? "" : editing.password, 30);
+            JTextField label = Ui.field(editing == null ? "" : editing.label);
+            JTextField user = Ui.field(editing == null ? "" : editing.username);
+            JPasswordField pass = Ui.passwordField(editing == null ? "" : editing.password);
             pass.setFont(Ui.PLAIN);
             JToggleButton eye = new JToggleButton(Glyphs.search(14, Theme.MUTED));
             eye.setToolTipText("show or hide the password");
@@ -182,12 +182,12 @@ public final class ApplicationLoginPanel extends JPanel {
             Window owner = parent == null ? null : SwingUtilities.getWindowAncestor(parent);
             JDialog d = new JDialog(owner, editing == null ? "New Recorded Login" : "Edit Recorded Login", Dialog.ModalityType.APPLICATION_MODAL);
             LoginStore.RecordedLogin[] out = {null};
-            JTextField label = Ui.field(editing == null ? "" : editing.label, 40);
+            JTextField label = Ui.field(editing == null ? "" : editing.label);
             JTextArea script = new JTextArea(editing == null ? "" : editing.script, 12, 50);
             script.setFont(Ui.MONO);
             script.putClientProperty("JTextArea.placeholderText", "Paste Script");
-            JTextField statusUrl = Ui.field(editing == null ? "" : editing.statusUrl, 40);
-            JTextField confirm = Ui.field(editing == null ? "" : editing.confirmationText, 40);
+            JTextField statusUrl = Ui.field(editing == null ? "" : editing.statusUrl);
+            JTextField confirm = Ui.field(editing == null ? "" : editing.confirmationText);
 
             JButton asEvents = Ui.button("See as Events", "show each line as a step");
             JButton insertAbove = Ui.button("Insert above");

@@ -152,8 +152,8 @@ public class SequencerTool implements ToolModule {
 
         JPanel body = Ui.vbox(
             Ui.heading("Live capture"),
-            Ui.form("Number of threads:", threadsField == null ? (threadsField = Ui.field("5", 6)) : threadsField,
-                    "Throttle between requests (milliseconds):", throttleField == null ? (throttleField = Ui.field("0", 6)) : throttleField),
+            Ui.form("Number of threads:", threadsField == null ? (threadsField = Ui.shortField("5")) : threadsField,
+                    "Throttle between requests (milliseconds):", throttleField == null ? (throttleField = Ui.shortField("0")) : throttleField),
             Box.createVerticalStrut(15),
             Ui.heading("Character-level analysis"),
             optCount,
@@ -404,11 +404,11 @@ public class SequencerTool implements ToolModule {
         formCombo   = Ui.combo(new String[0]);
         cookieCombo.setEnabled(false);
         formCombo.setEnabled(false);
-        startDelim = Ui.field("", 14);
-        endDelim   = Ui.field("", 14);
+        startDelim = Ui.field("");
+        endDelim   = Ui.field("");
         startDelim.setToolTipText("the token starts after this expression");
         endDelim.setToolTipText("the token ends at this delimiter");
-        JTextField customSummary = Ui.field("", 24);
+        JTextField customSummary = Ui.field("");
         customSummary.setEditable(false);
         JButton configure = Ui.button("Configure", "set the expressions the token sits between");
         configure.addActionListener(e -> {
@@ -432,8 +432,8 @@ public class SequencerTool implements ToolModule {
     }
 
     private JComponent buildCaptureOptions() {
-        if (threadsField == null) threadsField  = Ui.field("5", 6);
-        if (throttleField == null) throttleField = Ui.field("0", 6);
+        if (threadsField == null) threadsField  = Ui.shortField("5");
+        if (throttleField == null) throttleField = Ui.shortField("0");
 
         JPanel body = Ui.form(
             "Number of threads:", threadsField,

@@ -31,7 +31,7 @@ final class InterceptRuleDialog {
         JComboBox<String> rel = Ui.combo(ProxyRule.relationshipsFor(r.matchItem, response));
         rel.setSelectedItem(r.relationship);
 
-        JTextField condition = Ui.field(r.condition == null ? "" : r.condition, 28);
+        JTextField condition = Ui.field(r.condition == null ? "" : r.condition);
         condition.setEnabled(ProxyRule.takesCondition(r.matchItem));
 
         // Changing what the rule looks at changes what it can be asked, and
@@ -43,7 +43,7 @@ final class InterceptRuleDialog {
             if (!condition.isEnabled()) condition.setText("");
         });
 
-        JPanel body = Ui.leftForm(
+        JPanel body = Ui.form(
                 "Boolean operator:", Ui.natural(op),
                 "Match type:", Ui.natural(item),
                 "Relationship:", Ui.natural(rel),

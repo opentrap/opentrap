@@ -32,7 +32,7 @@ public final class ApiDefinitionPanel extends JPanel {
     public record Endpoint(String method, String path, String summary) {}
     public record Auth(String type, String name, String value) {}
 
-    private final JTextField url = Ui.field("", 40);
+    private final JTextField url = Ui.field("");
     private final JLabel fileLabel = Ui.label("Drag and drop file");
     private final JLabel status = Ui.label("");
     private final List<Endpoint> endpoints = new ArrayList<>();
@@ -220,8 +220,8 @@ public final class ApiDefinitionPanel extends JPanel {
     static final class AddAuthDialog {
         static Auth show(Component parent, Auth current) {
             JComboBox<String> type = Ui.combo(new String[]{"None", "Basic", "Bearer", "API key header"});
-            JTextField name = Ui.field(current == null ? "" : current.name(), 24);
-            JPasswordField value = new JPasswordField(current == null ? "" : current.value(), 24);
+            JTextField name = Ui.field(current == null ? "" : current.name());
+            JPasswordField value = Ui.passwordField(current == null ? "" : current.value());
             value.setFont(Ui.PLAIN);
             JLabel nameLabel = Ui.label("Username:");
             JLabel valueLabel = Ui.label("Password:");

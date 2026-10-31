@@ -56,7 +56,7 @@ public final class SuitePages {
         SettingsPage p = new SettingsPage();
         String id = s.get("perf.debugId", "");
         if (id.isEmpty()) { id = java.util.UUID.randomUUID().toString(); s.set("perf.debugId", id); }
-        JTextField debugId = Ui.field(id, 30);
+        JTextField debugId = Ui.field(id);
         debugId.setEditable(false);
         JButton copy = Ui.button("Copy");
         copy.addActionListener(e -> Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(debugId.getText()), null));

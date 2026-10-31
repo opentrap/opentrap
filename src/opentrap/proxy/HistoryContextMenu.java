@@ -180,7 +180,7 @@ public class HistoryContextMenu {
     }
 
     private void newIssue(LogEntry e) {
-        JTextField title = Ui.field("", 30);
+        JTextField title = Ui.field("");
         JComboBox<Issue.Severity> sev = Ui.combo(Issue.Severity.values());
         JComboBox<Issue.Confidence> conf = Ui.combo(Issue.Confidence.values());
         JTextArea detail = new JTextArea(5, 30);

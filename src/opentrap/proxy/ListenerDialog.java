@@ -21,7 +21,7 @@ final class ListenerDialog {
         final ProxyListener l = existing == null ? new ProxyListener() : existing.copy();
 
         // ---- Binding -------------------------------------------------------
-        JTextField port = Ui.field(String.valueOf(l.port), 8);
+        JTextField port = Ui.shortField(String.valueOf(l.port));
         JRadioButton loopback = Ui.radio("Loopback only", l.bind == ProxyListener.Bind.LOOPBACK);
         JRadioButton all = Ui.radio("All interfaces", l.bind == ProxyListener.Bind.ALL);
         JRadioButton specific = Ui.radio("Specific address:", l.bind == ProxyListener.Bind.SPECIFIC);
@@ -35,20 +35,20 @@ final class ListenerDialog {
         }
 
         JPanel binding = tab("These settings control how OpenTRAP binds the proxy listener.",
-                Ui.leftForm("Bind to port:", Ui.natural(port),
+                Ui.form("Bind to port:", Ui.natural(port),
                         "Bind to address:", Ui.natural(loopback),
                         "", Ui.natural(all),
                         "", Ui.natural(Ui.row(specific, address))));
 
         // ---- Request handling ---------------------------------------------
-        JTextField redirectHost = Ui.field(l.redirectHost == null ? "" : l.redirectHost, 22);
-        JTextField redirectPort = Ui.field(l.redirectPort > 0 ? String.valueOf(l.redirectPort) : "", 8);
+        JTextField redirectHost = Ui.field(l.redirectHost == null ? "" : l.redirectHost);
+        JTextField redirectPort = Ui.shortField(l.redirectPort > 0 ? String.valueOf(l.redirectPort) : "");
         JCheckBox forceTls = Ui.check("Force use of TLS", l.forceTls);
         JCheckBox invisible = Ui.check("Support invisible proxying (enable only if needed)", l.invisible);
         JPanel handlingBody = new JPanel();
         handlingBody.setLayout(new BoxLayout(handlingBody, BoxLayout.Y_AXIS));
         handlingBody.setOpaque(false);
-        addLeft(handlingBody, Ui.leftForm("Redirect to host:", redirectHost,
+        addLeft(handlingBody, Ui.form("Redirect to host:", redirectHost,
                                           "Redirect to port:", Ui.natural(redirectPort)));
         addLeft(handlingBody, Box.createVerticalStrut(8));
         addLeft(handlingBody, forceTls);
@@ -69,9 +69,9 @@ final class ListenerDialog {
         JRadioButton custom = Ui.radio("Use a custom certificate (PKCS#12):", l.cert == ProxyListener.Cert.CUSTOM);
         ButtonGroup certGroup = new ButtonGroup();
         certGroup.add(selfSigned); certGroup.add(perHost); certGroup.add(named); certGroup.add(custom);
-        JTextField certHost = Ui.field(l.certHostname == null ? "" : l.certHostname, 28);
-        JTextField certFile = Ui.field(l.certFile == null ? "" : l.certFile, 24);
-        JPasswordField certPass = new JPasswordField(l.certPassword == null ? "" : l.certPassword, 20);
+        JTextField certHost = Ui.field(l.certHostname == null ? "" : l.certHostname);
+        JTextField certFile = Ui.field(l.certFile == null ? "" : l.certFile);
+        JPasswordField certPass = Ui.passwordField(l.certPassword == null ? "" : l.certPassword);
         certPass.setFont(Ui.PLAIN);
         JButton pick = Ui.button("Select file ...", "choose a PKCS#12 file");
         pick.addActionListener(e -> {
@@ -90,17 +90,17 @@ final class ListenerDialog {
             r.addActionListener(e -> certEnable.run());
         }
         certEnable.run();
-        JPanel certBody = new JPanel();
-        certBody.setLayout(new BoxLayout(certBody, BoxLayout.Y_AXIS));
-        certBody.setOpaque(false);
-        addLeft(certBody, selfSigned);
-        addLeft(certBody, perHost);
-        addLeft(certBody, named);
-        addLeft(certBody, indent(certHost));
-        addLeft(certBody, Box.createVerticalStrut(6));
-        addLeft(certBody, custom);
-        addLeft(certBody, indent(Ui.leftForm("File:", Ui.natural(Ui.row(certFile, pick)),
-                                             "Password:", Ui.natural(certPass))));
+        // One form for the whole tab: the radios own their rows outright and
+        // every field beneath them shares the one column, so all three start
+        // and end in the same place.
+        JPanel certBody = Ui.form(
+                selfSigned, null,
+                perHost, null,
+                named, null,
+                "Hostname:", certHost,
+                custom, null,
+                "File:", Ui.fieldWith(certFile, pick),
+                "Password:", certPass);
         JPanel certificate = tab("These settings control the server TLS certificate that is "
                 + "presented to TLS clients.", certBody);
 
@@ -110,7 +110,7 @@ final class ListenerDialog {
         JRadioButton pickProtocols = Ui.radio("Use custom protocols", customProtocols);
         ButtonGroup tlsGroup = new ButtonGroup();
         tlsGroup.add(defaultProtocols); tlsGroup.add(pickProtocols);
-        JTextField protocols = Ui.field(customProtocols ? l.tlsProtocols : "TLSv1.2, TLSv1.3", 28);
+        JTextField protocols = Ui.field(customProtocols ? l.tlsProtocols : "TLSv1.2, TLSv1.3");
         protocols.setEnabled(customProtocols);
         for (JRadioButton r : new JRadioButton[]{defaultProtocols, pickProtocols}) {
             r.addActionListener(e -> protocols.setEnabled(pickProtocols.isSelected()));
@@ -120,7 +120,7 @@ final class ListenerDialog {
         tlsBody.setOpaque(false);
         addLeft(tlsBody, defaultProtocols);
         addLeft(tlsBody, pickProtocols);
-        addLeft(tlsBody, indent(protocols));
+        addLeft(tlsBody, indent(Ui.form("Protocols:", protocols)));
         JPanel tlsTab = tab("These settings control the TLS protocols that this proxy listener will "
                 + "use when performing TLS negotiation with the browser. If you are experiencing "
                 + "problems with TLS negotiation, you can use these settings to request use of "

@@ -20,7 +20,7 @@ public final class ResourcePoolPanel extends OptionsPage {
     private final PoolModel model = new PoolModel();
     private final JTable table = new JTable(model);
 
-    private final JTextField name = Ui.field("", 24);
+    private final JTextField name = Ui.field("");
     private final JCheckBox limitConcurrent = Ui.check("Maximum concurrent requests:", true);
     private final JSpinner concurrent = spinner(10, 1, 100, 1);
     private final JCheckBox delayOn = Ui.check("Delay between requests:", false);
@@ -33,7 +33,7 @@ public final class ResourcePoolPanel extends OptionsPage {
     private final JCheckBox t429 = Ui.check("429", true);
     private final JCheckBox t503 = Ui.check("503", false);
     private final JCheckBox tOther = Ui.check("Other", false);
-    private final JTextField tOtherCodes = Ui.field("", 14);
+    private final JTextField tOtherCodes = Ui.field("");
 
     public ResourcePoolPanel() {
         ButtonGroup mode = new ButtonGroup();

@@ -13,8 +13,8 @@ public class SuiteOptionsPanel extends JPanel {
         super(new BorderLayout());
         OptionsPage page = new OptionsPage();
 
-        JTextField connect = Ui.field(String.valueOf(ctx.settings().getInt("timeout.connect", 15)), 6);
-        JTextField read    = Ui.field(String.valueOf(ctx.settings().getInt("timeout.read", 30)), 6);
+        JTextField connect = Ui.shortField(String.valueOf(ctx.settings().getInt("timeout.connect", 15)));
+        JTextField read    = Ui.shortField(String.valueOf(ctx.settings().getInt("timeout.read", 30)));
         connect.addActionListener(e -> ctx.settings().setInt("timeout.connect", parse(connect, 15)));
         read.addActionListener(e -> ctx.settings().setInt("timeout.read", parse(read, 30)));
         page.section("timeouts (seconds)",

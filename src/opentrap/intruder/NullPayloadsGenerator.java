@@ -16,7 +16,7 @@ class NullPayloadsGenerator extends AbstractGenerator {
 
     private final JRadioButton fixed      = Ui.radio("generate", true);
     private final JRadioButton indefinite = Ui.radio("continue indefinitely", false);
-    private final JTextField countField = Ui.field("100", 6);
+    private final JTextField countField = Ui.shortField("100");
     private final JPanel panel;
 
     NullPayloadsGenerator() {

@@ -1369,7 +1369,7 @@ public class DashboardTool implements ToolModule {
             AuditItem it = auditItemsModel.at(auditItemsTable.convertRowIndexToModel(r));
             if (it != null && it.first != null) auditBaseRequest.setMessage(it.first.service(), it.first.request());
         });
-        JTextField search = Ui.field("", 14);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Search");
         javax.swing.table.TableRowSorter<AuditItemsModel> sorter = new javax.swing.table.TableRowSorter<>(auditItemsModel);
         auditItemsTable.setRowSorter(sorter);
@@ -1534,7 +1534,7 @@ public class DashboardTool implements ToolModule {
         JPanel captureBar = Ui.filterBar(capture, logging, opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "The task's traffic as it runs", null));
         JButton view = Ui.filterButton();
         view.setText("View filter: Showing all items");
-        JTextField search = Ui.field("", 14);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Search");
         JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout", () -> opentrap.ui.TableLayoutMenu.build(table));
         JPanel viewBar = Ui.filterBar(view, search, kebab);
@@ -1599,7 +1599,7 @@ public class DashboardTool implements ToolModule {
         detachedTask = t;
 
         // Header: an editable title (rename inline), and the same three controls as the pane.
-        JTextField title = Ui.field(t.title(), 40);
+        JTextField title = Ui.field(t.title());
         title.setFont(Ui.HEADING);
         title.addActionListener(e -> { String n = title.getText().strip(); if (!n.isEmpty()) { t.setTitle(n); f.setTitle(t.number + ". " + n); ctx.taskChanged(t); } });
         JPanel head = new JPanel(new BorderLayout(8, 0));

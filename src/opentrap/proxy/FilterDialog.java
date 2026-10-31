@@ -69,14 +69,14 @@ public final class FilterDialog extends JDialog {
 
         extOnlyOn = Ui.check("Show only:", f.extShowOnlyOn);
         extHideOn = Ui.check("Hide:", f.extHideOn);
-        extOnly = Ui.field(f.extShowOnly, 16);
-        extHide = Ui.field(f.extHide, 16);
+        extOnly = Ui.field(f.extShowOnly);
+        extHide = Ui.field(f.extHide);
 
         notes = Ui.check("Show only items with notes", f.notesOnly);
         highlighted = Ui.check("Show only highlighted items", f.highlightedOnly);
         emptyFolders = Ui.check("Hide empty folders", f.hideEmptyFolders);
 
-        term = Ui.field(f.searchTerm, 22);
+        term = Ui.field(f.searchTerm);
         regex = Ui.check("Regex", f.searchRegex);
         caseSensitive = Ui.check("Case sensitive", f.searchCaseSensitive);
         negative = Ui.check("Negative search", f.searchNegative);

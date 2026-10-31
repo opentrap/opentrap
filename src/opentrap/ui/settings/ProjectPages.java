@@ -44,9 +44,9 @@ public final class ProjectPages {
         JRadioButton priv = Ui.radio("Use a private Collaborator server", "private".equals(mode));
         ButtonGroup g = new ButtonGroup();
         g.add(useDefault); g.add(none); g.add(priv);
-        JTextField server = Ui.field("private".equals(mode) ? s.get(Collaborator.SERVER_KEY, "") : "", 34);
-        JTextField polling = Ui.field(s.get("oast.polling", ""), 34);
-        JTextField token = Ui.field(s.get(Collaborator.TOKEN_KEY, ""), 34);
+        JTextField server = Ui.field("private".equals(mode) ? s.get(Collaborator.SERVER_KEY, "") : "");
+        JTextField polling = Ui.field(s.get("oast.polling", ""));
+        JTextField token = Ui.field(s.get(Collaborator.TOKEN_KEY, ""));
         JCheckBox unencrypted = SettingsPage.check(s, "oast.pollHttp", false, "Poll over unencrypted HTTP");
         Runnable apply = () -> {
             String m = none.isSelected() ? "none" : priv.isSelected() ? "private" : "default";
@@ -132,7 +132,7 @@ public final class ProjectPages {
         }
         private ResourcePool dialog(ResourcePool editing) {
             ResourcePool x = editing == null ? new ResourcePool("") : editing;
-            JTextField name = Ui.field(x.name(), 24);
+            JTextField name = Ui.field(x.name());
             JCheckBox limit = Ui.check("Maximum concurrent requests:", x.limitConcurrent());
             JSpinner conc = new JSpinner(new SpinnerNumberModel(x.concurrent(), 1, 100, 1));
             JCheckBox delayOn = Ui.check("Delay between requests:", x.delayOn());
@@ -144,7 +144,7 @@ public final class ProjectPages {
             JSpinner incMs = new JSpinner(new SpinnerNumberModel(x.incrementMs(), 0, 60000, 50));
             JCheckBox throttle = Ui.check("Automatic throttling", x.throttleOn());
             JCheckBox t429 = Ui.check("429", x.throttle429()), t503 = Ui.check("503", x.throttle503());
-            JTextField other = Ui.field(x.throttleOther(), 12);
+            JTextField other = Ui.field(x.throttleOther());
             JPanel form = Ui.vbox(Ui.row(Ui.label("Name:"), name), Ui.row(limit, conc), Ui.row(delayOn, delay, Ui.label("ms")),
                     OptionsPage.indent(Ui.vbox(fixed, random, Ui.row(inc, incMs, Ui.label("ms"))), 24),
                     throttle, OptionsPage.indent(Ui.row(t429, t503, Ui.label("Other:"), other), 24));

@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 public class SearchWindow extends JFrame {
 
     private final SuiteContext ctx;
-    private final JTextField term = Ui.field("", 24);
+    private final JTextField term = Ui.field("");
     private final JCheckBox caseSensitive = Ui.check("case sensitive", false);
     private final JCheckBox regex = Ui.check("regex", false);
     private final JCheckBox reqHeaders = Ui.check("request headers", true);

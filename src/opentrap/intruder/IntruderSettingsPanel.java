@@ -17,8 +17,8 @@ public class IntruderSettingsPanel extends OptionsPage {
     public static final String REDIRECTS_KEY = "intruder.followRedirects";
 
     public IntruderSettingsPanel(Settings settings) {
-        JTextField threads = Ui.field(String.valueOf(settings.getInt(THREADS_KEY, 5)), 4);
-        JTextField throttle = Ui.field(String.valueOf(settings.getInt(THROTTLE_KEY, 0)), 6);
+        JTextField threads = Ui.shortField(String.valueOf(settings.getInt(THREADS_KEY, 5)));
+        JTextField throttle = Ui.shortField(String.valueOf(settings.getInt(THROTTLE_KEY, 0)));
         JCheckBox redirects = Ui.check("follow redirects", settings.getBool(REDIRECTS_KEY, false));
 
         Runnable save = () -> {

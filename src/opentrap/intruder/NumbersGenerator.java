@@ -13,9 +13,9 @@ import java.util.Random;
 /** Numeric payloads, sequential or random, in decimal or hexadecimal. */
 class NumbersGenerator extends AbstractGenerator {
 
-    private final JTextField from = Ui.field("1", 6);
-    private final JTextField to   = Ui.field("100", 6);
-    private final JTextField step = Ui.field("1", 6);
+    private final JTextField from = Ui.shortField("1");
+    private final JTextField to   = Ui.shortField("100");
+    private final JTextField step = Ui.shortField("1");
     private final JRadioButton sequential = Ui.radio("sequential", true);
     private final JRadioButton random     = Ui.radio("random", false);
     private final JRadioButton decimal     = Ui.radio("decimal", true);

@@ -14,7 +14,7 @@ import java.awt.*;
  */
 public class TargetPanel extends JPanel {
 
-    private final JTextField url = Ui.field("", 34);
+    private final JTextField url = Ui.field("");
     private final JCheckBox updateHost = Ui.check("Update Host header to match target", true);
 
     public TargetPanel() {

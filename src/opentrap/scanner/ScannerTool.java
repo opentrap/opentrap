@@ -78,7 +78,7 @@ public class ScannerTool implements ToolModule {
         for (int col : new int[]{1, 2, 3}) table.getColumnModel().getColumn(col).setCellRenderer(dim);
         Ui.distributeWidths(table, 60, 60, 430, 110, 110);
 
-        filterField = Ui.field("", 24);
+        filterField = Ui.field("");
         filterField.getDocument().addDocumentListener(new SimpleDoc(this::applyFilter));
         summary = Ui.label("");
         status = Ui.label("");

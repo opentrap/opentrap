@@ -13,7 +13,7 @@ import java.util.List;
 /** Streams payloads from a file, one per line. */
 class RuntimeFileGenerator extends AbstractGenerator {
 
-    private final JTextField pathField = Ui.field("", 24);
+    private final JTextField pathField = Ui.field("");
     private final JLabel countLabel = Ui.label("no file selected");
     private final JPanel panel;
     private int lines = -1;

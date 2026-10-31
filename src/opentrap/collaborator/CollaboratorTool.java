@@ -136,11 +136,11 @@ public class CollaboratorTool implements ToolModule {
         JCheckBox auto = Ui.check("Polling automatically", false);
         auto.setToolTipText("register with the collaborator server and keep polling it");
 
-        payloadField = new JTextField("", 52);
+        payloadField = Ui.field("");
         payloadField.setEditable(false);
         payloadField.setFont(Ui.MONO);
 
-        final JTextField count = Ui.field("1", 4);
+        final JTextField count = Ui.shortField("1");
         count.setToolTipText("how many payloads Copy to clipboard generates");
         final JCheckBox includeLocation = Ui.check("Include Collaborator server location", true);
         includeLocation.setToolTipText("copy the full hostname rather than only the unique prefix");
@@ -411,7 +411,7 @@ public class CollaboratorTool implements ToolModule {
             + "knew about.");
         page.section("about", intro);
 
-        JTextField server = Ui.field(collab.serverUrl(), 34);
+        JTextField server = Ui.field(collab.serverUrl());
         JTextField tokenField = Ui.field(
                 ctx.settings().get(Collaborator.TOKEN_KEY, ""), 34);
         JButton apply = Ui.button("apply and restart",

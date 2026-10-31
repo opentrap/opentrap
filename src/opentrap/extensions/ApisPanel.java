@@ -78,7 +78,7 @@ public final class ApisPanel extends JPanel {
         });
         for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
 
-        JTextField search = Ui.field("", 14);
+        JTextField search = Ui.field("");
         JPanel bar = new JPanel(new BorderLayout(4, 0));
         bar.setOpaque(false);
         JPanel icons = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
@@ -121,7 +121,7 @@ public final class ApisPanel extends JPanel {
         fl.setOpaque(false);
         fl.add(Glyphs.button(Glyphs.help(), "Reference text for the selected type", null));
         fl.add(Glyphs.button(Glyphs.gear(), "Viewer settings", null));
-        JTextField find = Ui.field("", 24);
+        JTextField find = Ui.field("");
         find.putClientProperty("JTextField.placeholderText", "Search");
         find.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             private void go() {

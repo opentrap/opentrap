@@ -68,7 +68,7 @@ public class PayloadsPanel extends JPanel {
                 + "sets there are and how their payloads are combined."), BorderLayout.EAST);
         JPanel top = Ui.vbox(
                 heading,
-                Ui.leftForm("Payload position:", setCombo),
+                Ui.form("Payload position:", setCombo),
                 Box.createVerticalStrut(2));
 
         add(top, BorderLayout.NORTH);

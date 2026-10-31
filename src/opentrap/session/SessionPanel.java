@@ -87,14 +87,14 @@ public class SessionPanel extends JPanel {
     }
 
     private boolean editRule(SessionRule r) {
-        JTextField name = Ui.field(r.name, 18);
-        JTextField host = Ui.field(r.hostPattern, 18);
+        JTextField name = Ui.field(r.name);
+        JTextField host = Ui.field(r.hostPattern);
         JCheckBox jar = Ui.check("apply the cookie jar to matching requests", r.useCookieJar);
         JComboBox<String> macro = Ui.combo(macroNames());
         macro.setSelectedItem(r.macroName);
         JComboBox<SessionRule.Trigger> trig = Ui.combo(SessionRule.Trigger.values());
         trig.setSelectedItem(r.trigger);
-        JTextField trigVal = Ui.field(r.triggerValue, 18);
+        JTextField trigVal = Ui.field(r.triggerValue);
 
         JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         tools.setOpaque(false);
@@ -244,10 +244,10 @@ public class SessionPanel extends JPanel {
     }
 
     private boolean editExtraction(Extraction ex) {
-        JTextField name = Ui.field(ex.name, 16);
+        JTextField name = Ui.field(ex.name);
         JComboBox<Extraction.From> from = Ui.combo(Extraction.From.values());
         from.setSelectedItem(ex.from);
-        JTextField pattern = Ui.field(ex.pattern, 22);
+        JTextField pattern = Ui.field(ex.pattern);
         JPanel form = Ui.form("name", name, "source", from, "pattern / name / regex", pattern);
         int ok = JOptionPane.showConfirmDialog(ctx.frame(), form, "extraction",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
@@ -354,10 +354,10 @@ public class SessionPanel extends JPanel {
     }
 
     private boolean editCookie(Cookie c) {
-        JTextField name = Ui.field(c.name, 16);
-        JTextField value = Ui.field(c.value, 22);
-        JTextField domain = Ui.field(c.domain, 16);
-        JTextField path = Ui.field(c.path, 10);
+        JTextField name = Ui.field(c.name);
+        JTextField value = Ui.field(c.value);
+        JTextField domain = Ui.field(c.domain);
+        JTextField path = Ui.field(c.path);
         JCheckBox secure = Ui.check("secure (https only)", c.secure);
         JPanel form = Ui.form("name", name, "value", value, "domain", domain, "path", path, "secure", secure);
         int ok = JOptionPane.showConfirmDialog(ctx.frame(), form, "cookie",

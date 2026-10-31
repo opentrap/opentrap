@@ -22,9 +22,9 @@ public final class AddScopeUrlDialog {
         final Scope.Rule[] out = {null};
 
         JComboBox<String> protocol = Ui.combo(new String[]{"Any", "HTTP", "HTTPS"});
-        JTextField host = Ui.field(editing == null ? "" : editing.host, 36);
-        JTextField port = Ui.field(editing == null ? "" : editing.port, 36);
-        JTextField file = Ui.field(editing == null ? "" : editing.file, 36);
+        JTextField host = Ui.field(editing == null ? "" : editing.host);
+        JTextField port = Ui.field(editing == null ? "" : editing.port);
+        JTextField file = Ui.field(editing == null ? "" : editing.file);
         host.putClientProperty("JTextField.placeholderText", "Enter regex, IP range or leave blank");
         port.putClientProperty("JTextField.placeholderText", "Enter regex or leave blank");
         file.putClientProperty("JTextField.placeholderText", "Enter regex or leave blank");

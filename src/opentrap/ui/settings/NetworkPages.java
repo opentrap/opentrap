@@ -38,8 +38,8 @@ public final class NetworkPages {
         JLabel socksStatus = Ui.label(s.get("socks.host", "").isEmpty() ? "No proxy configured." : "SOCKS proxy: " + s.get("socks.host", "") + ":" + s.get("socks.port", "1080"));
         JButton configure = Ui.button("Configure", "set the SOCKS proxy host, port and credentials");
         configure.addActionListener(e -> {
-            JTextField host = Ui.field(s.get("socks.host", ""), 24), port = Ui.field(s.get("socks.port", "1080"), 6), user = Ui.field(s.get("socks.user", ""), 24);
-            JPasswordField pass = new JPasswordField(s.get("socks.password", ""), 24);
+            JTextField host = Ui.field(s.get("socks.host", "")), port = Ui.shortField(s.get("socks.port", "1080")), user = Ui.field(s.get("socks.user", ""));
+            JPasswordField pass = Ui.passwordField(s.get("socks.password", ""));
             pass.setFont(Ui.PLAIN);
             JCheckBox dns = Ui.check("Do DNS lookups over SOCKS proxy", s.getBool("socks.dns", true));
             JPanel form = Ui.vbox(Ui.form("Host:", host, "Port:", port, "Username:", user, "Password:", pass), dns);

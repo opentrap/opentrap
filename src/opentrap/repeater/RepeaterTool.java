@@ -151,9 +151,9 @@ public class RepeaterTool implements ToolModule {
 
         /** "Configure target details": host, SNI override, port, HTTPS. */
         private void configureTarget() {
-            JTextField host = Ui.field(hostField.getText(), 30);
+            JTextField host = Ui.field(hostField.getText());
             JCheckBox sni = Ui.check("Override SNI", overrideSni);
-            JTextField port = Ui.field(portField.getText(), 8);
+            JTextField port = Ui.shortField(portField.getText());
             JCheckBox https = Ui.check("Use HTTPS", sslBox.isSelected());
             https.addActionListener(e -> {
                 String p = port.getText().trim();
@@ -253,8 +253,8 @@ public class RepeaterTool implements ToolModule {
             // history menus and the AI-free toolbar on the left; the target with
             // its edit pencil, the HTTP version chip and help on the right.
             cancel.setEnabled(false);
-            hostField = Ui.field(svc.host(), 16);
-            portField = Ui.field(String.valueOf(svc.port()), 5);
+            hostField = Ui.field(svc.host());
+            portField = Ui.shortField(String.valueOf(svc.port()));
             sslBox = Ui.check("SSL", svc.secure());
             prev.setEnabled(false);
             next.setEnabled(false);

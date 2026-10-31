@@ -94,7 +94,7 @@ public class ScopeEditor extends JPanel {
      */
     public static Scope.Rule prefixDialog(Component parent, boolean include, Scope.Rule editing) {
         String title = (editing == null ? "Add" : "Edit") + " prefix for " + (include ? "in-scope" : "out-of-scope") + " URLs";
-        JTextField prefix = Ui.field(editing == null ? "" : editing.prefix, 40);
+        JTextField prefix = Ui.field(editing == null ? "" : editing.prefix);
         JCheckBox subdomains = Ui.check("Include subdomains", editing != null && editing.subdomains);
         JButton paste = Ui.button("Paste URL", "fill the prefix from the clipboard");
         paste.addActionListener(e -> {
@@ -168,9 +168,9 @@ public class ScopeEditor extends JPanel {
         private final JTable table;
         // Advanced mode's inline rule entry.
         private final JComboBox<String> protocol = Ui.combo(new String[]{"any", "http", "https"});
-        private final JTextField host = Ui.field("", 18);
-        private final JTextField port = Ui.field("", 5);
-        private final JTextField file = Ui.field("", 24);
+        private final JTextField host = Ui.field("");
+        private final JTextField port = Ui.shortField("");
+        private final JTextField file = Ui.field("");
         private final JButton addBtn = Ui.button("Add", "add the item");
         private int editingRow = -1;
 

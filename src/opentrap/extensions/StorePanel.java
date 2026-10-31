@@ -32,7 +32,7 @@ public final class StorePanel extends JPanel {
         setOpaque(false);
 
         // ---- left: search + name list ----
-        JTextField search = Ui.field("", 16);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Search");
         search.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             public void insertUpdate(javax.swing.event.DocumentEvent e) { filter(search.getText()); }

@@ -177,7 +177,7 @@ public final class SettingsDialog {
         };
 
         // ---- left: search, pills, tree, library link ----
-        JTextField search = Ui.field("", 18);
+        JTextField search = Ui.field("");
         search.putClientProperty("JTextField.placeholderText", "Search settings");
         JToggleButton all = pill("All", true), user = pill("User", false), project = pill("Project", false);
         ButtonGroup pills = new ButtonGroup();

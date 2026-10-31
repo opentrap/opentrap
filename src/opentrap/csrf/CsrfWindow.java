@@ -16,8 +16,8 @@ public class CsrfWindow extends JFrame {
     private final SuiteContext ctx;
     private final MessageEditor reqEditor;
     private final JTextArea output = new JTextArea();
-    private final JTextField hostField = Ui.field("", 16);
-    private final JTextField portField = Ui.field("443", 5);
+    private final JTextField hostField = Ui.field("");
+    private final JTextField portField = Ui.shortField("443");
     private final JCheckBox sslBox = Ui.check("SSL", true);
 
     public CsrfWindow(SuiteContext ctx, HttpService svc, HttpMessage req) {
