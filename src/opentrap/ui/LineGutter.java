@@ -58,12 +58,13 @@ public final class LineGutter extends JComponent {
         int n = root.getElementCount();
         for (int i = 0; i < n; i++) {
             try {
-                Rectangle r = text.modelToView(root.getElement(i).getStartOffset());
+                java.awt.geom.Rectangle2D r = text.modelToView2D(root.getElement(i).getStartOffset());
                 if (r == null) continue;
-                if (r.y + r.height < clip.y) continue;
-                if (r.y > clip.y + clip.height) break;
+                int y = (int) r.getY(), h = (int) r.getHeight();
+                if (y + h < clip.y) continue;
+                if (y > clip.y + clip.height) break;
                 String s = String.valueOf(i + 1);
-                g2.drawString(s, getWidth() - 8 - fm.stringWidth(s), r.y + fm.getAscent());
+                g2.drawString(s, getWidth() - 8 - fm.stringWidth(s), y + fm.getAscent());
             } catch (javax.swing.text.BadLocationException ignore) { }
         }
         g2.dispose();

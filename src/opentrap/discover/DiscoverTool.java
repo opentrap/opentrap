@@ -51,15 +51,15 @@ public class DiscoverTool implements ToolModule {
                 g2.dispose();
             }
         };
-        hero.setPreferredSize(new Dimension(10, 300));
-        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        hero.setPreferredSize(new Dimension(10, 260));
+        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 260));
         JPanel heroText = new JPanel();
         heroText.setLayout(new BoxLayout(heroText, BoxLayout.Y_AXIS));
         heroText.setOpaque(false);
         JLabel headline = new JLabel("<html>OpenTRAP, <span style='color:#DB612F'>open.</span></html>");
-        headline.setFont(new Font("Dialog", Font.BOLD, 40));
+        headline.setFont(new Font("Dialog", Font.BOLD, 36));
         headline.setForeground(Color.WHITE);
-        JLabel blurb = new JLabel("<html><div style='width:520px'>A free, open-source web security testing suite: proxy, crawler, scanner, "
+        JLabel blurb = new JLabel("<html><div style='width:560px'>A free, open-source web security testing suite: proxy, crawler, scanner, "
                 + "Intruder, Repeater and the rest, built on the OWASP ZAP engine and shaped by its community.</div></html>");
         blurb.setFont(new Font("Dialog", Font.PLAIN, 16));
         blurb.setForeground(new Color(0xE6, 0xE6, 0xEA));
@@ -101,7 +101,7 @@ public class DiscoverTool implements ToolModule {
 
         // Discover more: feature tiles.
         JLabel more = new JLabel("Discover more");
-        more.setFont(new Font("Dialog", Font.BOLD, 24));
+        more.setFont(new Font("Dialog", Font.BOLD, 22));
         more.setAlignmentX(Component.CENTER_ALIGNMENT);
         more.setBorder(Ui.pad(16, 0, 8, 0));
         root.add(more);

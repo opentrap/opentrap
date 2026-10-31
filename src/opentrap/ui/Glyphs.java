@@ -294,6 +294,16 @@ public final class Glyphs {
     }
 
     /** A flat icon-only button, the style used for every toolbar glyph. */
+    /** A tray: the mark on the Organizer's Inbox collection. */
+    public static Icon inbox(int size, Color c) {
+        return make(size, c, (g, s) -> {
+            g.draw(new Path2D.Double() {{
+                moveTo(1.5, s * 0.55); lineTo(s * 0.3, 1.5); lineTo(s * 0.7, 1.5); lineTo(s - 1.5, s * 0.55);
+            }});
+            g.draw(new java.awt.geom.Rectangle2D.Double(1.5, s * 0.55, s - 3, s * 0.4 - 1.5));
+        });
+    }
+
     /** A filled triangle: the mark on a button that starts something. */
     public static Icon play(int size, Color c) {
         return make(size, c, (g, s) -> {

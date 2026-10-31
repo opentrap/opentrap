@@ -209,7 +209,7 @@ public final class SettingsDialog {
                 super.getTreeCellRendererComponent(t, v, sel, exp, leaf, row, focus);
                 Object o = ((DefaultMutableTreeNode) v).getUserObject();
                 setText(o instanceof Page p ? p.name() : String.valueOf(o));
-                setIcon(null);
+                setIcon(o instanceof Page ? null : sectionIcon(String.valueOf(o)));
                 setFont(leaf ? Ui.PLAIN : Ui.BOLD);
                 return this;
             }
@@ -253,22 +253,26 @@ public final class SettingsDialog {
         left.add(ts, BorderLayout.CENTER);
         JPanel foot = new JPanel(new BorderLayout());
         foot.setOpaque(false);
-        foot.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Ui.GRID));
+        foot.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Ui.GRID), Ui.pad(6, 10, 6, 10)));
         foot.add(libLink, BorderLayout.WEST);
-        left.add(foot, BorderLayout.SOUTH);
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, rightWrap);
         split.setDividerSize(4);
         split.setBorder(null);
         split.setDividerLocation(310);
 
+        // One footer across the whole window, as the reference draws it: the
+        // configuration library link at the left, Close at the right.
         JButton close = Ui.button("Close");
         close.addActionListener(e -> d.dispose());
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
-        bar.add(close);
+        JPanel closeBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        closeBox.setOpaque(false);
+        closeBox.add(close);
+        foot.add(closeBox, BorderLayout.EAST);
         JPanel rootPanel = new JPanel(new BorderLayout());
         rootPanel.add(split, BorderLayout.CENTER);
-        rootPanel.add(bar, BorderLayout.SOUTH);
+        rootPanel.add(foot, BorderLayout.SOUTH);
 
         // Open at the requested page.
         String path = "Configuration library".equals(category) ? "Configuration library" : pathFor(category);
@@ -314,12 +318,50 @@ public final class SettingsDialog {
         }
     }
 
+    /**
+     * One of the All / User / Project filter pills. The chosen pill is filled
+     * with the control colour, which is what every switched-on control in the
+     * suite uses; the accent is reserved for the one button that starts an
+     * action on a panel.
+     */
     private static JToggleButton pill(String text, boolean on) {
-        JToggleButton b = new JToggleButton(text, on);
+        JToggleButton b = new JToggleButton(text, on) {
+            @Override protected void paintComponent(java.awt.Graphics g) {
+                java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(isSelected() ? Theme.CONTROL : Theme.SURFACE);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.setColor(isSelected() ? Theme.CONTROL : Theme.BORDER);
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+                g2.setColor(isSelected() ? java.awt.Color.WHITE : Theme.TEXT);
+                g2.setFont(getFont());
+                java.awt.FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2f,
+                        (getHeight() + fm.getAscent() - fm.getDescent()) / 2f);
+                g2.dispose();
+            }
+        };
         b.setFont(Ui.PLAIN);
         b.setFocusable(false);
-        b.setMargin(new Insets(2, 10, 2, 10));
+        b.setContentAreaFilled(false);
+        b.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+        b.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
         return b;
+    }
+
+    /** The mark beside a settings section, so the sections read apart at a glance. */
+    private static Icon sectionIcon(String section) {
+        return switch (section) {
+            case "Tools"                 -> Glyphs.gear(14, Theme.ICON);
+            case "Project"               -> Glyphs.book(14, Theme.ICON);
+            case "Sessions"              -> Glyphs.clock(14, Theme.ICON);
+            case "Network"               -> Glyphs.bolt(14, Theme.ICON);
+            case "User interface"        -> Glyphs.hamburger(14, Theme.ICON);
+            case "Suite"                 -> Glyphs.star(14, Theme.ICON, false);
+            case "Extensions"            -> Glyphs.plusRing(14, Theme.ICON);
+            case "Configuration library" -> Glyphs.book(14, Theme.ICON);
+            default -> null;
+        };
     }
 
     /** User settings > Restore defaults / Load / Save; Project settings > Restore defaults > ... / Load / Save. */
