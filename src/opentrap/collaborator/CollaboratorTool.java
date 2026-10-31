@@ -72,7 +72,7 @@ public class CollaboratorTool implements ToolModule {
         sorter = new javax.swing.table.TableRowSorter<>(model);
         table.setRowSorter(sorter);
         Ui.newestFirst(table, 0);
-        Ui.distributeWidths(table, 40, 150, 70, 380, 160);
+        Ui.distributeWidths(table, 40, 150, 70, 380, 160, 160);
         table.getSelectionModel().addListSelectionListener(e -> showSelected());
 
         // Detail area as tabs, rebuilt per interaction so the set matches the
@@ -81,8 +81,31 @@ public class CollaboratorTool implements ToolModule {
         detailTabs = new JTabbedPane();
         detailTabs.setFont(Ui.PLAIN);
 
+        // Empty state over the table until the first interaction arrives.
+        final CardLayout tableCards = new CardLayout();
+        final JPanel tableArea = new JPanel(tableCards);
+        tableArea.setOpaque(false);
+        JPanel emptyCol = new JPanel();
+        emptyCol.setLayout(new BoxLayout(emptyCol, BoxLayout.Y_AXIS));
+        emptyCol.setOpaque(false);
+        JLabel emptyIcon = new JLabel(opentrap.ui.Glyphs.search(64, opentrap.ui.Theme.BORDER));
+        JLabel emptyTitle = new JLabel("Your interactions will appear here");
+        emptyTitle.setFont(new Font("Dialog", Font.BOLD, 18));
+        JTextArea emptyText = Ui.note("Click \"Copy to clipboard\" to generate Collaborator payloads that you can use when testing");
+        Ui.sizeNote(emptyText, 420);
+        JButton learn = Ui.button("Learn more");
+        learn.addActionListener(e -> opentrap.ui.Unbuilt.openProject(table));
+        for (JComponent c : new JComponent[]{emptyIcon, emptyTitle, emptyText, learn}) { c.setAlignmentX(Component.CENTER_ALIGNMENT); emptyCol.add(c); emptyCol.add(Box.createVerticalStrut(10)); }
+        JPanel empty = new JPanel(new GridBagLayout());
+        empty.setOpaque(false);
+        empty.add(emptyCol, new GridBagConstraints());
+        tableArea.add(empty, "empty");
+        tableArea.add(Ui.scroll(table), "table");
+        tableCards.show(tableArea, "empty");
+        model.addTableModelListener(e -> tableCards.show(tableArea, model.getRowCount() == 0 ? "empty" : "table"));
+
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                Ui.scroll(table), detailTabs);
+                tableArea, detailTabs);
         split.setResizeWeight(0.5);
         split.setBorder(null);
         // Give the detail pane half the height once the tab is laid out, rather
@@ -153,10 +176,18 @@ public class CollaboratorTool implements ToolModule {
             refreshStatus();
         });
 
+        JSpinner count = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+        count.setFont(Ui.PLAIN);
+        count.setPreferredSize(new Dimension(60, count.getPreferredSize().height));
+        JCheckBox includeLocation = Ui.check("Include Collaborator server location", true);
+        includeLocation.setToolTipText("copy the full hostname rather than only the unique prefix");
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
         bar.setOpaque(false);
+        bar.add(Ui.label("Payloads to generate:"));
+        bar.add(count);
         bar.add(copy);
-        bar.add(Box.createHorizontalStrut(12));
+        bar.add(includeLocation);
+        bar.add(new JSeparator(SwingConstants.VERTICAL) {{ setPreferredSize(new Dimension(1, 22)); }});
         bar.add(pollNow);
         bar.add(auto);
         bar.add(Box.createHorizontalStrut(12));
@@ -360,7 +391,7 @@ public class CollaboratorTool implements ToolModule {
     // ------------------------------------------------------------ table model
 
     private final class InteractionTableModel extends AbstractTableModel {
-        private final String[] cols = {"#", "Time", "Type", "Payload", "Source IP address"};
+        private final String[] cols = {"#", "Time", "Type", "Payload", "Source IP address", "Comment"};
         private final List<Interaction> rows = new ArrayList<>();
         private final SimpleDateFormat fmt = new SimpleDateFormat("HH:mm:ss");
 

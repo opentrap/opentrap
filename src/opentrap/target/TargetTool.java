@@ -531,7 +531,8 @@ public class TargetTool implements ToolModule {
             public void removeUpdate(javax.swing.event.DocumentEvent e)  { go(); }
             public void changedUpdate(javax.swing.event.DocumentEvent e) { go(); }
         });
-        return Ui.filterBar(itemsFilterButton, Ui.label("Search:"), urlSearch);
+        JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(itemsTable));
+        return Ui.filterBar(itemsFilterButton, Ui.label("Search:"), urlSearch, kebab);
     }
 
     private void applyItemsFilter() {

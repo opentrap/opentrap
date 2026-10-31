@@ -6,10 +6,4 @@ Reference codes are stable: quote one in an issue or pull request title. Large f
 
 This file is generated from the registry in `src/opentrap/ui/Unbuilt.java`, which also drives the Roadmap tab under Discover; do not edit it by hand.
 
-## Suite
-
-| Feature | Reference |
-|---|---|
-| Console | `OT-CONSOLE` |
-
-1 open items.
+0 open items.

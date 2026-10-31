@@ -152,7 +152,12 @@ public class SuiteContext {
     public void sendTo(String toolName, HttpService svc, HttpMessage req, HttpMessage resp, String caption) {
         MessageSink s = sinks.get(toolName);
         if (s != null) s.receive(svc, req, resp, caption);
+        for (java.util.function.Consumer<String> l : sendListeners) l.accept(toolName);
     }
+
+    private final List<java.util.function.Consumer<String>> sendListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** Be told the tool name whenever something is sent to a tool, so the shell can badge its tab. */
+    public void addSendListener(java.util.function.Consumer<String> l) { sendListeners.add(l); }
 
     // ---- history ----
 

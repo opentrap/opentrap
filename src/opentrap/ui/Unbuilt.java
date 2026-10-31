@@ -47,9 +47,6 @@ public final class Unbuilt {
     // ---- Registry of unbuilt features = the roadmap ------------------------
     // Declaration order is the order shown on the roadmap, grouped by tool.
 
-    // Suite chrome (the browser and search in the top bar are real features)
-    public static final Unbuilt CONSOLE              = of("OT-CONSOLE",              "Console");
-
 
     public String code()     { return code; }
     public String location() { return location; }

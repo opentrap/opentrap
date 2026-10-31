@@ -68,7 +68,8 @@ public class MessageEditor extends JPanel {
     private final Inspector inspector;
     private final JPanel flyout = new JPanel(new BorderLayout());
     private final JTextArea notesArea = new JTextArea();
-    private VerticalTab inspectorBtn, notesBtn;
+    private VerticalTab inspectorBtn, notesBtn, actionsBtn;
+    private final CustomActionsPanel customActions = new CustomActionsPanel();
 
     private final List<ActionProvider> providers = new ArrayList<>();
     private boolean updating;
@@ -165,12 +166,17 @@ public class MessageEditor extends JPanel {
 
         inspectorBtn = new VerticalTab("Inspector");
         notesBtn = new VerticalTab("Notes");
+        actionsBtn = new VerticalTab("Custom actions");
         inspectorBtn.addActionListener(e -> {
-            if (inspectorBtn.isSelected()) { notesBtn.setSelected(false); show("Inspector", inspector); }
+            if (inspectorBtn.isSelected()) { notesBtn.setSelected(false); actionsBtn.setSelected(false); show("Inspector", inspector); }
             else hideFlyout();
         });
         notesBtn.addActionListener(e -> {
-            if (notesBtn.isSelected()) { inspectorBtn.setSelected(false); show("Notes", Ui.scroll(notesArea)); }
+            if (notesBtn.isSelected()) { inspectorBtn.setSelected(false); actionsBtn.setSelected(false); show("Notes", notesPanel()); }
+            else hideFlyout();
+        });
+        actionsBtn.addActionListener(e -> {
+            if (actionsBtn.isSelected()) { inspectorBtn.setSelected(false); notesBtn.setSelected(false); show("Custom actions", customActions); }
             else hideFlyout();
         });
 
@@ -179,8 +185,17 @@ public class MessageEditor extends JPanel {
         strip.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Ui.GRID));
         strip.add(inspectorBtn);
         strip.add(notesBtn);
+        strip.add(actionsBtn);
         JPanel stripWrap = new JPanel(new BorderLayout());
         stripWrap.add(strip, BorderLayout.NORTH);
+        JButton stripGear = Glyphs.button(Glyphs.gear(), "Side panel settings", () -> {
+            java.awt.Window w = SwingUtilities.getWindowAncestor(this);
+            SettingsDialog.open(w, ctx, "User interface > Side panel");
+        });
+        JPanel gearWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 4));
+        gearWrap.setOpaque(false);
+        gearWrap.add(stripGear);
+        stripWrap.add(gearWrap, BorderLayout.SOUTH);
 
         JPanel dock = new JPanel(new BorderLayout());
         dock.add(flyout, BorderLayout.CENTER);
@@ -200,14 +215,81 @@ public class MessageEditor extends JPanel {
         head.add(titleLabel, BorderLayout.WEST);
         JButton close = Ui.button("x", "close");
         close.setMargin(new Insets(0, 5, 0, 5));
-        close.addActionListener(e -> { inspectorBtn.setSelected(false); notesBtn.setSelected(false); hideFlyout(); });
-        head.add(close, BorderLayout.EAST);
+        close.addActionListener(e -> { inspectorBtn.setSelected(false); notesBtn.setSelected(false); actionsBtn.setSelected(false); hideFlyout(); });
+        JPanel headRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
+        headRight.setOpaque(false);
+        headRight.add(Glyphs.button(Glyphs.copy(14, Theme.MUTED), "Side-by-side layout", () -> flyout.setPreferredSize(new Dimension(280, 10))));
+        headRight.add(Glyphs.button(Glyphs.copy(14, Ui.ACCENT), "Wide layout", () -> { flyout.setPreferredSize(new Dimension(420, 10)); revalidate(); }));
+        if (content == inspector) {
+            headRight.add(Glyphs.button(Glyphs.chevron(14, Theme.MUTED, 1), "Expand all sections", () -> inspector.expandAll(true)));
+            headRight.add(Glyphs.button(Glyphs.chevron(14, Theme.MUTED, 2), "Collapse all sections", () -> inspector.expandAll(false)));
+        }
+        headRight.add(close);
+        head.add(headRight, BorderLayout.EAST);
         flyout.add(head, BorderLayout.NORTH);
         flyout.add(content, BorderLayout.CENTER);
         flyout.setVisible(true);
         if (content == inspector) inspector.rebuild();
         revalidate();
         repaint();
+    }
+
+    /** The Notes flyout: a formatting toolbar over the plain-text notes. */
+    private JComponent notesPanel() {
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
+        bar.setOpaque(false);
+        JComboBox<String> size = Ui.combo(new String[]{"Aa", "Small", "Normal", "Large", "Heading"});
+        size.setToolTipText("text size");
+        size.addActionListener(e -> { String v = String.valueOf(size.getSelectedItem()); if ("Heading".equals(v)) wrapSelection("# ", ""); });
+        bar.add(Glyphs.button(Glyphs.pencil(14, Theme.ICON), "Text style", null));
+        bar.add(size);
+        bar.add(Glyphs.button(textGlyph("B", true, false), "Bold", () -> wrapSelection("**", "**")));
+        bar.add(Glyphs.button(textGlyph("I", false, true), "Italic", () -> wrapSelection("_", "_")));
+        bar.add(Glyphs.button(textGlyph("S", false, false), "Strikethrough", () -> wrapSelection("~~", "~~")));
+        bar.add(Glyphs.button(textGlyph("\u2022", false, false), "Bulleted list", () -> prefixLines("- ")));
+        bar.add(Glyphs.button(textGlyph("1.", false, false), "Numbered list", () -> prefixLines("1. ")));
+        bar.add(Glyphs.button(Glyphs.export(14, Theme.ICON), "Insert link", () -> {
+            String url = JOptionPane.showInputDialog(this, "Link URL:");
+            if (url != null && !url.isBlank()) notesArea.insert("[" + (notesArea.getSelectedText() == null ? url : notesArea.getSelectedText()) + "](" + url + ")", notesArea.getCaretPosition());
+        }));
+        bar.add(Glyphs.button(Glyphs.export(14, Theme.ICON), "Open notes in a window", () -> {
+            JFrame f = new JFrame("Notes");
+            f.setContentPane(Ui.scroll(notesArea));
+            f.setSize(600, 400);
+            f.setLocationRelativeTo(this);
+            f.setVisible(true);
+        }));
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.add(bar, BorderLayout.NORTH);
+        p.add(Ui.scroll(notesArea), BorderLayout.CENTER);
+        return p;
+    }
+
+    private static Icon textGlyph(String text, boolean bold, boolean italic) {
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(18, 18, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setFont(new Font("Dialog", (bold ? Font.BOLD : 0) | (italic ? Font.ITALIC : 0), 13));
+        g.setColor(Theme.ICON);
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(text, (18 - fm.stringWidth(text)) / 2f, 9 + (fm.getAscent() - fm.getDescent()) / 2f);
+        if ("S".equals(text)) g.drawLine(3, 9, 15, 9);
+        g.dispose();
+        return new ImageIcon(img);
+    }
+
+    private void wrapSelection(String before, String after) {
+        int a = notesArea.getSelectionStart(), b = notesArea.getSelectionEnd();
+        String sel = a == b ? "text" : notesArea.getSelectedText();
+        notesArea.replaceRange(before + sel + after, a, b);
+    }
+
+    private void prefixLines(String prefix) {
+        try {
+            int from = notesArea.getLineOfOffset(notesArea.getSelectionStart()), to = notesArea.getLineOfOffset(notesArea.getSelectionEnd());
+            for (int l = to; l >= from; l--) notesArea.insert(prefix, notesArea.getLineStartOffset(l));
+        } catch (Exception ignore) { }
     }
 
     private void hideFlyout() {
@@ -574,8 +656,20 @@ public class MessageEditor extends JPanel {
             add(sp, BorderLayout.CENTER);
         }
 
+        private final List<Runnable> toggles = new ArrayList<>();
+        private final List<JComponent> bodies = new ArrayList<>();
+
+        /** Open or close every section. */
+        void expandAll(boolean open) {
+            for (int i = 0; i < bodies.size(); i++) {
+                if (bodies.get(i).isVisible() != open) toggles.get(i).run();
+            }
+        }
+
         void rebuild() {
             stack.removeAll();
+            toggles.clear();
+            bodies.clear();
             // One inspector for the pair: request sections (from the shown request
             // or its related request) then response sections.
             HttpMessage req = message.isRequest() ? message : relatedRequest;
@@ -608,7 +702,7 @@ public class MessageEditor extends JPanel {
         }
 
         private void addSection(String titleText, List<String[]> data) {
-            final JComponent body = buildTable(data);
+            final JComponent body = buildTable(data, "Request attributes".equals(titleText));
             body.setVisible(false); // collapsed by default
 
             JLabel chevron = new JLabel("▾");
@@ -629,13 +723,16 @@ public class MessageEditor extends JPanel {
             header.add(title, BorderLayout.WEST);
             header.add(right, BorderLayout.EAST);
             header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            Runnable toggle = () -> {
+                boolean show = !body.isVisible();
+                body.setVisible(show);
+                chevron.setText(show ? "▴" : "▾");
+                stack.revalidate();
+            };
+            toggles.add(toggle);
+            bodies.add(body);
             header.addMouseListener(new MouseAdapter() {
-                @Override public void mouseClicked(MouseEvent e) {
-                    boolean show = !body.isVisible();
-                    body.setVisible(show);
-                    chevron.setText(show ? "▴" : "▾");
-                    stack.revalidate();
-                }
+                @Override public void mouseClicked(MouseEvent e) { toggle.run(); }
             });
 
             header.setAlignmentX(LEFT_ALIGNMENT);
@@ -665,22 +762,135 @@ public class MessageEditor extends JPanel {
             return l;
         }
 
-        private JComponent buildTable(List<String[]> data) {
+        /**
+         * A section body: for request attributes a protocol toggle first; then
+         * the Name / Value table with a drill-in chevron per row and the column
+         * menu in its header, a footer of delete / down / up / add marks, or
+         * "It's empty in here" with Add when there is nothing to show.
+         */
+        private JComponent buildTable(List<String[]> data, boolean attributes) {
+            JPanel col = new JPanel();
+            col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+            col.setBackground(Theme.BG);
+            col.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Ui.GRID));
+            if (attributes) {
+                JPanel proto = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+                proto.setOpaque(false);
+                proto.add(Ui.label("Protocol"));
+                JToggleButton h1 = new JToggleButton("HTTP/1"), h2 = new JToggleButton("HTTP/2");
+                h1.setFont(Ui.PLAIN); h2.setFont(Ui.PLAIN);
+                h1.setFocusable(false); h2.setFocusable(false);
+                ButtonGroup g = new ButtonGroup(); g.add(h1); g.add(h2);
+                boolean http2 = message != null && message.startLine().contains("HTTP/2");
+                (http2 ? h2 : h1).setSelected(true);
+                proto.add(h1); proto.add(h2);
+                proto.setAlignmentX(LEFT_ALIGNMENT);
+                proto.setMaximumSize(new Dimension(Integer.MAX_VALUE, proto.getPreferredSize().height));
+                col.add(proto);
+            }
+            if (data.isEmpty()) {
+                JPanel empty = new JPanel();
+                empty.setLayout(new BoxLayout(empty, BoxLayout.Y_AXIS));
+                empty.setOpaque(false);
+                empty.setBorder(Ui.pad(14, 0, 14, 0));
+                JLabel l = Ui.label("It's empty in here");
+                l.setForeground(Theme.MUTED);
+                l.setAlignmentX(CENTER_ALIGNMENT);
+                JButton add = Ui.button("Add");
+                add.setEnabled(editable);
+                add.setAlignmentX(CENTER_ALIGNMENT);
+                add.addActionListener(e -> addRow());
+                empty.add(l); empty.add(Box.createVerticalStrut(8)); empty.add(add);
+                empty.setAlignmentX(LEFT_ALIGNMENT);
+                empty.setMaximumSize(new Dimension(Integer.MAX_VALUE, empty.getPreferredSize().height));
+                col.add(empty);
+                return col;
+            }
             AbstractTableModel m = new AbstractTableModel() {
                 public int getRowCount() { return data.size(); }
-                public int getColumnCount() { return 2; }
-                public String getColumnName(int c) { return c == 0 ? "Name" : "Value"; }
-                public Object getValueAt(int r, int c) { return data.get(r)[c]; }
+                public int getColumnCount() { return 3; }
+                public String getColumnName(int c) { return c == 0 ? "Name" : c == 1 ? "Value" : ""; }
+                public Object getValueAt(int r, int c) { return c < 2 ? data.get(r)[c] : ">"; }
             };
             JTable t = new JTable(m);
             Ui.styleTable(t);
             t.setRowHeight(20);
-            int h = Math.max(data.size(), 1) * 20 + t.getTableHeader().getPreferredSize().height + 2;
+            t.getColumnModel().getColumn(2).setMaxWidth(22);
+            t.getColumnModel().getColumn(2).setCellRenderer(new javax.swing.table.DefaultTableCellRenderer() {
+                @Override public Component getTableCellRendererComponent(JTable tb, Object v, boolean sel, boolean f, int r, int c) {
+                    super.getTableCellRendererComponent(tb, "", sel, f, r, c);
+                    setIcon(Glyphs.chevron(12, Theme.MUTED, 0));
+                    setHorizontalAlignment(CENTER);
+                    return this;
+                }
+            });
+            t.getColumnModel().getColumn(2).setHeaderRenderer(new javax.swing.table.DefaultTableCellRenderer() {
+                @Override public Component getTableCellRendererComponent(JTable tb, Object v, boolean sel, boolean f, int r, int c) {
+                    super.getTableCellRendererComponent(tb, "", sel, f, r, c);
+                    setIcon(Glyphs.kebab(12, Theme.MUTED));
+                    setHorizontalAlignment(CENTER);
+                    return this;
+                }
+            });
+            t.addMouseListener(new MouseAdapter() {
+                @Override public void mouseClicked(MouseEvent e) {
+                    int r = t.rowAtPoint(e.getPoint());
+                    if (r >= 0 && (e.getClickCount() == 2 || t.columnAtPoint(e.getPoint()) == 2)) drill(data.get(r));
+                }
+            });
+            int h = data.size() * 20 + t.getTableHeader().getPreferredSize().height + 2;
             JScrollPane sp = new JScrollPane(t);
-            sp.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Ui.GRID));
+            sp.setBorder(null);
             sp.setPreferredSize(new Dimension(240, h));
             sp.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
-            return sp;
+            sp.setAlignmentX(LEFT_ALIGNMENT);
+            col.add(sp);
+            JPanel foot = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 2));
+            foot.setOpaque(false);
+            foot.add(Glyphs.button(Glyphs.trash(14, Theme.MUTED), "Delete the selected row", () -> { if (editable) { int r = t.getSelectedRow(); if (r >= 0) { data.remove(r); m.fireTableDataChanged(); } } }));
+            foot.add(Glyphs.button(Glyphs.chevron(14, Theme.MUTED, 1), "Move down", () -> moveRow(t, m, data, 1)));
+            foot.add(Glyphs.button(Glyphs.chevron(14, Theme.MUTED, 2), "Move up", () -> moveRow(t, m, data, -1)));
+            foot.add(Glyphs.button(Glyphs.plus(14, Theme.MUTED), "Add a row", this::addRow));
+            foot.setAlignmentX(LEFT_ALIGNMENT);
+            foot.setMaximumSize(new Dimension(Integer.MAX_VALUE, foot.getPreferredSize().height));
+            col.add(foot);
+            return col;
+        }
+
+        private void moveRow(JTable t, AbstractTableModel m, List<String[]> data, int d) {
+            int r = t.getSelectedRow(), to = r + d;
+            if (r < 0 || to < 0 || to >= data.size()) return;
+            data.add(to, data.remove(r));
+            m.fireTableDataChanged();
+            t.setRowSelectionInterval(to, to);
+        }
+
+        private void addRow() {
+            if (!editable) { JOptionPane.showMessageDialog(this, "This message is read-only. Send it to Repeater to edit it.", "Inspector", JOptionPane.INFORMATION_MESSAGE); return; }
+            JTextField name = Ui.field("", 18), value = Ui.field("", 24);
+            JPanel f = Ui.form("Name:", name, "Value:", value);
+            if (JOptionPane.showConfirmDialog(this, f, "Add", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION && !name.getText().isBlank()) {
+                String line = name.getText().strip() + ": " + value.getText();
+                rawArea.insert(line + "\n", Math.max(0, rawArea.getText().indexOf("\n") + 1));
+                views.setSelectedIndex(1);
+            }
+        }
+
+        /** Drill into one row: its decoded value, with the common decodings beneath. */
+        private void drill(String[] row) {
+            JPanel p = new JPanel(new BorderLayout(0, 6));
+            p.setBorder(Ui.pad(8, 8, 8, 8));
+            JTextArea v = new JTextArea(row[1], 6, 50);
+            v.setFont(Ui.MONO);
+            v.setLineWrap(true);
+            String decoded;
+            try { decoded = java.net.URLDecoder.decode(row[1], java.nio.charset.StandardCharsets.UTF_8); } catch (Exception e) { decoded = row[1]; }
+            JTextArea d = new JTextArea(decoded, 6, 50);
+            d.setFont(Ui.MONO);
+            d.setLineWrap(true);
+            d.setEditable(false);
+            p.add(Ui.vbox(Ui.bold(row[0]), Ui.scroll(v), Ui.label("URL-decoded:"), Ui.scroll(d)), BorderLayout.CENTER);
+            JOptionPane.showMessageDialog(this, p, row[0], JOptionPane.PLAIN_MESSAGE);
         }
 
         private List<String[]> rows(HttpMessage m, Param.Type... types) {

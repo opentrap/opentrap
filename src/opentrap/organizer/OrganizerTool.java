@@ -68,6 +68,7 @@ public class OrganizerTool implements ToolModule {
 
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         bar.add(delete);
+        bar.add(opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(table)));
         bar.add(clear);
 
         // The table, or a centred empty-state hint when nothing is saved yet.

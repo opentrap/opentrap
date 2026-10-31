@@ -162,6 +162,19 @@ public class ProxyTool implements ToolModule {
      * is held, the message editor.
      */
     static class InterceptPanel extends JPanel implements InterceptQueue.Presenter {
+        /** The traffic-light illustration of the idle card: three lamps, the red one lit while intercept is off. */
+        private static Icon trafficLights() {
+            int w = 72, h = 150;
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = img.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(0x2B, 0x2D, 0x3A));
+            g.fillRoundRect(8, 4, 56, 142, 18, 18);
+            Color[] lamps = {new Color(0xE0, 0x4E, 0x4E), new Color(0x5A, 0x5A, 0x62), new Color(0x5A, 0x5A, 0x62)};
+            for (int i = 0; i < 3; i++) { g.setColor(lamps[i]); g.fillOval(18, 14 + i * 44, 36, 36); }
+            g.dispose();
+            return new ImageIcon(img);
+        }
         private final ProxyServer server;
         private final MessageEditor editor;
         private final JToggleButton toggle;
@@ -212,6 +225,17 @@ public class ProxyTool implements ToolModule {
             JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
             right.setOpaque(false);
             right.add(openBrowser);
+            right.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "About interception", () -> JOptionPane.showMessageDialog(this,
+                    "With interception on, each request and response from the browser is held here until you forward or drop it.\n"
+                  + "The rules under Settings > Tools > Proxy decide which messages are held.", "Intercept", JOptionPane.INFORMATION_MESSAGE)));
+            right.add(opentrap.ui.Glyphs.menuButton("More", () -> {
+                JPopupMenu m = new JPopupMenu();
+                JMenuItem settings = new JMenuItem("Proxy settings");
+                settings.setFont(Ui.PLAIN);
+                settings.addActionListener(ev -> SettingsDialog.open(SwingUtilities.getWindowAncestor(this), ctx, "Proxy"));
+                m.add(settings);
+                return m;
+            }));
             JPanel bar = new JPanel(new BorderLayout());
             bar.setOpaque(false);
             bar.setBorder(Ui.pad(6, 8, 6, 8));
@@ -232,13 +256,21 @@ public class ProxyTool implements ToolModule {
                     "launch a browser routed through the proxy, with the CA already trusted");
             idleBrowser.addActionListener(ev -> launchBrowser.run());
             idleBrowser.setAlignmentX(Component.CENTER_ALIGNMENT);
+            JLabel lights = new JLabel(trafficLights());
+            lights.setAlignmentX(Component.CENTER_ALIGNMENT);
+            JButton learn = Ui.button("Learn more", "open the project documentation");
+            learn.addActionListener(ev -> opentrap.ui.Unbuilt.openProject(this));
+            JPanel idleButtons = Ui.row(learn, idleBrowser);
+            idleButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
+            column.add(lights);
+            column.add(Box.createVerticalStrut(16));
             column.add(idleTitle);
             column.add(Box.createVerticalStrut(12));
             column.add(idleText);
             column.add(Box.createVerticalStrut(8));
             column.add(idleListener);
             column.add(Box.createVerticalStrut(16));
-            column.add(idleBrowser);
+            column.add(idleButtons);
             JPanel idle = new JPanel(new GridBagLayout());
             idle.setOpaque(false);
             idle.add(column, new GridBagConstraints());
@@ -389,7 +421,8 @@ public class ProxyTool implements ToolModule {
             urlSearch.getDocument().addDocumentListener(new SimpleDoc(() -> {
                 filter.urlSearch = urlSearch.getText(); applyFilter();
             }));
-            return Ui.filterBar(filterButton, Ui.label("Search:"), urlSearch);
+            JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(table));
+            return Ui.filterBar(filterButton, Ui.label("Search:"), urlSearch, kebab);
         }
 
         private void openFilter() {

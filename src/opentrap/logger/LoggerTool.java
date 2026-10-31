@@ -70,6 +70,7 @@ public class LoggerTool implements ToolModule {
         search.setToolTipText("show only entries containing this text");
         search.getDocument().addDocumentListener(new SimpleDoc(() -> { filter = search.getText(); model.reapply(); }));
         right.add(search);
+        right.add(opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(table)));
         JCheckBox logging = Ui.check("Logging on", true);
         logging.setToolTipText("stop or resume recording new traffic here");
         logging.addActionListener(e -> loggingOn = logging.isSelected());

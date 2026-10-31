@@ -131,9 +131,14 @@ public class SuiteFrame extends JFrame {
 
         // Live counters for the status bar.
         ctx.addAlertListener(a -> SwingUtilities.invokeLater(() ->
-                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")")));
+                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")" + (plainTitle(tabs.getTitleAt(Math.max(0, tabs.getSelectedIndex()))).equals("alerts") ? "" : DOT))));
+        tabs.addChangeListener(e -> {
+            String t = plainTitle(tabs.getTitleAt(Math.max(0, tabs.getSelectedIndex())));
+            if ("alerts".equals(t)) eventLogLabel.setText(plainTitle(eventLogLabel.getText()));
+            if ("dashboard".equals(t)) issuesLabel.setText(plainTitle(issuesLabel.getText()));
+        });
         ctx.addIssueListener(i -> SwingUtilities.invokeLater(() ->
-                issuesLabel.setText("All issues (" + ctx.issues().size() + ")")));
+                issuesLabel.setText("All issues (" + ctx.issues().size() + ")" + (plainTitle(tabs.getTitleAt(Math.max(0, tabs.getSelectedIndex()))).equals("dashboard") ? "" : DOT))));
         return p;
     }
 
@@ -220,6 +225,10 @@ public class SuiteFrame extends JFrame {
         tabs.addTab("alerts", alertsPanel);
 
         buildMenus();
+
+        // Unread dots: sent-to tools get a dot until they are shown.
+        ctx.addSendListener(tool -> SwingUtilities.invokeLater(() -> badgeTool(tool)));
+        tabs.addChangeListener(e -> clearBadge(tabs.getSelectedIndex()));
     }
 
     private void buildMenus() {
@@ -407,10 +416,23 @@ public class SuiteFrame extends JFrame {
     private JComponent buildCenter() {
         final JPanel tools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         tools.setOpaque(false);
-        tools.add(iconButton(ToolIcons.browser(), "Open browser", this::launchBrowser));
-        tools.add(iconButton(ToolIcons.console(), "Console", () -> Unbuilt.CONSOLE.showDialog(this)));
-        tools.add(iconButton(ToolIcons.search(), "Search", () -> new SearchWindow(ctx).setVisible(true)));
+        // The order honours Settings > User interface > Display > Title bar actions; the gear is always last.
+        java.util.Map<String, JButton> actions = new java.util.LinkedHashMap<>();
+        actions.put("Open browser", iconButton(ToolIcons.browser(), "Open browser", this::launchBrowser));
+        JButton palette = iconButton(ToolIcons.console(), "Command palette (Ctrl+K)", null);
+        palette.addActionListener(e -> openPalette(palette));
+        actions.put("Open command palette", palette);
+        actions.put("Open search window", iconButton(ToolIcons.search(), "Search", () -> new SearchWindow(ctx).setVisible(true)));
+        String order = ctx.settings().get("ui.titleActions", "");
+        java.util.List<String> names = order.isEmpty() ? new java.util.ArrayList<>(actions.keySet()) : java.util.Arrays.asList(order.split("\\|"));
+        for (String n : names) if (actions.containsKey(n)) tools.add(actions.get(n));
         tools.add(iconButton(ToolIcons.gear(), "Settings", () -> SettingsDialog.open(this, ctx)));
+        // Ctrl+K opens the palette from anywhere in the window.
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, java.awt.event.InputEvent.CTRL_DOWN_MASK), "opentrap.palette");
+        getRootPane().getActionMap().put("opentrap.palette", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) { openPalette(palette); }
+        });
 
         final JLayeredPane layer = new JLayeredPane();
         layer.setLayout(null);
@@ -466,8 +488,45 @@ public class SuiteFrame extends JFrame {
         b.setContentAreaFilled(false);
         b.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.addActionListener(e -> action.run());
+        if (action != null) b.addActionListener(e -> action.run());
         return b;
+    }
+
+    /** The command palette: every tool, sub-tab and settings page, searchable. */
+    private void openPalette(Component anchor) {
+        java.util.Map<String, java.util.List<String>> tools = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < tabs.getTabCount(); i++) {
+            java.util.List<String> subs = new java.util.ArrayList<>();
+            if (tabs.getComponentAt(i) instanceof JTabbedPane inner)
+                for (int j = 0; j < inner.getTabCount(); j++) subs.add(inner.getTitleAt(j));
+            tools.put(plainTitle(tabs.getTitleAt(i)), subs);
+        }
+        CommandPalette.show(anchor, ctx, tools, (tool, sub) -> {
+            selectTool(tool);
+            if (sub != null) {
+                int i = indexOfTool(tool);
+                if (i >= 0 && tabs.getComponentAt(i) instanceof JTabbedPane inner)
+                    for (int j = 0; j < inner.getTabCount(); j++) if (inner.getTitleAt(j).equals(sub)) inner.setSelectedIndex(j);
+            }
+        });
+    }
+
+    // ---- unread badges: a dot after a tool's name when something was sent to it while it was not showing ----
+
+    private static final String DOT = " \u2022";
+    private static String plainTitle(String t) { return t.endsWith(DOT) ? t.substring(0, t.length() - DOT.length()) : t; }
+    private int indexOfTool(String name) {
+        for (int i = 0; i < tabs.getTabCount(); i++) if (plainTitle(tabs.getTitleAt(i)).equals(name)) return i;
+        return -1;
+    }
+    /** Mark a tool as having unread content, unless it is the one on screen. */
+    public void badgeTool(String name) {
+        int i = indexOfTool(name);
+        if (i < 0 || i == tabs.getSelectedIndex() || tabs.getTitleAt(i).endsWith(DOT)) return;
+        tabs.setTitleAt(i, plainTitle(tabs.getTitleAt(i)) + DOT);
+    }
+    private void clearBadge(int i) {
+        if (i >= 0 && i < tabs.getTabCount() && tabs.getTitleAt(i).endsWith(DOT)) tabs.setTitleAt(i, plainTitle(tabs.getTitleAt(i)));
     }
 
     private void showProxyHelp() {
@@ -493,13 +552,13 @@ public class SuiteFrame extends JFrame {
 
     public void selectTool(String name) {
         for (int i = 0; i < tabs.getTabCount(); i++) {
-            if (tabs.getTitleAt(i).equals(name)) { tabs.setSelectedIndex(i); return; }
+            if (plainTitle(tabs.getTitleAt(i)).equals(name)) { tabs.setSelectedIndex(i); return; }
         }
     }
 
     public void flashTool(String name) {
         for (int i = 0; i < tabs.getTabCount(); i++) {
-            if (tabs.getTitleAt(i).equals(name)) {
+            if (plainTitle(tabs.getTitleAt(i)).equals(name)) {
                 final int idx = i;
                 tabs.setBackgroundAt(idx, Ui.ACCENT);
                 Timer t = new Timer(900, e -> tabs.setBackgroundAt(idx, null));

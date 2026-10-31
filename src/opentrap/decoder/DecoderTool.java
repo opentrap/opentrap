@@ -193,6 +193,32 @@ public class DecoderTool implements ToolModule {
         return m;
     }
 
+    /** The colour each transform is drawn in, in the dropdowns and on the stage it produced. */
+    static Color opColour(String name) {
+        if (name == null) return null;
+        return switch (name.trim().toLowerCase()) {
+            case "url" -> new Color(0xE0, 0x3C, 0x3C);
+            case "html" -> new Color(0xE8, 0x82, 0x0C);
+            case "base64" -> new Color(0xD4, 0xC2, 0x00);
+            case "ascii hex" -> new Color(0x2E, 0xA0, 0x4A);
+            case "hex" -> new Color(0x2F, 0x6F, 0xD6);
+            case "octal" -> new Color(0x1F, 0x9E, 0xA8);
+            case "binary" -> new Color(0xC0, 0x3C, 0xC0);
+            case "gzip", "deflate", "brotli" -> new Color(0xE0, 0x7A, 0x7A);
+            default -> null;
+        };
+    }
+
+    /** Dropdown rows tinted by their transform's colour. */
+    private static final class OpRenderer extends DefaultListCellRenderer {
+        @Override public Component getListCellRendererComponent(JList<?> list, Object v, int i, boolean sel, boolean f) {
+            super.getListCellRendererComponent(list, v, i, sel, f);
+            Color c = opColour(String.valueOf(v));
+            if (c != null && !sel && i >= 0) { setOpaque(true); setBackground(c); setForeground(Color.WHITE); }
+            return this;
+        }
+    }
+
     /** One link in the chain: the data, how it is shown, and what it feeds. */
     private final class Stage {
 
@@ -241,6 +267,8 @@ public class DecoderTool implements ToolModule {
             text.addActionListener(e -> view.run());
             hex.addActionListener(e -> view.run());
 
+            decode.setRenderer(new OpRenderer());
+            encode.setRenderer(new OpRenderer());
             decode.addActionListener(e -> chosen(decode, Transforms.DECODE, encode, hash));
             encode.addActionListener(e -> chosen(encode, Transforms.ENCODE, decode, hash));
             hash.addActionListener(e -> chosen(hash, Transforms.HASH, decode, encode));
