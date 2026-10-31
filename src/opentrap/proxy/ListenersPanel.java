@@ -7,7 +7,11 @@ import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 
-/** Add, edit, start and stop proxy listeners. */
+/**
+ * Add, edit, start and stop proxy listeners, laid out as the reference does:
+ * an Add / Edit / Remove column at the left of the table, the listeners
+ * themselves across it, and the CA certificate actions beneath.
+ */
 public class ListenersPanel extends JPanel {
 
     private final ProxyServer server;
@@ -19,117 +23,144 @@ public class ListenersPanel extends JPanel {
         this.server = server;
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setOpaque(false);
-        // The page gives this block its titled section; the panel starts with
-        // the live listening status.
-        JLabel status = Ui.bold(server.listeningSummary());
-        status.setAlignmentX(LEFT_ALIGNMENT);
-        add(status);
-        add(Box.createVerticalStrut(8));
-        server.onListenersChanged(() -> {
-            status.setText(server.listeningSummary());
-            model.fireTableDataChanged();
-        });
+
+        JTextArea blurb = Ui.note("OpenTRAP uses listeners to receive incoming HTTP requests from "
+                + "your browser. You will need to configure your browser to use one of the "
+                + "listeners as its proxy server.");
+        Ui.sizeNote(blurb, 820);
+        blurb.setAlignmentX(LEFT_ALIGNMENT);
+        add(blurb);
+        add(Box.createVerticalStrut(10));
 
         Ui.styleTable(table);
-        Ui.setWidths(table, 70, 70, 110, 110, 90);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        // running, interface, invisible, redirect, certificate, TLS, HTTP/2
+        Ui.setWidths(table, 70, 150, 70, 110, 100, 110, 110);
+        table.getColumnModel().getColumn(2).setCellRenderer(new Ui.TickRenderer());
         JScrollPane sp = Ui.scroll(table);
-        sp.setPreferredSize(new Dimension(640, 90));
-        sp.setMaximumSize(new Dimension(760, 90));
-        sp.setAlignmentX(LEFT_ALIGNMENT);
-        add(sp);
+        sp.setPreferredSize(new Dimension(820, 120));
+        sp.setMaximumSize(new Dimension(1100, 120));
+
+        JButton add = Ui.button("Add", "add a proxy listener");
+        JButton edit = Ui.button("Edit", "edit the selected listener");
+        JButton remove = Ui.button("Remove", "remove the selected listener");
+        add.addActionListener(e -> addListener());
+        edit.addActionListener(e -> editSelected());
+        remove.addActionListener(e -> removeSelected());
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                // A double click anywhere but the Running box opens the editor.
+                if (e.getClickCount() == 2 && table.columnAtPoint(e.getPoint()) != 0) editSelected();
+            }
+        });
+
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(1100, 120));
+        row.add(Ui.buttonColumn(add, edit, remove), BorderLayout.WEST);
+        row.add(sp, BorderLayout.CENTER);
+        add(row);
+        add(Box.createVerticalStrut(12));
+
+        JTextArea caNote = Ui.note("Each installation of OpenTRAP generates its own CA certificate "
+                + "that proxy listeners can use when negotiating TLS connections. You can import or "
+                + "export this certificate for use in other tools or another installation.");
+        Ui.sizeNote(caNote, 820);
+        caNote.setAlignmentX(LEFT_ALIGNMENT);
+        add(caNote);
         add(Box.createVerticalStrut(8));
 
-        JPanel entry = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
-        entry.setOpaque(false);
-        entry.setAlignmentX(LEFT_ALIGNMENT);
-        JTextField port = Ui.field("", 6);
-        JCheckBox loopback = Ui.check("loopback only", true);
-        JButton add = Ui.button("add", "add the item");
-        JButton remove = Ui.button("remove", "remove the selected item");
-        entry.add(Ui.label("port:"));
-        entry.add(port);
-        entry.add(loopback);
-        entry.add(add);
-        entry.add(remove);
-        add(entry);
+        JButton importExport = Ui.button("Import / export CA certificate",
+                "save this installation's CA certificate, or adopt one");
+        JButton regenerate = Ui.button("Regenerate CA certificate",
+                "replace the CA certificate; every client that trusted the old one must trust the new one");
+        importExport.addActionListener(e -> CertificateActions.importExport(this, ctx, server));
+        regenerate.addActionListener(e -> CertificateActions.regenerate(this, ctx, server));
+        JPanel caRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        caRow.setOpaque(false);
+        caRow.setAlignmentX(LEFT_ALIGNMENT);
+        caRow.add(importExport);
+        caRow.add(regenerate);
+        add(caRow);
 
-        // Selecting a listener shows its port and address mode in the fields,
-        // so the running port is always visible here. The first listener is
-        // selected when the panel opens.
-        table.getSelectionModel().addListSelectionListener(e -> {
-            if (e.getValueIsAdjusting()) return;
-            int i = table.getSelectedRow();
-            if (i >= 0 && i < server.listeners().size()) {
-                ProxyListener l = server.listeners().get(i);
-                port.setText(String.valueOf(l.port));
-                loopback.setSelected(l.loopbackOnly);
-            }
-        });
+        server.onListenersChanged(() -> model.fireTableDataChanged());
         if (model.getRowCount() > 0) table.setRowSelectionInterval(0, 0);
+        setMaximumSize(new Dimension(1100, 340));
+    }
 
-        add.addActionListener(e -> {
-            try {
-                int p = Integer.parseInt(port.getText().trim());
-                for (ProxyListener existing : server.listeners()) {
-                    if (existing.port == p) {
-                        JOptionPane.showMessageDialog(this, "there is already a listener on port " + p,
-                                "proxy listeners", JOptionPane.INFORMATION_MESSAGE);
-                        return;
-                    }
-                }
-                ProxyListener l = new ProxyListener(p);
-                l.loopbackOnly = loopback.isSelected();
-                server.listeners().add(l);
-                server.start(l);
-                model.fireTableDataChanged();
-                table.setRowSelectionInterval(model.getRowCount() - 1, model.getRowCount() - 1);
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "invalid port", "error", JOptionPane.ERROR_MESSAGE);
+    private void addListener() {
+        ProxyListener l = ListenerDialog.show(this, null, "Add proxy listener");
+        if (l == null) return;
+        for (ProxyListener existing : server.listeners()) {
+            if (existing.port == l.port) {
+                JOptionPane.showMessageDialog(this, "There is already a listener on port " + l.port + ".",
+                        "Proxy listeners", JOptionPane.INFORMATION_MESSAGE);
+                return;
             }
-        });
-        remove.addActionListener(e -> {
-            int i = table.getSelectedRow();
-            if (i >= 0 && i < server.listeners().size()) {
-                ProxyListener l = server.listeners().get(i);
-                server.stop(l);
-                server.listeners().remove(i);
-                model.fireTableDataChanged();
-                int n = model.getRowCount();
-                if (n > 0) table.setRowSelectionInterval(Math.min(i, n - 1), Math.min(i, n - 1));
-                else { port.setText(""); }
-            }
-        });
+        }
+        server.listeners().add(l);
+        server.start(l);
+        model.fireTableDataChanged();
+        table.setRowSelectionInterval(model.getRowCount() - 1, model.getRowCount() - 1);
+    }
 
-        // Toggle running by clicking the first column.
-        table.getModel().addTableModelListener(e -> {});
-        setMaximumSize(new Dimension(760, 260));
+    private void editSelected() {
+        int i = table.getSelectedRow();
+        if (i < 0 || i >= server.listeners().size()) return;
+        ProxyListener current = server.listeners().get(i);
+        ProxyListener edited = ListenerDialog.show(this, current, "Edit proxy listener");
+        if (edited == null) return;
+        // Rebind: the port or the address may have changed under it.
+        boolean wasRunning = current.running;
+        server.stop(current);
+        server.listeners().set(i, edited);
+        if (wasRunning) server.start(edited);
+        model.fireTableDataChanged();
+        table.setRowSelectionInterval(i, i);
+    }
+
+    private void removeSelected() {
+        int i = table.getSelectedRow();
+        if (i < 0 || i >= server.listeners().size()) return;
+        server.stop(server.listeners().get(i));
+        server.listeners().remove(i);
+        model.fireTableDataChanged();
+        int n = model.getRowCount();
+        if (n > 0) table.setRowSelectionInterval(Math.min(i, n - 1), Math.min(i, n - 1));
     }
 
     private class Model extends AbstractTableModel {
-        private final String[] cols = {"Running", "Port", "Loopback only", "Invisible", "Redirect"};
+        private final String[] cols = {"Running", "Interface", "Invisible", "Redirect",
+                                       "Certificate", "TLS Protocols", "Support HTTP/2"};
         @Override public int getRowCount() { return server.listeners().size(); }
         @Override public int getColumnCount() { return cols.length; }
         @Override public String getColumnName(int c) { return cols[c]; }
         @Override public Class<?> getColumnClass(int c) {
-            return (c == 0 || c == 2 || c == 3) ? Boolean.class : String.class;
+            return (c == 0 || c == 2 || c == 6) ? Boolean.class : String.class;
         }
-        @Override public boolean isCellEditable(int r, int c) { return c == 0; }
+        @Override public boolean isCellEditable(int r, int c) { return c == 0 || c == 6; }
 
         @Override public Object getValueAt(int r, int c) {
             ProxyListener l = server.listeners().get(r);
             return switch (c) {
                 case 0 -> l.running;
-                case 1 -> String.valueOf(l.port);
-                case 2 -> l.loopbackOnly;
-                case 3 -> l.invisible;
-                default -> l.redirectLabel();
+                case 1 -> l.interfaceLabel();
+                case 2 -> l.invisible;
+                case 3 -> l.redirectLabel();
+                case 4 -> l.certLabel();
+                case 5 -> l.tlsLabel();
+                default -> l.http2;
             };
         }
 
         @Override public void setValueAt(Object v, int r, int c) {
-            if (c != 0) return;
             ProxyListener l = server.listeners().get(r);
-            if (Boolean.TRUE.equals(v)) server.start(l); else server.stop(l);
+            if (c == 0) {
+                if (Boolean.TRUE.equals(v)) server.start(l); else server.stop(l);
+            } else if (c == 6) {
+                l.http2 = Boolean.TRUE.equals(v);
+            }
             fireTableRowsUpdated(r, r);
         }
     }

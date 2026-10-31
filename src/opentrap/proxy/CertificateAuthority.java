@@ -78,6 +78,9 @@ public class CertificateAuthority {
 
     public X509Certificate caCertificate() { return caCert; }
 
+    /** Where this installation's CA lives on disk, so it can be replaced. */
+    public Path storePath() { return storePath; }
+
     /** DER bytes of the CA certificate, for the browser-facing download. */
     public byte[] caCertificateDer() throws Exception { return caCert.getEncoded(); }
 

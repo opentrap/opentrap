@@ -204,14 +204,43 @@ public final class SettingsDialog {
             ((DefaultTreeModel) tree.getModel()).reload();
             for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
         };
+        // The chosen page is marked by a bar across the whole pane, not a
+        // highlight hugging the word. A tree renderer is only as wide as its
+        // text, so the width is widened to the pane and the fill is painted
+        // here rather than left to the renderer's selection colour.
         tree.setCellRenderer(new javax.swing.tree.DefaultTreeCellRenderer() {
+            private boolean chosen;
+            {
+                setOpaque(false);
+                setBackgroundSelectionColor(new Color(0, 0, 0, 0));
+                setBorderSelectionColor(null);
+            }
             @Override public Component getTreeCellRendererComponent(JTree t, Object v, boolean sel, boolean exp, boolean leaf, int row, boolean focus) {
                 super.getTreeCellRendererComponent(t, v, sel, exp, leaf, row, focus);
                 Object o = ((DefaultMutableTreeNode) v).getUserObject();
                 setText(o instanceof Page p ? p.name() : String.valueOf(o));
                 setIcon(o instanceof Page ? null : sectionIcon(String.valueOf(o)));
                 setFont(leaf ? Ui.PLAIN : Ui.BOLD);
+                setForeground(Theme.TEXT);
+                chosen = sel;
+                // The indent is taken from the node's depth, never from the
+                // tree's layout: asking a tree for a row's bounds while it is
+                // building that very row recurses until the stack gives out.
+                int depth = v instanceof DefaultMutableTreeNode n ? n.getLevel() : 1;
+                widthHint = Math.max(0, t.getWidth() - depth * INDENT_PER_LEVEL);
                 return this;
+            }
+            private int widthHint;
+            @Override public Dimension getPreferredSize() {
+                Dimension d = super.getPreferredSize();
+                return new Dimension(Math.max(d.width, widthHint), d.height);
+            }
+            @Override protected void paintComponent(Graphics g) {
+                if (chosen) {
+                    g.setColor(Theme.CONTROL_TINT);
+                    g.fillRect(0, 0, getWidth(), getHeight());
+                }
+                super.paintComponent(g);
             }
         });
         tree.addTreeSelectionListener(e -> {
@@ -354,6 +383,9 @@ public final class SettingsDialog {
         b.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
         return b;
     }
+
+    /** What one level of nesting costs a tree row, matching the tree's own indent. */
+    private static final int INDENT_PER_LEVEL = 20;
 
     /** The mark beside a settings section, so the sections read apart at a glance. */
     private static Icon sectionIcon(String section) {

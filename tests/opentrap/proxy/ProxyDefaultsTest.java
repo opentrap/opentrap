@@ -44,11 +44,44 @@ public final class ProxyDefaultsTest {
         Harness.test("the status line lists every running listener and skips stopped ones", () -> {
             ProxyListener a = new ProxyListener(8080);
             ProxyListener b = new ProxyListener(8081);
-            b.loopbackOnly = false;
+            b.bind = ProxyListener.Bind.ALL;
             ProxyListener c = new ProxyListener(9000);
             c.running = false;
             Expect.equal(ProxyServer.summary(java.util.List.of(a, b, c)),
                     "listening on 127.0.0.1:8080, 0.0.0.0:8081", "status line");
+        });
+
+        Harness.test("a listener names the address it is bound to", () -> {
+            ProxyListener l = new ProxyListener(8081);
+            Expect.equal(l.interfaceLabel(), "127.0.0.1:8081", "loopback is the default");
+
+            l.bind = ProxyListener.Bind.ALL;
+            Expect.equal(l.interfaceLabel(), "0.0.0.0:8081", "all interfaces");
+
+            l.bind = ProxyListener.Bind.SPECIFIC;
+            l.bindAddress = "192.168.21.227";
+            Expect.equal(l.interfaceLabel(), "192.168.21.227:8081", "a specific address");
+
+            // A specific bind with nothing chosen must not produce "null:8081".
+            l.bindAddress = "";
+            Expect.equal(l.interfaceLabel(), "0.0.0.0:8081", "a specific bind with no address");
+        });
+
+        Harness.test("an edit is only kept when the dialog is accepted", () -> {
+            // The dialog edits a copy, so a cancel leaves the original alone.
+            ProxyListener original = new ProxyListener(8080);
+            ProxyListener working = original.copy();
+            working.port = 9999;
+            working.bind = ProxyListener.Bind.ALL;
+            Expect.equal(original.port, 8080, "the original port is untouched");
+            Expect.isTrue(original.bind == ProxyListener.Bind.LOOPBACK,
+                    "the original bind mode is untouched");
+        });
+
+        Harness.test("the machine offers at least loopback to bind to", () -> {
+            java.util.List<String> all = LocalAddresses.all();
+            Expect.isTrue(all.contains("127.0.0.1"), "loopback is always offered");
+            Expect.isTrue(all.indexOf("127.0.0.1") >= 0, "loopback is in the list");
         });
 
         Harness.test("the status line says plainly when nothing is listening", () -> {

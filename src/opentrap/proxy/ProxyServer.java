@@ -108,9 +108,11 @@ public class ProxyServer {
     public synchronized void start(ProxyListener cfg) {
         if (sockets.containsKey(cfg.port)) return;
         try {
-            ServerSocket ss = cfg.loopbackOnly
-                    ? new ServerSocket(cfg.port, 100, InetAddress.getByName("127.0.0.1"))
-                    : new ServerSocket(cfg.port, 100);
+            // ALL binds every interface, which is what a null bind address
+            // means to ServerSocket; the other two name one address.
+            ServerSocket ss = cfg.bind == ProxyListener.Bind.ALL
+                    ? new ServerSocket(cfg.port, 100)
+                    : new ServerSocket(cfg.port, 100, InetAddress.getByName(cfg.bindHost()));
             ss.setReuseAddress(true);
             sockets.put(cfg.port, ss);
             cfg.running = true;
@@ -165,7 +167,7 @@ public class ProxyServer {
         for (ProxyListener l : list) {
             if (!l.running) continue;
             if (sb.length() > 0) sb.append(", ");
-            sb.append(l.loopbackOnly ? "127.0.0.1" : "0.0.0.0").append(':').append(l.port);
+            sb.append(l.interfaceLabel());
         }
         return sb.length() == 0
                 ? "no proxy listeners are running - add one on the options tab"
