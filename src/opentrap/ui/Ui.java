@@ -230,6 +230,18 @@ public final class Ui {
         JComboBox<T> c = new JComboBox<>(items);
         c.setFont(PLAIN);
         c.setMaximumRowCount(14);
+        // Items read as labels, with a leading capital, without touching the
+        // values themselves: the model still holds whatever was handed in, so
+        // code that compares against an item string keeps working.
+        c.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i,
+                    boolean sel, boolean focus) {
+                super.getListCellRendererComponent(l, v, i, sel, focus);
+                setText(v == null ? "" : sentence(String.valueOf(v)));
+                setFont(PLAIN);
+                return this;
+            }
+        });
         return c;
     }
 

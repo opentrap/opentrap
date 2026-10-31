@@ -152,13 +152,16 @@ public class OrganizerTool implements ToolModule {
 
         collectionList.setFont(Ui.PLAIN);
         collectionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        // The chosen collection sits on the control tint with ordinary text, as
+        // every other selected row in the suite does.
+        collectionList.setSelectionBackground(Theme.CONTROL_TINT);
+        collectionList.setSelectionForeground(Theme.TEXT);
         collectionList.setCellRenderer(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i,
                     boolean sel, boolean focus) {
                 super.getListCellRendererComponent(l, v, i, sel, focus);
                 setIcon(Glyphs.inbox(14, sel ? Theme.CONTROL : Theme.ICON));
                 setBorder(Ui.pad(4, 6, 4, 6));
-                if (sel) { setBackground(Theme.CONTROL_TINT); setForeground(Theme.TEXT); }
                 return this;
             }
         });

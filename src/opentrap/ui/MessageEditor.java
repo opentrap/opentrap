@@ -47,7 +47,24 @@ public class MessageEditor extends JPanel {
     private HttpService service;
     private HttpMessage relatedRequest;
 
-    private final JTabbedPane views = new JTabbedPane();
+    /**
+     * Width held clear at the right of the tab row for the toolbar marks that
+     * share that line. The tab row is narrowed by an empty border and the
+     * content area is widened back by the same amount, so the pages still fill
+     * the editor while the tabs stop short of the marks.
+     */
+    private int tabRowReserve;
+    private final JTabbedPane views = new JTabbedPane() {
+        @Override public void updateUI() {
+            setUI(new opentrap.ui.theme.FlatTabbedPaneUI() {
+                @Override protected void installDefaults() {
+                    super.installDefaults();
+                    contentBorderInsets = new java.awt.Insets(contentBorderInsets.top, contentBorderInsets.left,
+                            contentBorderInsets.bottom, -tabRowReserve);
+                }
+            });
+        }
+    };
     // A pretty pane that does not word-wrap: very long unbreakable lines (a
     // base64 VIEWSTATE, a JWT) otherwise render as overlapping, garbled glyphs.
     // Instead such lines extend and the pane scrolls horizontally.
@@ -99,6 +116,9 @@ public class MessageEditor extends JPanel {
         renderPane.setEditorKit(Theme.htmlKit());   // page colours from the theme, not black on white
 
         views.setFont(Ui.PLAIN);
+        // Never wrap onto a second row: the toolbar marks share the tab line, so
+        // a narrow editor scrolls its tabs rather than stacking them.
+        views.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         JScrollPane prettyScroll = Ui.scroll(prettyPane);
         prettyScroll.setRowHeaderView(new LineGutter(prettyPane));
         JScrollPane rawScroll = Ui.scroll(rawArea);
@@ -126,6 +146,14 @@ public class MessageEditor extends JPanel {
                 views.setBounds(0, 0, w, h);
                 views.doLayout();
                 Dimension d = icons.getPreferredSize();
+                int reserve = d.width + 12;
+                if (reserve != tabRowReserve) {
+                    tabRowReserve = reserve;
+                    views.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, reserve));
+                    views.updateUI();
+                    views.setBounds(0, 0, w, h);
+                    views.doLayout();
+                }
                 int rowH = views.getTabCount() > 0 ? views.getUI().getTabBounds(views, 0).height : d.height;
                 icons.setBounds(w - d.width - 6, Math.max(0, (rowH - d.height) / 2), d.width, d.height);
             }

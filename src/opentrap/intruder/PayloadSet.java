@@ -49,6 +49,7 @@ public class PayloadSet extends JPanel {
 
         JPanel top = Ui.form("Payload type:", typeCombo);
         top.setAlignmentX(LEFT_ALIGNMENT);
+        top.setMaximumSize(new Dimension(Integer.MAX_VALUE, top.getPreferredSize().height));
         cards.setAlignmentX(LEFT_ALIGNMENT);
         processor.setAlignmentX(LEFT_ALIGNMENT);
         add(top);

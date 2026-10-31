@@ -74,9 +74,12 @@ public final class InstalledPanel extends JPanel {
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.getColumnModel().getColumn(0).setMaxWidth(70);
         table.getColumnModel().getColumn(1).setMaxWidth(90);
-        table.getColumnModel().getColumn(3).setMaxWidth(130);
-        table.getColumnModel().getColumn(3).setPreferredWidth(130);
-        table.getColumnModel().getColumn(4).setMaxWidth(90);
+        table.getColumnModel().getColumn(2).setPreferredWidth(420);   // Name absorbs the spare width
+        table.getColumnModel().getColumn(3).setMaxWidth(140);
+        table.getColumnModel().getColumn(3).setPreferredWidth(140);
+        table.getColumnModel().getColumn(4).setMinWidth(100);
+        table.getColumnModel().getColumn(4).setMaxWidth(110);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
         table.getColumnModel().getColumn(3).setCellRenderer(new MeterRenderer());
         model.addTableModelListener(e -> {
             int r = e.getFirstRow();
