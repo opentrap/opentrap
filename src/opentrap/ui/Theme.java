@@ -42,10 +42,16 @@ public final class Theme {
     public static Color ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
     /** Row selection: a light blue selection that stays legible against the orange accent. */
     public static Color ACCENT_LIGHT = new Color(0xCA, 0xDA, 0xF0);
-    /** The colour of switched-on controls: check marks, radio dots, toggles, filter chips, selection bars. */
-    public static Color CONTROL      = new Color(0x2F, 0x6F, 0xD6);
-    /** The tint behind a selected card or list row. */
-    public static Color CONTROL_TINT = new Color(0xE8, 0xF0, 0xFB);
+    /**
+     * The colour of switched-on controls: check marks, radio dots, toggles,
+     * filter chips, selection bars. Sampled from the reference frames, where it
+     * is by far the most common saturated blue.
+     */
+    public static Color CONTROL      = new Color(0x26, 0x63, 0x9C);
+    /** The tint behind a selected card or list row, sampled from the same frames. */
+    public static Color CONTROL_TINT = new Color(0xEA, 0xEF, 0xF5);
+    /** The fill of an unselected segment in a segmented control. */
+    public static Color SEGMENT_OFF  = new Color(0xDF, 0xDF, 0xDF);
     public static Color ACCENT_FAINT = new Color(0xF7, 0xF7, 0xF7);
 
     // ---- the rest of the palette: everything a tool used to hard-code ----
@@ -125,8 +131,9 @@ public final class Theme {
             DIFF_DELETED  = new Color(0x6B, 0x2B, 0x2B);
             DIFF_ADDED    = new Color(0x2B, 0x5B, 0x2B);
             DIFF_MODIFIED = new Color(0x2B, 0x45, 0x66);
-            CONTROL       = new Color(0x5B, 0x8F, 0xE8);
-            CONTROL_TINT  = new Color(0x22, 0x2E, 0x44);
+            CONTROL       = new Color(0x55, 0x93, 0xD0);
+            CONTROL_TINT  = new Color(0x1E, 0x2A, 0x36);
+            SEGMENT_OFF   = new Color(0x3A, 0x3A, 0x3A);
         } else {
             BG           = new Color(0xFF, 0xFF, 0xFF);
             SURFACE      = new Color(0xEE, 0xEE, 0xEE);
@@ -157,8 +164,9 @@ public final class Theme {
             DIFF_DELETED  = new Color(0xF7, 0xC9, 0xC9);
             DIFF_ADDED    = new Color(0xCB, 0xE8, 0xCB);
             DIFF_MODIFIED = new Color(0xC7, 0xDC, 0xF5);
-            CONTROL       = new Color(0x2F, 0x6F, 0xD6);
-            CONTROL_TINT  = new Color(0xE8, 0xF0, 0xFB);
+            CONTROL       = new Color(0x26, 0x63, 0x9C);
+            CONTROL_TINT  = new Color(0xEA, 0xEF, 0xF5);
+            SEGMENT_OFF   = new Color(0xDF, 0xDF, 0xDF);
         }
     }
 

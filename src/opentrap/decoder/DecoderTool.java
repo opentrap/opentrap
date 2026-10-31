@@ -194,7 +194,7 @@ public class DecoderTool implements ToolModule {
             case "html" -> new Color(0xE8, 0x82, 0x0C);
             case "base64" -> new Color(0xD4, 0xC2, 0x00);
             case "ascii hex" -> new Color(0x2E, 0xA0, 0x4A);
-            case "hex" -> new Color(0x2F, 0x6F, 0xD6);
+            case "hex" -> opentrap.ui.Theme.CONTROL;
             case "octal" -> new Color(0x1F, 0x9E, 0xA8);
             case "binary" -> new Color(0xC0, 0x3C, 0xC0);
             case "gzip", "deflate", "brotli" -> new Color(0xE0, 0x7A, 0x7A);

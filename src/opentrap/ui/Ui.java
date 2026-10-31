@@ -588,38 +588,50 @@ public final class Ui {
     }
 
     /**
-     * A pill pair (or triple) of mutually exclusive views, as the site map's
-     * "URL view" / "Crawl paths view" switch. The chosen pill is filled with
-     * the control colour; {@code onChoose} is handed the chosen index.
+     * A joined run of mutually exclusive views, as the site map's "URL view" /
+     * "Crawl paths view" switch. The segments abut with square inner edges and
+     * the outer corners rounded, the chosen one filled with the control colour
+     * and the rest with the segment grey; {@code onChoose} is handed the chosen
+     * index. Geometry and both fills are taken from the reference frames.
      */
     public static JPanel segmented(java.util.function.IntConsumer onChoose, String... labels) {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         p.setOpaque(false);
         ButtonGroup g = new ButtonGroup();
         final java.util.List<JToggleButton> all = new java.util.ArrayList<>();
         for (int i = 0; i < labels.length; i++) {
             final int idx = i;
-            JToggleButton b = new JToggleButton(labels[i], i == 0);
+            final boolean first = i == 0, last = i == labels.length - 1;
+            JToggleButton b = new JToggleButton(labels[i], i == 0) {
+                @Override protected void paintComponent(Graphics gr) {
+                    Graphics2D g2 = (Graphics2D) gr.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int w = getWidth(), h = getHeight(), arc = Theme.RADIUS;
+                    g2.setColor(isSelected() ? Theme.CONTROL : Theme.SEGMENT_OFF);
+                    // Round only the outer corners: fill the rounded shape, then
+                    // square off whichever inner edge touches a neighbour.
+                    g2.fillRoundRect(0, 0, w, h, arc, arc);
+                    if (!first) g2.fillRect(0, 0, arc, h);
+                    if (!last)  g2.fillRect(w - arc, 0, arc, h);
+                    g2.setColor(isSelected() ? Color.WHITE : Theme.TEXT);
+                    g2.setFont(getFont());
+                    FontMetrics fm = g2.getFontMetrics();
+                    g2.drawString(getText(), (w - fm.stringWidth(getText())) / 2f,
+                            (h + fm.getAscent() - fm.getDescent()) / 2f);
+                    g2.dispose();
+                }
+            };
             b.setFont(PLAIN);
             b.setFocusable(false);
             b.setContentAreaFilled(false);
-            b.setOpaque(true);
+            b.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
             b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            b.setBorder(new opentrap.ui.theme.RoundedBorder(GRID, null, Theme.RADIUS, new Insets(4, 10, 4, 10)));
             all.add(b);
             g.add(b);
             p.add(b);
-            b.addActionListener(e -> { paintSegments(all); onChoose.accept(idx); });
+            b.addActionListener(e -> { for (JToggleButton t : all) t.repaint(); onChoose.accept(idx); });
         }
-        paintSegments(all);
         return p;
-    }
-
-    private static void paintSegments(java.util.List<JToggleButton> all) {
-        for (JToggleButton t : all) {
-            t.setBackground(t.isSelected() ? Theme.CONTROL : Theme.SURFACE);
-            t.setForeground(t.isSelected() ? Color.WHITE : Theme.TEXT);
-        }
     }
 
     /** A round "?" that explains the panel it sits on. */

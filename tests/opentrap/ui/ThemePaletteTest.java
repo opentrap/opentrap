@@ -39,6 +39,17 @@ public final class ThemePaletteTest {
         catch (IllegalAccessException e) { throw new AssertionError(e); }
     }
 
+    private static String hex(Color c) {
+        return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
+    }
+
+    /** Within {@code tol} per channel, which absorbs the screen recording's noise. */
+    private static boolean near(Color c, int r, int g, int b, int tol) {
+        return Math.abs(c.getRed() - r) <= tol
+            && Math.abs(c.getGreen() - g) <= tol
+            && Math.abs(c.getBlue() - b) <= tol;
+    }
+
     public void run() {
         Harness.suite("theme palette");
 
@@ -59,6 +70,20 @@ public final class ThemePaletteTest {
                 Expect.isFalse(read(f).equals(light.get(f.getName())),
                         f.getName() + " is left at the other theme's value");
             }
+        });
+
+        Harness.test("the sampled colours are the ones the reference uses", () -> {
+            // Taken with a colour picker over the reference frames in
+            // ~/Working/burpmap/video/frames: #26639C is the most common
+            // saturated blue across all 346 of them by a factor of five, and
+            // is the fill of the site map's selected "URL view" segment and of
+            // the selected task card's edge bar. #EAEFF5 is that card's fill
+            // and #DFDFDF the unselected segment. #DA602F is the accent.
+            Theme.configure(false);
+            Expect.equal(hex(Theme.CONTROL), "#26639C", "the control blue");
+            Expect.equal(hex(Theme.CONTROL_TINT), "#EAEFF5", "the selection tint");
+            Expect.equal(hex(Theme.SEGMENT_OFF), "#DFDFDF", "the unselected segment");
+            Expect.isTrue(near(Theme.ACCENT, 0xDA, 0x60, 0x2F, 3), "the accent is the sampled orange");
         });
 
         Harness.test("a tint stays on the right side of its text", () -> {
