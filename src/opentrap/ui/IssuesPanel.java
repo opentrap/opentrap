@@ -71,8 +71,28 @@ public final class IssuesPanel extends JPanel {
         split.setDividerSize(5);
         Ui.balance(split, 0.6);
         add(split, BorderLayout.CENTER);
-        ctx.addIssueListener(i -> SwingUtilities.invokeLater(this::reload));
+        // A finding at a time would rebuild this whole table once per finding.
+        // Through a coalescer a burst costs one rebuild; and while this panel
+        // is not on screen it costs nothing at all, because it is built with
+        // the window and sits hidden behind the status bar link until asked for.
+        ctx.addIssueListener(i -> refresh.request());
         reload();
+    }
+
+    /** Collapses a burst of findings into one rebuild. */
+    private final Coalescer refresh = new Coalescer(250, this::reloadIfShowing);
+
+    /** Set while hidden, so the panel catches up the moment it is shown. */
+    private boolean stale;
+
+    private void reloadIfShowing() {
+        if (!isShowing()) { stale = true; return; }
+        reload();
+    }
+
+    @Override public void addNotify() {
+        super.addNotify();
+        if (stale) { stale = false; reload(); }
     }
 
     public void reload() {

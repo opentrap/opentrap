@@ -100,6 +100,13 @@ public class Main {
             Debug.log("creating SuiteContext and SuiteFrame");
             SuiteContext ctx = new SuiteContext();
             SuiteFrame frame = new SuiteFrame(ctx, TITLE);
+            // Under --debug, report what the interface was doing whenever it
+            // stops answering, so a freeze comes with its reason attached.
+            EdtWatchdog.install();
+            if (Debug.enabled()) {
+                Runtime.getRuntime().addShutdownHook(new Thread(() ->
+                        Debug.log("interface stalls this session:\n" + EdtWatchdog.summary())));
+            }
             Debug.log("registering tools");
             Bootstrap.registerTools(ctx, frame, home);
             Debug.log("building UI (frame.buildUi)");

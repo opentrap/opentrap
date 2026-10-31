@@ -73,9 +73,9 @@ public class DashboardTool implements ToolModule {
     // Background scan threads report progress, issues and log lines far faster
     // than the UI needs to redraw. These coalescers collapse each storm into at
     // most one refresh per interval so the event-dispatch thread never floods.
-    private final Coalescer tasksRefresh  = new Coalescer(200, this::rebuildTasks);
-    private final Coalescer issuesRefresh = new Coalescer(200, this::onIssuesChanged);
-    private final Coalescer logRefresh     = new Coalescer(200, this::flushScanLog);
+    private final opentrap.ui.Coalescer tasksRefresh  = new opentrap.ui.Coalescer(200, this::rebuildTasks);
+    private final opentrap.ui.Coalescer issuesRefresh = new opentrap.ui.Coalescer(200, this::onIssuesChanged);
+    private final opentrap.ui.Coalescer logRefresh     = new opentrap.ui.Coalescer(200, this::flushScanLog);
     private final java.util.Queue<LogEntry> logAddQueue = new java.util.concurrent.ConcurrentLinkedQueue<>();
     private volatile boolean logHasUpdates;
 
@@ -1150,22 +1150,6 @@ public class DashboardTool implements ToolModule {
      * interval on the event-dispatch thread. {@link #request()} may be called
      * from any thread; the action always runs on the EDT.
      */
-    private static final class Coalescer {
-        private final javax.swing.Timer timer;
-        private volatile boolean dirty;
-        Coalescer(int intervalMs, Runnable action) {
-            timer = new javax.swing.Timer(intervalMs, e -> {
-                if (dirty) { dirty = false; action.run(); }
-                else ((javax.swing.Timer) e.getSource()).stop();
-            });
-            timer.setRepeats(true);
-            timer.setInitialDelay(0);   // the first refresh is prompt, not delayed
-        }
-        void request() {
-            dirty = true;
-            SwingUtilities.invokeLater(() -> { if (!timer.isRunning()) timer.start(); });
-        }
-    }
 
     /** Apply queued scan-log entries to the table in one batch (runs on the EDT). */
     private void flushScanLog() {

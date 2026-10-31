@@ -32,6 +32,8 @@ public class TargetTool implements ToolModule {
     private JTextArea pathToIssue;
     private IssueLogModel issueLogModel;
     private MessageEditor issueReq, issueResp;
+    private final opentrap.ui.Coalescer issuesRefresh =
+            new opentrap.ui.Coalescer(250, this::refreshIssues);
     private SiteMap.Node selectedNode;
     private java.util.List<SiteMap.Node> selectedNodes = new java.util.ArrayList<>();
 
@@ -54,9 +56,13 @@ public class TargetTool implements ToolModule {
                 SwingUtilities.invokeLater(() -> reloadSiteMap(all));
             }
         });
+        // refreshIssues walks every issue, sorts them and rebuilds the tree.
+        // Doing that once per finding is what made a scan with a thousand
+        // findings stop the window answering; a coalescer makes a burst cost
+        // one rebuild.
         ctx.addIssueListener(new SuiteContext.IssueListener() {
-            @Override public void issueAdded(Issue i) { SwingUtilities.invokeLater(TargetTool.this::refreshIssues); }
-            @Override public void issuesReloaded()    { SwingUtilities.invokeLater(TargetTool.this::refreshIssues); }
+            @Override public void issueAdded(Issue i) { issuesRefresh.request(); }
+            @Override public void issuesReloaded()    { issuesRefresh.request(); }
         });
         // "Show only in-scope items" depends on the scope, so a scope edit
         // re-filters the tree and the table.
