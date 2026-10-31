@@ -1,135 +1,55 @@
 package opentrap.extensions;
 
+import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
-import opentrap.ui.Ui;
-import opentrap.ui.Unbuilt;
+import opentrap.ui.SettingsDialog;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
 
 /**
- * Extensions tool: load and manage add-ons that customise the suite. This is a
- * laid-out placeholder - the structure and controls are in place, but loading
- * and the catalogue are not built yet. Controls stay enabled and open the shared
- * "not built yet" dialog ({@link Unbuilt}) so a user can contribute the feature
- * rather than hit a dead end. The real work is tracked in the dev plan.
+ * Extensions tool: load and manage add-ons that customise the suite.
+ * Six sub-tabs: Installed (what is loaded), Store (the engine's marketplace),
+ * APIs (the module contract), Custom scan checks and Script library (user
+ * scripts, one function or all), and the settings launcher.
  */
 public class ExtensionsTool implements ToolModule {
 
+    private SuiteContext ctx;
+
     @Override public String name() { return "extensions"; }
 
+    @Override public boolean alwaysTabbed() { return true; }
+
+    @Override public void init(SuiteContext ctx) {
+        this.ctx = ctx;
+        SettingsDialog.register("Extensions", () -> new CoreExtensionSettingsPanel(ctx.settings()));
+    }
+
     @Override public Tab[] tabs() {
+        JComponent settings = ctx == null ? new JPanel()
+                : SettingsDialog.launcher(ctx, "Extensions", "Extensions settings",
+                        "Startup and load behaviour for extensions, and the Java, Python and Ruby runtimes they use, live under Settings > Extensions.");
         return new Tab[]{
-                new Tab("Installed", installed()),
-                new Tab("Store", Unbuilt.EXT_STORE.panel()),
-                new Tab("API", Unbuilt.EXT_API.panel()),
-                new Tab("Custom checks", Unbuilt.EXT_CUSTOM_CHECKS.panel()),
-                new Tab("Filters", Unbuilt.EXT_FILTERS.panel()),
-                new Tab("Settings", Unbuilt.EXT_SETTINGS.panel()),
+                new Tab("Installed", new InstalledPanel()),
+                new Tab("Store", new StorePanel()),
+                new Tab("APIs", new ApisPanel()),
+                new Tab("Custom scan checks", new ScriptLibraryPanel(
+                        ScriptLibraryPanel.Function.SCAN_CHECK,
+                        "Custom scan checks",
+                        "Extend the scanner with your own checks. A custom scan check is a script that inspects a request "
+                      + "and its response and reports issues; the scanner runs every enabled check against each audit item.",
+                        "Extend the scanner with custom scan checks",
+                        "Write a check once and the scanner runs it everywhere. To get started, create a new check or import one.")),
+                new Tab("Script library", new ScriptLibraryPanel(
+                        null,
+                        "Script library",
+                        "Scripts are small pieces of Java that run from tools across OpenTRAP to carry out a range of tasks: "
+                      + "filters, custom actions, custom columns and scan checks. Use the library to manage your scripts in one "
+                      + "place, then load them directly in compatible tools when needed.",
+                        "Customize OpenTRAP with Java-based scripts",
+                        "To get started, create or import a new script. Looking for ideas? Use a built-in template to create "
+                      + "your script or browse the project's GitHub repository for ready-to-use scripts.")),
+                new Tab("Extensions settings", settings),
         };
-    }
-
-    /** The Installed sub-tab: the management table and controls, laid out but inert. */
-    private JComponent installed() {
-        JPanel root = new JPanel(new BorderLayout(0, 8));
-        root.setBorder(Ui.pad(10, 12, 10, 12));
-        root.setOpaque(false);
-
-        // Header, as in the reference: the system-impact line with its meter at
-        // the top, then the heading and description with a search box on the right.
-        JPanel impactRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        impactRow.setOpaque(false);
-        impactRow.add(Ui.label("Total estimated system impact:"));
-        impactRow.add(Ui.bold("None"));
-        JProgressBar meter = new JProgressBar(0, 100);
-        meter.setValue(0);
-        meter.setPreferredSize(new Dimension(260, 8));
-        impactRow.add(meter);
-
-        JPanel head = new JPanel(new BorderLayout(10, 0));
-        head.setOpaque(false);
-        JPanel titleCol = new JPanel();
-        titleCol.setLayout(new BoxLayout(titleCol, BoxLayout.Y_AXIS));
-        titleCol.setOpaque(false);
-        JLabel heading = Ui.heading("Extensions");
-        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel desc = Ui.label("Extensions let you customise OpenTRAP's behaviour using your own or third-party code.");
-        desc.setAlignmentX(Component.LEFT_ALIGNMENT);
-        titleCol.add(heading);
-        titleCol.add(Box.createVerticalStrut(2));
-        titleCol.add(desc);
-        head.add(titleCol, BorderLayout.WEST);
-        JTextField search = Ui.field("", 18);
-        JPanel searchWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        searchWrap.setOpaque(false);
-        searchWrap.add(Ui.label("Search "));
-        searchWrap.add(search);
-        head.add(searchWrap, BorderLayout.SOUTH);
-        JPanel top = Ui.vbox(impactRow, Box.createVerticalStrut(10), head);
-        root.add(top, BorderLayout.NORTH);
-
-        // Centre: left button column + extensions table.
-        JPanel centre = new JPanel(new BorderLayout(8, 0));
-        centre.setOpaque(false);
-
-        JPanel buttons = new JPanel(new GridLayout(4, 1, 0, 4));
-        buttons.setOpaque(false);
-        for (String b : new String[]{"Add", "Remove", "Up", "Down"}) {
-            JButton btn = Ui.button(b);
-            Unbuilt.EXT_INSTALLED.attach(btn);
-            buttons.add(btn);
-        }
-        JPanel btnWrap = new JPanel(new BorderLayout());
-        btnWrap.setOpaque(false);
-        btnWrap.add(buttons, BorderLayout.NORTH);
-        centre.add(btnWrap, BorderLayout.WEST);
-
-        DefaultTableModel model = new DefaultTableModel(
-                new Object[]{"Loaded", "Type", "Name", "System impact", "Auto-reload"}, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-        JTable table = new JTable(model);
-        Ui.styleTable(table);
-        JScrollPane tableScroll = Ui.scroll(table);
-        tableScroll.setPreferredSize(new Dimension(600, 150));
-        centre.add(tableScroll, BorderLayout.CENTER);
-
-        // Bottom: Details / Output / Errors for the selected extension.
-        JTabbedPane detail = new JTabbedPane();
-        detail.setFont(Ui.PLAIN);
-        detail.addTab("Details", detailPane());
-        detail.addTab("Output", consolePane());
-        detail.addTab("Errors", consolePane());
-
-        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, centre, detail);
-        split.setResizeWeight(0.45);
-        split.setBorder(null);
-        root.add(split, BorderLayout.CENTER);
-
-        return root;
-    }
-
-    private JComponent detailPane() {
-        JPanel p = new JPanel(new BorderLayout(0, 6));
-        p.setOpaque(false);
-        p.setBorder(Ui.pad(8, 4, 4, 4));
-        JCheckBox loaded = Ui.check("Extension loaded", false);
-        loaded.setEnabled(false);
-        p.add(loaded, BorderLayout.NORTH);
-        DefaultTableModel m = new DefaultTableModel(new Object[]{"Item", "Detail"}, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-        JTable t = new JTable(m);
-        Ui.styleTable(t);
-        p.add(Ui.scroll(t), BorderLayout.CENTER);
-        return p;
-    }
-
-    private JComponent consolePane() {
-        JTextArea a = new JTextArea();
-        a.setEditable(false);
-        a.setFont(Ui.MONO);
-        return Ui.scroll(a);
     }
 }

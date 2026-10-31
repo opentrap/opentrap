@@ -36,7 +36,6 @@ public final class SettingsDialog {
         return switch (category) {
             case "Comparer"   -> Unbuilt.SETTINGS_COMPARER;
             case "Suite"      -> Unbuilt.SETTINGS_SUITE;
-            case "Extensions" -> Unbuilt.SETTINGS_EXTENSIONS;
             default           -> null;
         };
     }

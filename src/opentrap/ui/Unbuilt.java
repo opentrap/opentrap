@@ -58,14 +58,6 @@ public final class Unbuilt {
     // Intruder
     public static final Unbuilt INTRUDER_RESPOOL     = of("OT-INTRUDER-RESPOOL",     "Intruder > Resource pool");
 
-    // Extensions
-    public static final Unbuilt EXT_INSTALLED        = of("OT-EXT-INSTALLED",        "Extensions > Installed");
-    public static final Unbuilt EXT_STORE            = of("OT-EXT-STORE",            "Extensions > Store");
-    public static final Unbuilt EXT_API              = of("OT-EXT-API",              "Extensions > API");
-    public static final Unbuilt EXT_CUSTOM_CHECKS    = of("OT-EXT-CUSTOM-CHECKS",    "Extensions > Custom checks");
-    public static final Unbuilt EXT_FILTERS          = of("OT-EXT-FILTERS",          "Extensions > Filters");
-    public static final Unbuilt EXT_SETTINGS         = of("OT-EXT-SETTINGS",         "Extensions > Settings");
-
     // Suite chrome (the browser and search in the top bar are real features)
     public static final Unbuilt CONSOLE              = of("OT-CONSOLE",              "Console");
 
@@ -73,7 +65,6 @@ public final class Unbuilt {
     // Sequencer, Project, Sessions and Configuration library panes are built; these are not)
     public static final Unbuilt SETTINGS_COMPARER       = of("OT-SETTINGS-COMPARER",       "Settings > Comparer");
     public static final Unbuilt SETTINGS_SUITE          = of("OT-SETTINGS-SUITE",          "Settings > Suite");
-    public static final Unbuilt SETTINGS_EXTENSIONS     = of("OT-SETTINGS-EXTENSIONS",     "Settings > Extensions");
 
     public String code()     { return code; }
     public String location() { return location; }
