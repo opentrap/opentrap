@@ -102,6 +102,45 @@ public class MessageEditor extends JPanel {
     private final JTextPane prettyPane = new JTextPane() {
         @Override public boolean getScrollableTracksViewportWidth() { return wrapLines; }
     };
+
+    /**
+     * An editor kit whose text may be broken anywhere, not only between words.
+     *
+     * <p>A response body is frequently one enormous unbreakable run: a base64
+     * blob, a JWT, a minified JSON line. A plain styled pane can only break at
+     * a space, so such a line cannot be folded at all; it overflows the pane
+     * and is clipped, and because the pane still reports that it fits the
+     * viewport no scroll bar appears to reach the rest. Reporting a minimum
+     * width of zero lets the line fold mid-token instead, which is what the
+     * reference does.
+     */
+    private static final class CharWrapKit extends javax.swing.text.StyledEditorKit {
+        private final javax.swing.text.ViewFactory factory = elem -> {
+            String kind = elem.getName();
+            if (kind != null) {
+                switch (kind) {
+                    case javax.swing.text.AbstractDocument.ContentElementName:
+                        return new javax.swing.text.LabelView(elem) {
+                            @Override public float getMinimumSpan(int axis) {
+                                return axis == javax.swing.text.View.X_AXIS ? 0 : super.getMinimumSpan(axis);
+                            }
+                        };
+                    case javax.swing.text.AbstractDocument.ParagraphElementName:
+                        return new javax.swing.text.ParagraphView(elem);
+                    case javax.swing.text.AbstractDocument.SectionElementName:
+                        return new javax.swing.text.BoxView(elem, javax.swing.text.View.Y_AXIS);
+                    case javax.swing.text.StyleConstants.ComponentElementName:
+                        return new javax.swing.text.ComponentView(elem);
+                    case javax.swing.text.StyleConstants.IconElementName:
+                        return new javax.swing.text.IconView(elem);
+                    default:
+                        break;
+                }
+            }
+            return new javax.swing.text.LabelView(elem);
+        };
+        @Override public javax.swing.text.ViewFactory getViewFactory() { return factory; }
+    }
     private final JTextArea rawArea = new JTextArea();
     private final HexView hexView;
     private final JEditorPane renderPane = new JEditorPane();
@@ -131,6 +170,8 @@ public class MessageEditor extends JPanel {
         this.hexView = new HexView(editable);
         this.inspector = new Inspector();
 
+        // Installed before any text is set: swapping the kit resets the document.
+        prettyPane.setEditorKit(new CharWrapKit());
         prettyPane.setFont(Ui.MONO);
         prettyPane.setEditable(editable);
 
