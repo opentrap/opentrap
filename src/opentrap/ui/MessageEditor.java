@@ -261,13 +261,14 @@ public class MessageEditor extends JPanel {
         JLabel titleLabel = Ui.bold(title);
         titleLabel.setForeground(Theme.TEXT);
         head.add(titleLabel, BorderLayout.WEST);
-        JButton close = Ui.button("x", "close");
-        close.setMargin(new Insets(0, 5, 0, 5));
+        JButton close = Glyphs.button(Glyphs.cross(14, Theme.ICON), "Close this panel", null);
         close.addActionListener(e -> { inspectorBtn.setSelected(false); notesBtn.setSelected(false); actionsBtn.setSelected(false); hideFlyout(); });
         JPanel headRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
         headRight.setOpaque(false);
-        headRight.add(Glyphs.button(Glyphs.copy(14, Theme.MUTED), "Side-by-side layout", () -> flyout.setPreferredSize(new Dimension(280, 10))));
-        headRight.add(Glyphs.button(Glyphs.copy(14, Ui.ACCENT), "Wide layout", () -> { flyout.setPreferredSize(new Dimension(420, 10)); revalidate(); }));
+        headRight.add(Glyphs.button(Glyphs.chevron(14, Theme.ICON, 0), "Narrow this panel",
+                () -> { flyout.setPreferredSize(new Dimension(280, 10)); revalidate(); }));
+        headRight.add(Glyphs.button(Glyphs.chevron(14, Theme.ICON, 3), "Widen this panel",
+                () -> { flyout.setPreferredSize(new Dimension(420, 10)); revalidate(); }));
         if (content == inspector) {
             headRight.add(Glyphs.button(Glyphs.chevron(14, Theme.MUTED, 1), "Expand all sections", () -> inspector.expandAll(true)));
             headRight.add(Glyphs.button(Glyphs.chevron(14, Theme.MUTED, 2), "Collapse all sections", () -> inspector.expandAll(false)));

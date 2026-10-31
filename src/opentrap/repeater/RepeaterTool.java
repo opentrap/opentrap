@@ -75,19 +75,19 @@ public class RepeaterTool implements ToolModule {
 
     @Override public JMenu[] menus() {
         JMenu menu = new JMenu("repeater");
-        JMenuItem nt = new JMenuItem("new tab");
+        JMenuItem nt = new JMenuItem("New tab");
         nt.addActionListener(e -> newTab(new HttpService("127.0.0.1", 80, false),
                 new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")), null));
-        JMenuItem dt = new JMenuItem("delete tab");
+        JMenuItem dt = new JMenuItem("Delete tab");
         dt.addActionListener(e -> { if (tabs.getTabCount() > 1) tabs.remove(tabs.getSelectedIndex()); });
-        JMenuItem rt = new JMenuItem("rename tab");
+        JMenuItem rt = new JMenuItem("Rename tab");
         rt.addActionListener(e -> {
             int i = tabs.getSelectedIndex();
             if (i < 0) return;
             String name = JOptionPane.showInputDialog(ctx.frame(), "enter the new tab name", tabs.getTitleAt(i));
             if (name != null && !name.isBlank()) tabs.setTitleAt(i, name);
         });
-        JMenuItem st = new JMenuItem("repeater settings");
+        JMenuItem st = new JMenuItem("Repeater settings");
         st.addActionListener(e -> SettingsDialog.open(
                 ctx.frame() instanceof Window w ? w : null, ctx, "Repeater"));
         for (JMenuItem m : new JMenuItem[]{nt, dt, rt, st}) m.setFont(Ui.PLAIN);

@@ -44,14 +44,7 @@ public final class ResourcePoolPanel extends OptionsPage {
         Ui.styleTable(table);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         Ui.distributeWidths(table, 60, 180, 110, 100, 90, 100, 90);
-        table.getColumnModel().getColumn(0).setCellRenderer(new javax.swing.table.DefaultTableCellRenderer() {
-            @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f, int r, int c) {
-                super.getTableCellRendererComponent(t, "", sel, f, r, c);
-                setIcon(Boolean.TRUE.equals(v) ? Glyphs.tick(14, Ui.ACCENT) : null);
-                setHorizontalAlignment(CENTER);
-                return this;
-            }
-        });
+        table.getColumnModel().getColumn(0).setCellRenderer(new Ui.TickRenderer());
         if (model.getRowCount() > 0) table.setRowSelectionInterval(0, 0);
         JScrollPane sp = Ui.scroll(table);
         sp.setPreferredSize(new Dimension(620, 110));

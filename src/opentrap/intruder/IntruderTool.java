@@ -122,9 +122,9 @@ public class IntruderTool implements ToolModule {
 
     @Override public JMenu[] menus() {
         JMenu menu = new JMenu("intruder");
-        JMenuItem start = new JMenuItem("start attack");
+        JMenuItem start = new JMenuItem("Start attack");
         start.addActionListener(e -> startAttack());
-        JMenuItem clear = new JMenuItem("clear positions");
+        JMenuItem clear = new JMenuItem("Clear positions");
         clear.addActionListener(e -> positions.clearPositions());
         start.setFont(Ui.PLAIN);
         clear.setFont(Ui.PLAIN);

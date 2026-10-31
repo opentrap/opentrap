@@ -126,7 +126,7 @@ public final class CrawlGraph extends JPanel {
             }
             // Draw this node on top of its edges.
             double r = level == 0 ? 7 : 4.5;
-            g.setColor(level == 0 ? Ui.ACCENT : (n.kids.isEmpty() ? Theme.MUTED : Ui.ACCENT));
+            g.setColor(level == 0 ? Ui.ACCENT : n.kids.isEmpty() ? Theme.MUTED : Theme.CONTROL);
             g.fill(new Ellipse2D.Double(x - r, y - r, 2 * r, 2 * r));
             if (level <= 2 && !n.name.isEmpty()) {
                 g.setColor(Theme.TEXT);

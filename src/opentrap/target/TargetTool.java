@@ -759,7 +759,7 @@ public class TargetTool implements ToolModule {
     }
 
     private void addItem(JPopupMenu menu, String label, Runnable r) {
-        JMenuItem mi = new JMenuItem(label);
+        JMenuItem mi = new JMenuItem(Ui.sentence(label));
         mi.setFont(Ui.PLAIN);
         mi.addActionListener(e -> r.run());
         menu.add(mi);

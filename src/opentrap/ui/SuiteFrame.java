@@ -311,15 +311,15 @@ public class SuiteFrame extends JFrame {
 
         JMenu view = new JMenu("View");
         view.setFont(Ui.PLAIN);
-        JMenuItem bigger = new JMenuItem("increase text size");
+        JMenuItem bigger = new JMenuItem("Increase text size");
         bigger.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_EQUALS,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         bigger.addActionListener(e -> UiScale.changeTo(currentScale() + 0.25, Main.launchArgs));
-        JMenuItem smaller = new JMenuItem("decrease text size");
+        JMenuItem smaller = new JMenuItem("Decrease text size");
         smaller.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_MINUS,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         smaller.addActionListener(e -> UiScale.changeTo(currentScale() - 0.25, Main.launchArgs));
-        JMenuItem reset = new JMenuItem("reset text size");
+        JMenuItem reset = new JMenuItem("Reset text size");
         reset.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_0,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         reset.addActionListener(e -> UiScale.changeTo(1.0, Main.launchArgs));
@@ -592,7 +592,7 @@ public class SuiteFrame extends JFrame {
     }
 
     private void addItem(JMenu menu, String label, java.awt.event.ActionListener l) {
-        JMenuItem mi = new JMenuItem(label);
+        JMenuItem mi = new JMenuItem(Ui.sentence(label));
         mi.setFont(Ui.PLAIN);
         mi.addActionListener(l);
         menu.add(mi);
@@ -608,7 +608,7 @@ public class SuiteFrame extends JFrame {
         for (int i = 0; i < tabs.getTabCount(); i++) {
             if (plainTitle(tabs.getTitleAt(i)).equals(name)) {
                 final int idx = i;
-                tabs.setBackgroundAt(idx, Ui.ACCENT);
+                tabs.setBackgroundAt(idx, Theme.CONTROL_TINT);
                 Timer t = new Timer(900, e -> tabs.setBackgroundAt(idx, null));
                 t.setRepeats(false);
                 t.start();
