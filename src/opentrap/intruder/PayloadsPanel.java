@@ -27,6 +27,8 @@ public class PayloadsPanel extends JPanel {
     private AttackType attackType = AttackType.SNIPER;
     private int positions = 0;
     private int activeSetCount = 1;
+    /** Which set currently holds the shared count labels, or -1 for none. */
+    private int summaryAt = -1;
 
     public PayloadsPanel() {
         super(new BorderLayout());
@@ -52,19 +54,22 @@ public class PayloadsPanel extends JPanel {
 
         // As in the reference: payload position (set), then the counts, in one
         // aligned form. Start attack lives in the attack header on the left.
-        JPanel heading = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        // The panel header, then the four summary rows: labels left-aligned in
+        // a shared column with the combos stretched across the rest, as the
+        // reference lays its side panels out.
+        JPanel heading = new JPanel(new BorderLayout());
         heading.setOpaque(false);
-        heading.add(Ui.heading("Payload sets"));
+        heading.setBorder(Ui.pad(0, 0, 8, 0));
+        JLabel title = Ui.bold("Payloads");
+        title.setFont(Ui.HEADING.deriveFont(14f));
+        heading.add(title, BorderLayout.WEST);
         heading.add(Ui.helpButton("Payload sets",
                 "One payload set feeds each payload position. The attack type decides how many "
-                + "sets there are and how their payloads are combined."));
+                + "sets there are and how their payloads are combined."), BorderLayout.EAST);
         JPanel top = Ui.vbox(
                 heading,
-                Box.createVerticalStrut(6),
-                Ui.form("Payload position:", setCombo,
-                        "Payload count:", payloadCount,
-                        "Request count:", requestCount),
-                Box.createVerticalStrut(8));
+                Ui.leftForm("Payload position:", setCombo),
+                Box.createVerticalStrut(2));
 
         add(top, BorderLayout.NORTH);
         add(cards, BorderLayout.CENTER);
@@ -105,6 +110,12 @@ public class PayloadsPanel extends JPanel {
     private void refreshCounts() {
         int idx = positions == 0 ? 0 : setCombo.getSelectedIndex();
         if (idx < 0 || idx >= MAX_SETS) idx = 0;
+        // One label cannot sit in two containers, so the count rows move into
+        // whichever set is on screen.
+        if (idx != summaryAt) {
+            sets[idx].setSummary(payloadCount, requestCount);
+            summaryAt = idx;
+        }
         int c = sets[idx].count();
         payloadCount.setText(c < 0 ? "unknown" : String.valueOf(c));
 

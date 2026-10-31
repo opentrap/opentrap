@@ -71,7 +71,7 @@ class SimpleListGenerator extends AbstractGenerator {
         panel.add(buttons, BorderLayout.WEST);
         JPanel head = new JPanel(new java.awt.BorderLayout());
         head.setOpaque(false);
-        head.add(Ui.heading("Payload configuration"), java.awt.BorderLayout.WEST);
+        head.setBorder(Ui.pad(0, 0, 4, 0));
         head.add(countLabel, java.awt.BorderLayout.EAST);
         panel.add(head, BorderLayout.NORTH);
     }

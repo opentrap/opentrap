@@ -24,6 +24,8 @@ public class PayloadSet extends JPanel {
     };
 
     private final JComboBox<String> typeCombo;
+    /** The "Payload type" row, so the panel can put the counts under it. */
+    private JPanel typeRow;
     private final JPanel cards = new JPanel(new CardLayout());
     private final PayloadProcessor processor = new PayloadProcessor();
     private Runnable onChange;
@@ -47,18 +49,35 @@ public class PayloadSet extends JPanel {
             if (onChange != null) onChange.run();
         });
 
-        JPanel top = Ui.form("Payload type:", typeCombo);
+        this.typeRow = Ui.leftForm("Payload type:", typeCombo);
+        JPanel top = this.typeRow;
         top.setAlignmentX(LEFT_ALIGNMENT);
         top.setMaximumSize(new Dimension(Integer.MAX_VALUE, top.getPreferredSize().height));
-        cards.setAlignmentX(LEFT_ALIGNMENT);
+        JPanel config = Ui.section("Payload configuration",
+                "This payload type lets you configure the list of values that are used as payloads.",
+                cards);
+        config.setAlignmentX(LEFT_ALIGNMENT);
         processor.setAlignmentX(LEFT_ALIGNMENT);
         add(top);
-        add(cards);
-        add(Box.createVerticalStrut(12));
-        add(new JSeparator());
-        add(Box.createVerticalStrut(8));
+        add(config);
         add(processor);
         showCard(0);
+    }
+
+    /**
+     * Put the panel's count rows directly under the type row, which is the
+     * order the reference uses: position, type, then the two counts.
+     */
+    void setSummary(javax.swing.JLabel payloadCount, javax.swing.JLabel requestCount) {
+        int at = getComponentZOrder(typeRow);
+        remove(typeRow);
+        typeRow = Ui.leftForm("Payload type:", typeCombo,
+                "Payload count:", Ui.natural(payloadCount),
+                "Request count:", Ui.natural(requestCount));
+        typeRow.setAlignmentX(LEFT_ALIGNMENT);
+        typeRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, typeRow.getPreferredSize().height));
+        add(typeRow, at);
+        revalidate();
     }
 
     private void showCard(int i) {

@@ -214,20 +214,50 @@ public class ProxyTool implements ToolModule {
         }
 
         /** A button and its dropdown chevron drawn as one control. */
-        private static JComponent splitButton(JButton main, JButton menu) {
-            JPanel p = new JPanel(new BorderLayout(0, 0));
-            p.setOpaque(true);
-            p.setBackground(Theme.SURFACE);
-            p.setBorder(new opentrap.ui.theme.RoundedBorder(Theme.BORDER, null, Theme.RADIUS, new Insets(0, 0, 0, 0)));
-            main.setPreferredSize(new Dimension(180, main.getPreferredSize().height));
+        /**
+         * The Forward / Drop pair: one rounded shape carrying a label and a
+         * chevron, sized and coloured from the reference frames.
+         *
+         * <p>The reference draws two styles: Forward as a flat grey slab, and
+         * Drop as white with a hairline and a divider before its chevron. The
+         * style is fixed per button rather than following enablement. The
+         * whole shape is
+         * painted here rather than assembled from bordered panels, so there is
+         * no second box around the chevron.
+         */
+        private static JComponent splitButton(JButton main, JButton menu, int width, boolean filled) {
+            JPanel p = new JPanel(new BorderLayout(0, 0)) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int w = getWidth(), h = getHeight(), arc = Theme.RADIUS;
+                    g2.setColor(filled ? Theme.SEGMENT_OFF : Theme.CARD);
+                    g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                    if (!filled) {
+                        g2.setColor(Theme.BORDER);
+                        g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                        int x = w - menu.getPreferredSize().width;
+                        g2.drawLine(x, 3, x, h - 4);
+                    }
+                    g2.dispose();
+                }
+            };
+            p.setOpaque(false);
+            for (JButton b : new JButton[]{main, menu}) {
+                b.setContentAreaFilled(false);
+                b.setBorderPainted(false);
+                b.setOpaque(false);
+                b.setFocusPainted(false);
+            }
             p.add(main, BorderLayout.CENTER);
-            JPanel sep = new JPanel(new BorderLayout());
-            sep.setOpaque(false);
-            sep.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.BORDER));
-            sep.add(menu, BorderLayout.CENTER);
-            p.add(sep, BorderLayout.EAST);
+            p.add(menu, BorderLayout.EAST);
+            p.setPreferredSize(new Dimension(width, BUTTON_HEIGHT));
+            p.setMaximumSize(p.getPreferredSize());
             return p;
         }
+
+        /** Toolbar button height, measured from the reference frames. */
+        private static final int BUTTON_HEIGHT = 26;
         private final ProxyServer server;
         private final MessageEditor editor;
         private final JToggleButton toggle;
@@ -263,7 +293,7 @@ public class ProxyTool implements ToolModule {
             toggle.setIcon(eyeIcon());
             toggle.setIconTextGap(8);
             toggle.setToolTipText("toggle message interception");
-            toggle.setPreferredSize(new Dimension(130, toggle.getPreferredSize().height));
+            toggle.setPreferredSize(new Dimension(180, BUTTON_HEIGHT));
             forward = Ui.button("Forward", "forward the displayed message");
             forward.setFont(Ui.BOLD);
             forward.setIcon(opentrap.ui.Glyphs.arrow(14, Theme.ICON, 0));
@@ -292,12 +322,14 @@ public class ProxyTool implements ToolModule {
                 m.show(dropMenu, 0, dropMenu.getHeight());
             });
 
-            JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             left.setOpaque(false);
             left.add(toggle);
-            left.add(splitButton(forward, forwardMenu));
-            left.add(splitButton(drop, dropMenu));
-            left.add(Box.createHorizontalStrut(8));
+            left.add(Box.createHorizontalStrut(10));
+            left.add(splitButton(forward, forwardMenu, 180, true));
+            left.add(Box.createHorizontalStrut(14));
+            left.add(splitButton(drop, dropMenu, 172, false));
+            left.add(Box.createHorizontalStrut(10));
             left.add(status);
             JButton openBrowser = Ui.button("Open browser",
                     "launch a browser routed through the proxy, with the CA already trusted");

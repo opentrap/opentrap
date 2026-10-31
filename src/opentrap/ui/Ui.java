@@ -516,6 +516,91 @@ public final class Ui {
      * app stays aligned rather than each label pushing its field to a different
      * place. Pass label, component, label, component, ...
      */
+    /**
+     * A label-and-field form laid out as the reference draws its side panels:
+     * labels left-aligned in a shared first column and fields stretched across
+     * the rest of the width, rather than right-aligned labels beside fields at
+     * their natural size.
+     *
+     * <p>Pass a field wrapped in {@link #natural} to keep it at its own width
+     * on a row that would otherwise stretch it.
+     */
+    public static JPanel leftForm(Object... labelThenComponent) {
+        JPanel p = new JPanel(new GridBagLayout());
+        p.setOpaque(false);
+        GridBagConstraints c = new GridBagConstraints();
+        for (int i = 0, row = 0; i + 1 < labelThenComponent.length; i += 2, row++) {
+            c.gridy = row;
+            c.gridx = 0; c.weightx = 0;
+            c.anchor = GridBagConstraints.LINE_START;
+            c.fill = GridBagConstraints.NONE;
+            c.insets = new Insets(3, 0, 3, 10);
+            Object l = labelThenComponent[i];
+            p.add(l instanceof Component lc ? lc : label(String.valueOf(l)), c);
+
+            Component field = (Component) labelThenComponent[i + 1];
+            boolean stretch = !(field instanceof JComponent jc
+                    && Boolean.TRUE.equals(jc.getClientProperty(NATURAL_WIDTH)));
+            c.gridx = 1; c.weightx = 1;
+            c.fill = stretch ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
+            c.insets = new Insets(3, 0, 3, 0);
+            p.add(field, c);
+        }
+        return p;
+    }
+
+    private static final String NATURAL_WIDTH = "opentrap.naturalWidth";
+
+    /** Marks a field so {@link #leftForm} leaves it at its own width. */
+    public static <T extends JComponent> T natural(T field) {
+        field.putClientProperty(NATURAL_WIDTH, Boolean.TRUE);
+        return field;
+    }
+
+    /**
+     * A collapsible block as the reference's side panels are built: a title row
+     * with a chevron that folds the body away, a hairline above it, and an
+     * explanatory paragraph before the controls.
+     */
+    public static JPanel section(String title, String description, JComponent body) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, GRID), pad(8, 0, 10, 0)));
+
+        JPanel inner = new JPanel();
+        inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
+        inner.setOpaque(false);
+        if (description != null && !description.isBlank()) {
+            JTextArea d = note(description);
+            d.setAlignmentX(Component.LEFT_ALIGNMENT);
+            d.setBorder(pad(0, 0, 8, 0));
+            inner.add(d);
+        }
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+        inner.add(body);
+
+        JLabel heading = new JLabel(title);
+        heading.setFont(PLAIN);
+        heading.setForeground(Theme.TEXT);
+        JButton fold = Glyphs.button(Glyphs.chevron(14, Theme.ICON, 2), "Collapse this section", null);
+        fold.addActionListener(e -> {
+            boolean show = !inner.isVisible();
+            inner.setVisible(show);
+            fold.setIcon(Glyphs.chevron(14, Theme.ICON, show ? 2 : 1));
+            p.revalidate();
+        });
+        JPanel head = new JPanel(new BorderLayout());
+        head.setOpaque(false);
+        head.setBorder(pad(0, 0, 6, 0));
+        head.add(heading, BorderLayout.WEST);
+        head.add(fold, BorderLayout.EAST);
+
+        p.add(head, BorderLayout.NORTH);
+        p.add(inner, BorderLayout.CENTER);
+        return p;
+    }
+
     public static JPanel form(Object... labelThenComponent) {
         JPanel p = new JPanel(new GridBagLayout());
         p.setOpaque(false);
