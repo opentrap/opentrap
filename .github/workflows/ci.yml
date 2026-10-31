@@ -31,5 +31,8 @@ jobs:
       - name: Build
         run: ./build.sh
 
+      # A handful of suites build Swing components, which need a display even
+      # headless, so the runner's bundled Xvfb stands one in. Without it those
+      # cases throw HeadlessException and the job is red though the code is fine.
       - name: Test
-        run: ./test.sh
+        run: xvfb-run -a ./test.sh
