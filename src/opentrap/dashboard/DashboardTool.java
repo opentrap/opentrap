@@ -116,6 +116,11 @@ public class DashboardTool implements ToolModule {
     // Task progress: the six metrics we can source from the ZAP engine, shown
     // in two columns matching the reference layout.
     private final JLabel progTotalItems   = Ui.label("");
+    private final JLabel progItemsPending = Ui.label("0");
+    private final JLabel progErrors       = Ui.label("0");
+    private JPanel cfgCapturingRow;
+    private ToggleSwitch cfgCapturing;
+    private JComponent cfgLink;
     private final JLabel progItemsActive  = Ui.label("");
     private final JLabel progItemsDone    = Ui.label("");
     private final JLabel progDiscovered   = Ui.label("");
@@ -223,44 +228,80 @@ public class DashboardTool implements ToolModule {
         // Header: bold "Tasks" + action buttons.
         JButton newScan = Ui.primaryButton("New scan", "crawl and audit a target");
         JButton newLiveTask = Ui.primaryButton("New live task", "start a live task");
-        JButton spiderBtn = Ui.button("Spider");
         accentise(newScan);
         accentise(newLiveTask);
-        accentise(spiderBtn);
         newScan.addActionListener(e -> newScan());
         newLiveTask.addActionListener(e -> newLiveTask());
-        spiderBtn.addActionListener(e -> startSpider());
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         header.add(Ui.heading("Tasks"), BorderLayout.WEST);
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         btns.setOpaque(false);
         btns.add(newScan);
         btns.add(newLiveTask);
-        btns.add(spiderBtn);
         header.add(btns, BorderLayout.EAST);
 
-        // Filter + search row.
-        searchField = Ui.field("", 12);
+        // Icon row: pause every task, task settings, help.
+        JPanel icons = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        icons.setOpaque(false);
+        icons.add(new HeaderIconButton("pause", "Pause all tasks", () -> {
+            if (ctx == null) return;
+            for (ScanTask t : ctx.tasks()) if (t.state() == ScanTask.State.RUNNING) {
+                t.setState(ScanTask.State.PAUSED);
+                if (t == liveAudit && passiveScanner != null) passiveScanner.setEnabled(false);
+                ctx.taskChanged(t);
+            }
+        }));
+        icons.add(new HeaderIconButton("gear", "Task settings", () -> {
+            if (ctx != null) opentrap.ui.SettingsDialog.open(ownerFrame(), ctx, "Project > Tasks");
+        }));
+        icons.add(new HeaderIconButton("help", "Getting started",
+                () -> { if (ctx != null && ctx.frame() instanceof opentrap.ui.SuiteFrame sf) sf.selectTool("discover"); }));
+
+        // Filter popup (state and kind chips) and the search box.
+        searchField = Ui.searchField(14);
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             @Override public void insertUpdate(DocumentEvent e)  { rebuildTasks(); }
             @Override public void removeUpdate(DocumentEvent e)  { rebuildTasks(); }
             @Override public void changedUpdate(DocumentEvent e) { rebuildTasks(); }
         });
-        JComboBox<String> filter = Ui.combo(new String[]{"All tasks", "Running", "Paused", "Finished"});
+        JButton filterBtn = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.funnel(16, Theme.ICON), "Filter tasks", null);
+        filterBtn.setText("Filter");
+        filterBtn.setFont(Ui.PLAIN);
+        filterBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
+        filterBtn.setIconTextGap(6);
+        JLabel chevron = new JLabel(opentrap.ui.Glyphs.chevron(12, Theme.ICON, 1));
+        filterBtn.addActionListener(e -> {
+            JPopupMenu m = new JPopupMenu();
+            JPanel body = new JPanel();
+            body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+            body.setBorder(Ui.pad(8, 10, 8, 10));
+            body.add(chipRow("Running", "Paused", "Finished"));
+            body.add(Box.createVerticalStrut(6));
+            body.add(chipRow("Live task", "Scan", "Intruder attack"));
+            m.add(body);
+            m.show(filterBtn, 0, filterBtn.getHeight());
+        });
         JPanel filterRow = new JPanel(new BorderLayout(6, 0));
         filterRow.setOpaque(false);
-        filterRow.add(filter, BorderLayout.WEST);
-        filterRow.add(searchField, BorderLayout.CENTER);
+        JPanel fl = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        fl.setOpaque(false);
+        fl.add(filterBtn);
+        fl.add(chevron);
+        filterRow.add(fl, BorderLayout.WEST);
+        filterRow.add(searchField, BorderLayout.EAST);
 
         JPanel top = new JPanel();
         top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
         top.setOpaque(false);
         header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        icons.setAlignmentX(Component.LEFT_ALIGNMENT);
         filterRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         top.add(header);
-        top.add(Box.createVerticalStrut(6));
+        top.add(Box.createVerticalStrut(8));
+        top.add(icons);
+        top.add(Box.createVerticalStrut(8));
         top.add(filterRow);
 
         // Scrollable list of cards.
@@ -271,7 +312,9 @@ public class DashboardTool implements ToolModule {
         holder.add(taskList, BorderLayout.NORTH);
 
         left.add(top, BorderLayout.NORTH);
-        left.add(Ui.scroll(holder), BorderLayout.CENTER);
+        JScrollPane listScroll = Ui.scroll(holder);
+        listScroll.setBorder(null);
+        left.add(listScroll, BorderLayout.CENTER);
         left.setPreferredSize(new Dimension(340, 600));
         return left;
     }
@@ -283,18 +326,20 @@ public class DashboardTool implements ToolModule {
         // Task header bar: a pennant glyph and the task title on the left, three
         // round control buttons (play/pause, settings, help) on the right.
         rightHeader.setText("Dashboard");
-        rightHeader.setIcon(pennantIcon());
+        rightHeader.setIcon(opentrap.ui.Glyphs.arrow(18, Theme.ICON, 3));
         rightHeader.setIconTextGap(10);
 
         JPanel headerControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         headerControls.setOpaque(false);
-        headerControls.add(new HeaderIconButton("play", "Pause or resume the selected task", () -> {
+        playPauseBtn = new HeaderIconButton("pause", "Pause or resume the selected task", () -> {
             if (selected != null && selected.state() != ScanTask.State.FINISHED) {
-                selected.setState(selected.state() == ScanTask.State.RUNNING
-                        ? ScanTask.State.PAUSED : ScanTask.State.RUNNING);
+                boolean on = selected.state() != ScanTask.State.RUNNING;
+                selected.setState(on ? ScanTask.State.RUNNING : ScanTask.State.PAUSED);
+                if (selected == liveAudit && passiveScanner != null) passiveScanner.setEnabled(on);
                 if (ctx != null) ctx.taskChanged(selected);
             }
-        }));
+        });
+        headerControls.add(playPauseBtn);
         headerControls.add(new HeaderIconButton("gear", "View the selected task's configuration",
                 () -> openTaskSettings(selected, rightHeader)));
         headerControls.add(new HeaderIconButton("help", "Getting started",
@@ -422,8 +467,9 @@ public class DashboardTool implements ToolModule {
 
         // ---- right card: configuration / progress / log, one card with rules ----
         summaryTaskLog.setEditable(false);
-        summaryTaskLog.setFont(Ui.MONO);
-        summaryTaskLog.setLineWrap(false);
+        summaryTaskLog.setFont(Ui.PLAIN);
+        summaryTaskLog.setLineWrap(true);
+        summaryTaskLog.setWrapStyleWord(true);
         summaryTaskLog.setOpaque(false);
         summaryTaskLog.setBorder(null);
         JScrollPane logScroll = new JScrollPane(summaryTaskLog);
@@ -434,9 +480,11 @@ public class DashboardTool implements ToolModule {
         JPanel top = new JPanel();
         top.setOpaque(false);
         top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
-        addLeft(top, sectionHeader("Task configuration", sectionIcon("pencil"),
+        JPanel cfgHead = sectionHeader("Task configuration", sectionIcon("pencil"),
                 "View configuration",
-                () -> showTaskConfig(selected, top)));
+                () -> openTaskSettings(selected, top));
+        cfgLink = (JComponent) ((BorderLayout) cfgHead.getLayout()).getLayoutComponent(BorderLayout.EAST);
+        addLeft(top, cfgHead);
         top.add(Box.createVerticalStrut(10));
         addLeft(top, configGrid());
         top.add(Box.createVerticalStrut(16));
@@ -472,7 +520,7 @@ public class DashboardTool implements ToolModule {
     /** A human-readable label for a scan task type, as the reference shows. */
     private static String typeLabel(ScanTask.Type type) {
         return switch (type) {
-            case LIVE_PASSIVE -> "Live passive audit";
+            case LIVE_PASSIVE -> "Live audit";
             case LIVE_ACTIVE  -> "Crawl";
             case AUDIT        -> "Audit";
         };
@@ -629,6 +677,26 @@ public class DashboardTool implements ToolModule {
         addKv(g, 0, "Task type:", cfgType);
         addKv(g, 1, "Scope:", cfgScope);
         addKv(g, 2, "Configuration:", cfgConfig);
+        cfgCapturing = new ToggleSwitch(true);
+        cfgCapturing.setOnToggle(() -> {
+            if (selected == null) return;
+            boolean on = cfgCapturing.isOn();
+            selected.setState(on ? ScanTask.State.RUNNING : ScanTask.State.PAUSED);
+            if (selected == liveAudit && passiveScanner != null) passiveScanner.setEnabled(on);
+            if (ctx != null) ctx.taskChanged(selected);
+        });
+        cfgCapturingRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        cfgCapturingRow.setOpaque(false);
+        cfgCapturingRow.add(cfgCapturing);
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridy = 3; c.anchor = GridBagConstraints.WEST;
+        c.gridx = 0; c.insets = new Insets(4, 0, 2, 14); JLabel cap = Ui.bold("Capturing:"); g.add(cap, c);
+        c.gridx = 1; c.insets = new Insets(4, 0, 2, 0); c.weightx = 1; g.add(cfgCapturingRow, c);
+        cfgCapturingRow.addPropertyChangeListener("visible", e -> cap.setVisible(cfgCapturingRow.isVisible()));
+        cfgCapturingRow.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override public void componentShown(java.awt.event.ComponentEvent e) { cap.setVisible(true); }
+            @Override public void componentHidden(java.awt.event.ComponentEvent e) { cap.setVisible(false); }
+        });
         return g;
     }
 
@@ -636,9 +704,10 @@ public class DashboardTool implements ToolModule {
     private JPanel progressGrid() {
         JPanel g = new JPanel(new GridBagLayout());
         g.setOpaque(false);
-        addKv2(g, 0, "Total audit items:", progTotalItems, "Discovered locations:", progDiscovered);
-        addKv2(g, 1, "Audit items in progress:", progItemsActive, "Requests:", progRequests);
-        addKv2(g, 2, "Audit items completed:", progItemsDone, "Requests per second:", progPerSecond);
+        addKv2(g, 0, "Total audit items:", progTotalItems, "Requests:", progRequests);
+        addKv2(g, 1, "Audit items pending:", progItemsPending, "Network errors:", progErrors);
+        addKv2(g, 2, "Audit items in progress:", progItemsActive, "", new JLabel(""));
+        addKv2(g, 3, "Audit items completed:", progItemsDone, "", new JLabel(""));
         return g;
     }
 
@@ -729,8 +798,11 @@ public class DashboardTool implements ToolModule {
     }
 
     /** A round header control button (play/pause, settings or help glyph). */
+    private HeaderIconButton playPauseBtn;
+
     private static final class HeaderIconButton extends JComponent {
-        private final String kind;
+        private String kind;
+        void setKind(String k) { if (!k.equals(kind)) { kind = k; repaint(); } }
         HeaderIconButton(String kind, String tip, Runnable onClick) {
             this.kind = kind;
             Dimension d = new Dimension(26, 26);
@@ -753,6 +825,7 @@ public class DashboardTool implements ToolModule {
             switch (kind) {
                 case "play" -> g2.fillPolygon(new int[]{cx - 3, cx - 3, cx + 5},
                         new int[]{cy - 5, cy + 5, cy}, 3);
+                case "pause" -> { g2.fillRect(cx - 4, cy - 4, 2, 9); g2.fillRect(cx + 2, cy - 4, 2, 9); }
                 case "gear" -> {
                     // A cog: eight short, thick teeth on a ring with a solid hub.
                     g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
@@ -828,11 +901,91 @@ public class DashboardTool implements ToolModule {
         else if (choice == 1) opentrap.report.Export.save(ctx.frame(), "opentrap-report.xml", opentrap.report.Export.issuesXml(all));
     }
 
+    private final javax.swing.table.DefaultTableModel eventModel = new javax.swing.table.DefaultTableModel(
+            new Object[]{"Time", "Type", "Source", "Message"}, 0) {
+        @Override public boolean isCellEditable(int r, int c) { return false; }
+    };
+    private JTable eventTable;
+    private final CardLayout eventCards = new CardLayout();
+    private final JPanel eventArea = new JPanel(eventCards);
+
     private JComponent buildEventLogTab() {
-        eventLog.setEditable(false);
-        eventLog.setFont(Ui.MONO);
-        eventLog.setLineWrap(false);
-        return Ui.scroll(eventLog);
+        eventLog.setEditable(false);   // kept as the text source the detached window and tests read
+        JPanel chips = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        chips.setOpaque(false);
+        chips.add(new JLabel(opentrap.ui.Glyphs.funnel(16, Theme.ICON)));
+        chips.add(Ui.label("Filter"));
+        for (String t : new String[]{"Critical", "Error", "Info", "Debug"}) {
+            JToggleButton b = new JToggleButton(t, !t.equals("Debug"));
+            b.setFont(Ui.BOLD);
+            b.setFocusable(false);
+            b.setMargin(new Insets(2, 10, 2, 10));
+            chips.add(b);
+        }
+        JTextField search = Ui.searchField(14);
+        eventTable = new JTable(eventModel);
+        Ui.styleTable(eventTable);
+        Ui.distributeWidths(eventTable, 150, 70, 90, 600);
+        lightHeader(eventTable);
+        javax.swing.table.TableRowSorter<javax.swing.table.DefaultTableModel> sorter = new javax.swing.table.TableRowSorter<>(eventModel);
+        eventTable.setRowSorter(sorter);
+        search.getDocument().addDocumentListener(new DocumentListener() {
+            private void go() { String q = search.getText().strip(); sorter.setRowFilter(q.isEmpty() ? null : RowFilter.regexFilter("(?i)" + java.util.regex.Pattern.quote(q))); }
+            @Override public void insertUpdate(DocumentEvent e) { go(); }
+            @Override public void removeUpdate(DocumentEvent e) { go(); }
+            @Override public void changedUpdate(DocumentEvent e) { go(); }
+        });
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        right.setOpaque(false);
+        right.add(search);
+        right.add(opentrap.ui.Glyphs.menuButton("Table layout", () -> opentrap.ui.TableLayoutMenu.build(eventTable)));
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setOpaque(false);
+        bar.setBorder(Ui.pad(6, 4, 6, 4));
+        bar.add(chips, BorderLayout.WEST);
+        bar.add(right, BorderLayout.EAST);
+
+        JPanel empty = emptyState(opentrap.ui.Glyphs.search(64, Theme.BORDER), "No event log items to show",
+                "The event log shows key task events, such as start times, alerts, and progress updates.");
+        eventArea.setOpaque(false);
+        eventArea.add(empty, "empty");
+        JScrollPane sp = new JScrollPane(eventTable);
+        sp.setBorder(BorderFactory.createLineBorder(Ui.GRID));
+        eventArea.add(sp, "table");
+        eventCards.show(eventArea, "empty");
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.add(bar, BorderLayout.NORTH);
+        p.add(eventArea, BorderLayout.CENTER);
+        return p;
+    }
+
+    /** A centred illustration, headline and hint, the reference's empty state. */
+    private static JPanel emptyState(Icon icon, String headline, String hint) {
+        JPanel col = new JPanel();
+        col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+        col.setOpaque(false);
+        JLabel ic = new JLabel(icon);
+        JLabel h = new JLabel(headline);
+        h.setFont(new Font("Dialog", Font.BOLD, 18));
+        JTextArea t = Ui.note(hint);
+        Ui.sizeNote(t, 460);
+        for (JComponent c : new JComponent[]{ic, h, t}) { c.setAlignmentX(Component.CENTER_ALIGNMENT); col.add(c); col.add(Box.createVerticalStrut(14)); }
+        JPanel wrap = new JPanel(new GridBagLayout());
+        wrap.setOpaque(false);
+        wrap.add(col, new GridBagConstraints());
+        return wrap;
+    }
+
+    /** Refill the event table from the task's log lines. */
+    private void refreshEventTable(ScanTask t) {
+        if (eventTable == null) return;
+        java.util.List<String> lines = t == null ? java.util.List.of() : t.logLines();
+        if (eventModel.getRowCount() == lines.size()) return;
+        eventModel.setRowCount(0);
+        String when = new java.text.SimpleDateFormat("HH:mm:ss d MMM yyyy").format(new java.util.Date(t == null ? 0 : t.startedAt()));
+        for (String line : lines) eventModel.addRow(new Object[]{when, "Info", t == null ? "" : "Task " + t.number, line});
+        eventCards.show(eventArea, lines.isEmpty() ? "empty" : "table");
     }
 
     /** A chronological log of findings as they were detected. */
@@ -1056,6 +1209,7 @@ public class DashboardTool implements ToolModule {
         boolean selectionStillPresent = false;
 
         for (ScanTask t : tasks) {
+            if (!passesFilter(t)) continue;
             if (!q.isEmpty()) {
                 String hay = (t.number + " " + t.title() + " " + t.configuration()
                         + " " + t.stateLabel()).toLowerCase();
@@ -1110,6 +1264,31 @@ public class DashboardTool implements ToolModule {
     }
 
     private Window ownerFrame() { return ctx == null ? null : ctx.frame(); }
+
+    /** Which task states and kinds the list shows; everything by default. */
+    private final java.util.Set<String> taskFilter = new java.util.HashSet<>(java.util.List.of(
+            "Running", "Paused", "Finished", "Live task", "Scan", "Intruder attack"));
+
+    private JComponent chipRow(String... names) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        row.setOpaque(false);
+        for (String n : names) {
+            JToggleButton b = new JToggleButton(n, taskFilter.contains(n));
+            b.setFont(Ui.PLAIN);
+            b.setFocusable(false);
+            b.setMargin(new Insets(2, 10, 2, 10));
+            b.addActionListener(e -> { if (b.isSelected()) taskFilter.add(n); else taskFilter.remove(n); rebuildTasks(); });
+            row.add(b);
+        }
+        return row;
+    }
+
+    private boolean passesFilter(ScanTask t) {
+        String state = t.stateLabel();
+        if (!taskFilter.contains(state)) return false;
+        boolean live = t.type() == ScanTask.Type.LIVE_PASSIVE || liveTaskSettings.containsKey(t);
+        return taskFilter.contains(live ? "Live task" : "Scan");
+    }
 
     /** Rename a task to any label the user types. */
     private void renameTask(ScanTask t) {
@@ -1867,6 +2046,8 @@ public class DashboardTool implements ToolModule {
         }
 
         void setOnToggle(Runnable r) { this.onToggle = r; }
+        boolean isOn() { return on; }
+        void setOn(boolean v) { if (on != v) { on = v; repaint(); } }
 
         @Override protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -1933,6 +2114,11 @@ public class DashboardTool implements ToolModule {
         }
 
         rightHeader.setText(t.number + ". " + t.title());
+        if (playPauseBtn != null) playPauseBtn.setKind(t.state() == ScanTask.State.RUNNING ? "pause" : "play");
+        boolean crawlKind = t.type() == ScanTask.Type.LIVE_ACTIVE;
+        int lcv = taskTabs.indexOfTab("Live crawl view");
+        if (crawlKind && lcv < 0) taskTabs.addTab("Live crawl view", crawlGraph);
+        else if (!crawlKind && lcv >= 0) taskTabs.removeTabAt(lcv);
 
         if (detachedFrame != null && t == detachedTask) {
             rightCards.show(rightBody, "detached");
@@ -1962,8 +2148,12 @@ public class DashboardTool implements ToolModule {
         applyIssueTables();
 
         cfgType.setText(typeLabel(t.type()));
-        cfgScope.setText(t.scope().isEmpty() ? "-" : t.scope());
+        boolean liveKind = t.type() == ScanTask.Type.LIVE_PASSIVE;
+        cfgScope.setText(t.scope().isEmpty() ? (liveKind ? "Proxy (all traffic)" : "-") : t.scope());
         cfgConfig.setText(t.configuration());
+        cfgCapturingRow.setVisible(liveKind);
+        cfgCapturing.setOn(t.state() == ScanTask.State.RUNNING);
+        cfgLink.setVisible(!liveKind);
 
         // Audit items: the active-scan rule count (real), split into completed
         // and in-progress by ZAP's live scan percentage.
@@ -1975,19 +2165,21 @@ public class DashboardTool implements ToolModule {
         // The live passive audit has no fixed work list, so its audit-item
         // figures do not apply; its requests and locations are what it has seen.
         boolean passive = t.type() == ScanTask.Type.LIVE_PASSIVE;
-        progTotalItems.setText(passive ? "-" : Integer.toString(ruleTotal));
-        progItemsActive.setText(passive ? "-" : Integer.toString(active));
-        progItemsDone.setText(passive ? "-" : Integer.toString(completed));
-        progDiscovered.setText(Integer.toString(t.discoveredLocations()));
+        // A live audit's items are the distinct locations it has audited so far.
+        int liveItems = liveLocations.size();
+        progTotalItems.setText(Integer.toString(passive ? liveItems : ruleTotal));
+        progItemsPending.setText("0");
+        progItemsActive.setText(Integer.toString(passive ? 0 : active));
+        progItemsDone.setText(Integer.toString(passive ? liveItems : completed));
         progRequests.setText(Integer.toString(t.requests()));
-        long secs = Math.max(1, (System.currentTimeMillis() - t.startedAt()) / 1000);
-        progPerSecond.setText(running ? Integer.toString((int) (t.requests() / secs)) : "0");
+        progErrors.setText("0");
 
         summaryTaskLog.setText(String.join("\n", t.logLines()));
         summaryTaskLog.setCaretPosition(summaryTaskLog.getDocument().getLength());
 
         eventLog.setText(String.join("\n", t.logLines()));
         eventLog.setCaretPosition(eventLog.getDocument().getLength());
+        refreshEventTable(t);
     }
 
     // The shared issue list as last seen, and which task's slice the tables show.

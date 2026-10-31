@@ -11,8 +11,8 @@ import java.util.List;
 public class HistoryModel extends AbstractTableModel {
 
     private static final String[] COLS = {
-        "#", "Host", "Method", "URL", "Params", "Edited", "Status",
-        "Length", "MIME type", "Extension", "Title", "SSL", "IP", "Time"
+        "#", "Host", "Method", "URL", "Params", "Edited", "Status code",
+        "Length", "MIME type", "Extension", "Title", "Notes", "TLS", "IP", "Time"
     };
 
     private final List<LogEntry> all = new ArrayList<>();
@@ -71,7 +71,7 @@ public class HistoryModel extends AbstractTableModel {
     @Override public String getColumnName(int c) { return COLS[c]; }
 
     @Override public Class<?> getColumnClass(int c) {
-        return (c == 4 || c == 5 || c == 11) ? Boolean.class
+        return (c == 4 || c == 5 || c == 12) ? Boolean.class
              : (c == 0) ? Integer.class : String.class;
     }
 
@@ -89,8 +89,9 @@ public class HistoryModel extends AbstractTableModel {
             case 8 -> e.mimeType();
             case 9 -> e.request() == null ? "" : e.request().fileExtension();
             case 10 -> e.title();
-            case 11 -> e.service().secure();
-            case 12 -> e.remoteIp();
+            case 11 -> e.notes() == null ? "" : e.notes();
+            case 12 -> e.service().secure();
+            case 13 -> e.remoteIp();
             default -> fmt.format(e.time());
         };
     }
