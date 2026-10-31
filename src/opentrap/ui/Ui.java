@@ -185,8 +185,44 @@ public final class Ui {
     }
 
     public static JTextField field(String text, int columns) {
-        JTextField f = new JTextField(text, columns);
+        JTextField f = new PlaceholderField(text, columns);
         f.setFont(PLAIN);
+        return f;
+    }
+
+    /**
+     * A text field that paints the "JTextField.placeholderText" client property
+     * in muted text while it is empty, as every search box in the suite does.
+     */
+    public static class PlaceholderField extends JTextField {
+        public PlaceholderField(String text, int columns) { super(text, columns); }
+        @Override protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Object ph = getClientProperty("JTextField.placeholderText");
+            if (ph == null || !getText().isEmpty()) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setColor(Theme.MUTED);
+            g2.setFont(getFont());
+            Insets in = getInsets();
+            FontMetrics fm = g2.getFontMetrics();
+            g2.drawString(String.valueOf(ph), in.left, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
+            g2.dispose();
+        }
+    }
+
+    /** A search box: placeholder "Search" and a magnifier at its right edge. */
+    public static JTextField searchField(int columns) {
+        JTextField f = new PlaceholderField("", columns) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Icon ic = Glyphs.search(14, Theme.MUTED);
+                ic.paintIcon(this, g, getWidth() - ic.getIconWidth() - 8, (getHeight() - ic.getIconHeight()) / 2);
+            }
+        };
+        f.setFont(PLAIN);
+        f.putClientProperty("JTextField.placeholderText", "Search");
+        f.setBorder(BorderFactory.createCompoundBorder(f.getBorder(), BorderFactory.createEmptyBorder(0, 0, 0, 18)));
         return f;
     }
 
@@ -194,6 +230,18 @@ public final class Ui {
         JComboBox<T> c = new JComboBox<>(items);
         c.setFont(PLAIN);
         c.setMaximumRowCount(14);
+        // Items read as labels, with a leading capital, without touching the
+        // values themselves: the model still holds whatever was handed in, so
+        // code that compares against an item string keeps working.
+        c.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i,
+                    boolean sel, boolean focus) {
+                super.getListCellRendererComponent(l, v, i, sel, focus);
+                setText(v == null ? "" : sentence(String.valueOf(v)));
+                setFont(PLAIN);
+                return this;
+            }
+        });
         return c;
     }
 
@@ -307,7 +355,8 @@ public final class Ui {
     public static void styleTable(JTable t) {
         t.setFont(PLAIN);
         t.setRowHeight(22);
-        t.getTableHeader().setFont(BOLD);
+        t.getTableHeader().setFont(PLAIN);
+        t.setDefaultRenderer(Boolean.class, new TickRenderer());
         // Column titles read with a leading capital, as in the reference.
         for (int i = 0; i < t.getColumnModel().getColumnCount(); i++) {
             javax.swing.table.TableColumn c = t.getColumnModel().getColumn(i);
@@ -450,11 +499,10 @@ public final class Ui {
         b.setFocusable(false);
         b.setIcon(funnelIcon());
         b.setIconTextGap(8);
-        b.setBackground(Theme.BG);
+        b.setBackground(Theme.SURFACE);
         b.setOpaque(true);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(ACCENT), pad(4, 8, 4, 8)));
+        b.setBorder(new opentrap.ui.theme.RoundedBorder(GRID, null, Theme.RADIUS, new Insets(5, 8, 5, 8)));
         b.setToolTipText("click to open the filter and full-text search");
         return b;
     }
@@ -468,6 +516,91 @@ public final class Ui {
      * app stays aligned rather than each label pushing its field to a different
      * place. Pass label, component, label, component, ...
      */
+    /**
+     * A label-and-field form laid out as the reference draws its side panels:
+     * labels left-aligned in a shared first column and fields stretched across
+     * the rest of the width, rather than right-aligned labels beside fields at
+     * their natural size.
+     *
+     * <p>Pass a field wrapped in {@link #natural} to keep it at its own width
+     * on a row that would otherwise stretch it.
+     */
+    public static JPanel leftForm(Object... labelThenComponent) {
+        JPanel p = new JPanel(new GridBagLayout());
+        p.setOpaque(false);
+        GridBagConstraints c = new GridBagConstraints();
+        for (int i = 0, row = 0; i + 1 < labelThenComponent.length; i += 2, row++) {
+            c.gridy = row;
+            c.gridx = 0; c.weightx = 0;
+            c.anchor = GridBagConstraints.LINE_START;
+            c.fill = GridBagConstraints.NONE;
+            c.insets = new Insets(3, 0, 3, 10);
+            Object l = labelThenComponent[i];
+            p.add(l instanceof Component lc ? lc : label(String.valueOf(l)), c);
+
+            Component field = (Component) labelThenComponent[i + 1];
+            boolean stretch = !(field instanceof JComponent jc
+                    && Boolean.TRUE.equals(jc.getClientProperty(NATURAL_WIDTH)));
+            c.gridx = 1; c.weightx = 1;
+            c.fill = stretch ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
+            c.insets = new Insets(3, 0, 3, 0);
+            p.add(field, c);
+        }
+        return p;
+    }
+
+    private static final String NATURAL_WIDTH = "opentrap.naturalWidth";
+
+    /** Marks a field so {@link #leftForm} leaves it at its own width. */
+    public static <T extends JComponent> T natural(T field) {
+        field.putClientProperty(NATURAL_WIDTH, Boolean.TRUE);
+        return field;
+    }
+
+    /**
+     * A collapsible block as the reference's side panels are built: a title row
+     * with a chevron that folds the body away, a hairline above it, and an
+     * explanatory paragraph before the controls.
+     */
+    public static JPanel section(String title, String description, JComponent body) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, GRID), pad(8, 0, 10, 0)));
+
+        JPanel inner = new JPanel();
+        inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
+        inner.setOpaque(false);
+        if (description != null && !description.isBlank()) {
+            JTextArea d = note(description);
+            d.setAlignmentX(Component.LEFT_ALIGNMENT);
+            d.setBorder(pad(0, 0, 8, 0));
+            inner.add(d);
+        }
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+        inner.add(body);
+
+        JLabel heading = new JLabel(title);
+        heading.setFont(PLAIN);
+        heading.setForeground(Theme.TEXT);
+        JButton fold = Glyphs.button(Glyphs.chevron(14, Theme.ICON, 2), "Collapse this section", null);
+        fold.addActionListener(e -> {
+            boolean show = !inner.isVisible();
+            inner.setVisible(show);
+            fold.setIcon(Glyphs.chevron(14, Theme.ICON, show ? 2 : 1));
+            p.revalidate();
+        });
+        JPanel head = new JPanel(new BorderLayout());
+        head.setOpaque(false);
+        head.setBorder(pad(0, 0, 6, 0));
+        head.add(heading, BorderLayout.WEST);
+        head.add(fold, BorderLayout.EAST);
+
+        p.add(head, BorderLayout.NORTH);
+        p.add(inner, BorderLayout.CENTER);
+        return p;
+    }
+
     public static JPanel form(Object... labelThenComponent) {
         JPanel p = new JPanel(new GridBagLayout());
         p.setOpaque(false);
@@ -512,8 +645,8 @@ public final class Ui {
      */
     public static JPanel filterBar(JButton filterButton, JComponent... right) {
         JPanel bar = new JPanel(new GridBagLayout());
-        bar.setBorder(BorderFactory.createCompoundBorder(
-                pad(2, 2, 3, 2), BorderFactory.createLineBorder(GRID)));
+        bar.setOpaque(false);
+        bar.setBorder(pad(4, 4, 4, 4));
 
         // The field's natural height is the common height; shrink the button to it
         // so the two are the same size rather than the button standing taller.
@@ -539,12 +672,85 @@ public final class Ui {
         return bar;
     }
 
+    /**
+     * A joined run of mutually exclusive views, as the site map's "URL view" /
+     * "Crawl paths view" switch. The segments abut with square inner edges and
+     * the outer corners rounded, the chosen one filled with the control colour
+     * and the rest with the segment grey; {@code onChoose} is handed the chosen
+     * index. Geometry and both fills are taken from the reference frames.
+     */
+    public static JPanel segmented(java.util.function.IntConsumer onChoose, String... labels) {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        p.setOpaque(false);
+        ButtonGroup g = new ButtonGroup();
+        final java.util.List<JToggleButton> all = new java.util.ArrayList<>();
+        for (int i = 0; i < labels.length; i++) {
+            final int idx = i;
+            final boolean first = i == 0, last = i == labels.length - 1;
+            JToggleButton b = new JToggleButton(labels[i], i == 0) {
+                @Override protected void paintComponent(Graphics gr) {
+                    Graphics2D g2 = (Graphics2D) gr.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int w = getWidth(), h = getHeight(), arc = Theme.RADIUS;
+                    g2.setColor(isSelected() ? Theme.CONTROL : Theme.SEGMENT_OFF);
+                    // Round only the outer corners: fill the rounded shape, then
+                    // square off whichever inner edge touches a neighbour.
+                    g2.fillRoundRect(0, 0, w, h, arc, arc);
+                    if (!first) g2.fillRect(0, 0, arc, h);
+                    if (!last)  g2.fillRect(w - arc, 0, arc, h);
+                    g2.setColor(isSelected() ? Color.WHITE : Theme.TEXT);
+                    g2.setFont(getFont());
+                    FontMetrics fm = g2.getFontMetrics();
+                    g2.drawString(getText(), (w - fm.stringWidth(getText())) / 2f,
+                            (h + fm.getAscent() - fm.getDescent()) / 2f);
+                    g2.dispose();
+                }
+            };
+            b.setFont(PLAIN);
+            b.setFocusable(false);
+            b.setContentAreaFilled(false);
+            b.setBorder(BorderFactory.createEmptyBorder(5, 12, 5, 12));
+            b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            all.add(b);
+            g.add(b);
+            p.add(b);
+            b.addActionListener(e -> { for (JToggleButton t : all) t.repaint(); onChoose.accept(idx); });
+        }
+        return p;
+    }
+
+    /** A round "?" that explains the panel it sits on. */
+    public static JButton helpButton(String title, String body) {
+        JButton b = Glyphs.button(Glyphs.help(18, Theme.ICON), title, null);
+        b.addActionListener(e -> JOptionPane.showMessageDialog(b, body, title, JOptionPane.INFORMATION_MESSAGE));
+        return b;
+    }
+
+    /**
+     * Boolean cells: a tick when true and nothing when false, as the reference
+     * draws Params / Edited / TLS; an editable cell keeps its check box.
+     */
+    public static final class TickRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        private final javax.swing.table.TableCellRenderer box = new JTable().getDefaultRenderer(Boolean.class);
+        @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f, int r, int c) {
+            if (t.isCellEditable(r, c)) {
+                Component cb = box.getTableCellRendererComponent(t, v, sel, f, r, c);
+                if (cb instanceof JComponent jc) jc.setOpaque(true);
+                return cb;
+            }
+            super.getTableCellRendererComponent(t, "", sel, f, r, c);
+            setIcon(Boolean.TRUE.equals(v) ? Glyphs.tick(14, Theme.TEXT) : null);
+            setHorizontalAlignment(CENTER);
+            return this;
+        }
+    }
+
     /** A small funnel glyph for the filter bar, drawn so it needs no resource. */
     private static Icon funnelIcon() {
         BufferedImage img = new BufferedImage(14, 14, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(ACCENT);
+        g.setColor(Theme.ICON);
         Polygon funnel = new Polygon(new int[]{1, 13, 8, 8, 6, 6}, new int[]{2, 2, 7, 12, 12, 7}, 6);
         g.fill(funnel);
         g.dispose();

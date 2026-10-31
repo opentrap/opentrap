@@ -31,7 +31,8 @@ public class RepeaterTool implements ToolModule {
         tabs.setFont(Ui.PLAIN);
         if (tabs.getTabCount() == 0) newTab(new HttpService("127.0.0.1", 80, false),
                 new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")), null);
-        return new Tab[]{ new Tab("repeater", tabs) };
+        return new Tab[]{ new Tab("repeater", opentrap.ui.TabStrip.wrap(tabs, () -> newTab(new HttpService("127.0.0.1", 80, false),
+                new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")), null))) };
     }
 
     @Override public java.io.Serializable saveState() {
@@ -74,19 +75,19 @@ public class RepeaterTool implements ToolModule {
 
     @Override public JMenu[] menus() {
         JMenu menu = new JMenu("repeater");
-        JMenuItem nt = new JMenuItem("new tab");
+        JMenuItem nt = new JMenuItem("New tab");
         nt.addActionListener(e -> newTab(new HttpService("127.0.0.1", 80, false),
                 new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")), null));
-        JMenuItem dt = new JMenuItem("delete tab");
+        JMenuItem dt = new JMenuItem("Delete tab");
         dt.addActionListener(e -> { if (tabs.getTabCount() > 1) tabs.remove(tabs.getSelectedIndex()); });
-        JMenuItem rt = new JMenuItem("rename tab");
+        JMenuItem rt = new JMenuItem("Rename tab");
         rt.addActionListener(e -> {
             int i = tabs.getSelectedIndex();
             if (i < 0) return;
             String name = JOptionPane.showInputDialog(ctx.frame(), "enter the new tab name", tabs.getTitleAt(i));
             if (name != null && !name.isBlank()) tabs.setTitleAt(i, name);
         });
-        JMenuItem st = new JMenuItem("repeater settings");
+        JMenuItem st = new JMenuItem("Repeater settings");
         st.addActionListener(e -> SettingsDialog.open(
                 ctx.frame() instanceof Window w ? w : null, ctx, "Repeater"));
         for (JMenuItem m : new JMenuItem[]{nt, dt, rt, st}) m.setFont(Ui.PLAIN);
@@ -117,6 +118,7 @@ public class RepeaterTool implements ToolModule {
         RepeaterTab tab = new RepeaterTab(svc, req);
         String title = caption != null && !caption.isBlank() ? caption : String.valueOf(counter.incrementAndGet());
         tabs.addTab(title, tab);
+        opentrap.ui.TabStrip.closable(tabs, tabs.indexOfComponent(tab));
         tabs.setSelectedComponent(tab);
     }
 
@@ -134,7 +136,107 @@ public class RepeaterTool implements ToolModule {
         private final JButton prev = Ui.button("<", "previous request/response in this tab");
         private final JButton next = Ui.button(">", "next request/response in this tab");
         private final JLabel histLabel = Ui.label("");
+        private JLabel targetLabel;
+        private final JLabel versionChip = new JLabel("HTTP/1");
+        private boolean overrideSni;
         private volatile Thread worker;
+
+        private void refreshTarget() {
+            String host = hostField.getText().trim();
+            String port = portField.getText().trim();
+            boolean tls = sslBox.isSelected();
+            boolean defPort = (tls && "443".equals(port)) || (!tls && "80".equals(port));
+            targetLabel.setText("Target: " + (tls ? "https://" : "http://") + host + (defPort ? "" : ":" + port));
+        }
+
+        /** "Configure target details": host, SNI override, port, HTTPS. */
+        private void configureTarget() {
+            JTextField host = Ui.field(hostField.getText(), 30);
+            JCheckBox sni = Ui.check("Override SNI", overrideSni);
+            JTextField port = Ui.field(portField.getText(), 8);
+            JCheckBox https = Ui.check("Use HTTPS", sslBox.isSelected());
+            https.addActionListener(e -> {
+                String p = port.getText().trim();
+                if (p.equals("80") && https.isSelected()) port.setText("443");
+                else if (p.equals("443") && !https.isSelected()) port.setText("80");
+            });
+            JPanel form = Ui.vbox(Ui.note("Specify the details of the server to which the request will be sent."),
+                    Ui.form("Host:", host), sni, Ui.form("Port:", port), https);
+            form.setBorder(Ui.pad(10, 10, 10, 10));
+            int ok = JOptionPane.showConfirmDialog(this, form, "Configure target details", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (ok != JOptionPane.OK_OPTION) return;
+            hostField.setText(host.getText().trim());
+            portField.setText(port.getText().trim());
+            sslBox.setSelected(https.isSelected());
+            overrideSni = sni.isSelected();
+            refreshTarget();
+        }
+
+        /** The per-tab settings menu: the project defaults can be overridden here for this tab only. */
+        private JPopupMenu tabSettingsMenu() {
+            JPopupMenu m = new JPopupMenu();
+            JPanel head = new JPanel(new BorderLayout(10, 0));
+            head.setOpaque(false);
+            head.setBorder(Ui.pad(4, 10, 4, 10));
+            head.add(Ui.bold("Repeater settings for this tab"), BorderLayout.WEST);
+            JButton restore = Ui.button("Restore global defaults");
+            restore.addActionListener(e -> { tabUpdateCl = null; tabFollow = null; m.setVisible(false); });
+            head.add(restore, BorderLayout.EAST);
+            m.add(head);
+            m.addSeparator();
+            JCheckBoxMenuItem ucl = new JCheckBoxMenuItem("Update Content-Length", tabUpdateCl == null ? updateContentLength : tabUpdateCl);
+            ucl.addActionListener(e -> tabUpdateCl = ucl.isSelected());
+            JCheckBoxMenuItem unpack = new JCheckBoxMenuItem("Unpack compressed responses", true);
+            JMenu follow = new JMenu("Follow redirections");
+            ButtonGroup fg = new ButtonGroup();
+            for (String o : new String[]{"Never", "On-site only", "In-scope only", "Always"}) {
+                JRadioButtonMenuItem r = new JRadioButtonMenuItem(o, o.equals(tabFollow == null ? (followRedirects ? "Always" : "Never") : tabFollow));
+                r.addActionListener(e -> tabFollow = o);
+                fg.add(r); follow.add(r);
+            }
+            JCheckBoxMenuItem cookies = new JCheckBoxMenuItem("Process cookies in redirections", false);
+            JCheckBoxMenuItem enforce = new JCheckBoxMenuItem("Enforce protocol choice on cross-domain redirections", false);
+            JCheckBoxMenuItem normalize = new JCheckBoxMenuItem("Normalize HTTP/1 line endings", true);
+            JCheckBoxMenuItem h1reuse = new JCheckBoxMenuItem("Enable HTTP/1 connection reuse", false);
+            JCheckBoxMenuItem h2reuse = new JCheckBoxMenuItem("Enable HTTP/2 connection reuse", true);
+            JCheckBoxMenuItem strip = new JCheckBoxMenuItem("Strip Connection header over HTTP/2", true);
+            JCheckBoxMenuItem alpn = new JCheckBoxMenuItem("Allow HTTP/2 ALPN override", false);
+            JMenu timeout = new JMenu("Streaming response timeout");
+            ButtonGroup tg = new ButtonGroup();
+            for (String o : new String[]{"30 seconds", "1 minute", "5 minutes", "10 minutes", "Never", "Custom..."}) {
+                JRadioButtonMenuItem r = new JRadioButtonMenuItem(o, "10 minutes".equals(o));
+                tg.add(r); timeout.add(r);
+            }
+            JMenu version = new JMenu("HTTP version");
+            ButtonGroup vg = new ButtonGroup();
+            for (HttpMode mode : HttpMode.values()) {
+                JRadioButtonMenuItem r = new JRadioButtonMenuItem(String.valueOf(mode), mode == modeCombo.getSelectedItem());
+                r.addActionListener(e -> modeCombo.setSelectedItem(mode));
+                vg.add(r); version.add(r);
+            }
+            for (JMenuItem it : new JMenuItem[]{ucl, unpack, follow, cookies, enforce, normalize, h1reuse, h2reuse, strip, alpn, timeout, version}) { it.setFont(Ui.PLAIN); m.add(it); }
+            return m;
+        }
+
+        /** A dropdown of this tab's history around the current position. */
+        private void historyMenu(Component anchor, int dir) {
+            JPopupMenu m = new JPopupMenu();
+            int from = dir < 0 ? historyPos - 1 : historyPos + 1;
+            for (int i = from; i >= 0 && i < history.size(); i += dir) {
+                final int idx = i;
+                Snapshot sn = history.get(i);
+                String first = new String(sn.request(), java.nio.charset.StandardCharsets.ISO_8859_1).split("\\r?\\n", 2)[0];
+                JMenuItem mi = new JMenuItem((i + 1) + ". " + Ui.truncate(first, 60));
+                mi.setFont(Ui.PLAIN);
+                mi.addActionListener(e -> navigate(idx - historyPos));
+                m.add(mi);
+            }
+            if (m.getComponentCount() == 0) { JMenuItem none = new JMenuItem("No " + (dir < 0 ? "earlier" : "later") + " requests"); none.setEnabled(false); m.add(none); }
+            m.show(anchor, 0, anchor.getHeight());
+        }
+
+        private Boolean tabUpdateCl;
+        private String tabFollow;
 
         // Per-tab history of sends, with a browser-style position for back/forward.
         private record Snapshot(HttpService svc, byte[] request, HttpMessage response, String status, int length) {}
@@ -147,31 +249,51 @@ public class RepeaterTool implements ToolModule {
             respEditor = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
             reqEditor.setMessage(svc, req);
 
-            // Layout: send controls on the left, the target on the right.
+            // Layout, as in the reference: Send, gear, Cancel, back / forward with
+            // history menus and the AI-free toolbar on the left; the target with
+            // its edit pencil, the HTTP version chip and help on the right.
             cancel.setEnabled(false);
             hostField = Ui.field(svc.host(), 16);
             portField = Ui.field(String.valueOf(svc.port()), 5);
             sslBox = Ui.check("SSL", svc.secure());
             prev.setEnabled(false);
             next.setEnabled(false);
+            prev.setIcon(opentrap.ui.Glyphs.chevron(14, opentrap.ui.Theme.ICON, 3));
+            next.setIcon(opentrap.ui.Glyphs.chevron(14, opentrap.ui.Theme.ICON, 0));
+            prev.setText(""); next.setText("");
             prev.addActionListener(e -> navigate(-1));
             next.addActionListener(e -> navigate(1));
+            JButton prevMenu = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.chevron(12, opentrap.ui.Theme.ICON, 1), "Earlier requests in this tab", null);
+            JButton nextMenu = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.chevron(12, opentrap.ui.Theme.ICON, 1), "Later requests in this tab", null);
+            prevMenu.addActionListener(e -> historyMenu(prevMenu, -1));
+            nextMenu.addActionListener(e -> historyMenu(nextMenu, 1));
+            JButton gear = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.gear(), "Repeater settings for this tab", null);
+            gear.addActionListener(e -> tabSettingsMenu().show(gear, 0, gear.getHeight()));
             modeCombo.setToolTipText("HTTP/1 is raw and byte-exact; HTTP/2 and auto use the JDK transport");
 
             JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
             left.add(go);
+            left.add(gear);
             left.add(cancel);
-            left.add(prev);
-            left.add(next);
+            left.add(prev); left.add(prevMenu);
+            left.add(next); left.add(nextMenu);
             left.add(histLabel);
 
+            targetLabel = Ui.bold("");
+            refreshTarget();
+            JButton pencil = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.pencil(), "Configure target details", this::configureTarget);
+            JButton help = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "About Repeater", () -> JOptionPane.showMessageDialog(this,
+                    "Edit the request on the left and press Send; the response arrives on the right.\n"
+                  + "The arrows step through this tab's history; the pencil changes the target.", "Repeater", JOptionPane.INFORMATION_MESSAGE));
             JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
-            right.add(Ui.bold("Target:"));
-            right.add(hostField);
-            right.add(Ui.label("port"));
-            right.add(portField);
-            right.add(sslBox);
-            right.add(modeCombo);
+            right.add(targetLabel);
+            right.add(pencil);
+            versionChip.setFont(Ui.PLAIN);
+            versionChip.setForeground(Theme.MUTED);
+            versionChip.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Theme.BORDER), Ui.pad(2, 8, 2, 8)));
+            versionChip.setVisible(false);
+            right.add(versionChip);
+            right.add(help);
 
             JPanel north = new JPanel(new BorderLayout());
             north.add(left, BorderLayout.WEST);
@@ -182,10 +304,16 @@ public class RepeaterTool implements ToolModule {
             reqPanel.add(bold(" Request"), BorderLayout.NORTH);
             reqPanel.add(reqEditor, BorderLayout.CENTER);
             JPanel respPanel = new JPanel(new BorderLayout());
-            respPanel.add(bold(" Response"), BorderLayout.NORTH);
+            JPanel respHead = new JPanel(new BorderLayout());
+            respHead.add(bold(" Response"), BorderLayout.WEST);
+            respHead.add(opentrap.ui.LayoutIcons.create(this::setLayoutMode), BorderLayout.EAST);
+            respPanel.add(respHead, BorderLayout.NORTH);
             respPanel.add(respEditor, BorderLayout.CENTER);
             // Request and response side by side.
             JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, reqPanel, respPanel);
+            this.split = split;
+            this.reqPanel = reqPanel;
+            this.respPanel = respPanel;
             split.setResizeWeight(0.5);
             split.addComponentListener(new java.awt.event.ComponentAdapter() {
                 private boolean set = false;
@@ -198,17 +326,41 @@ public class RepeaterTool implements ToolModule {
 
             JPanel south = new JPanel(new BorderLayout());
             south.setBorder(Ui.pad(2, 6, 2, 6));
+            status.setText("Ready");
             south.add(status, BorderLayout.CENTER);
+            lengthLabel.setForeground(Theme.MUTED);
             south.add(lengthLabel, BorderLayout.EAST);
             add(south, BorderLayout.SOUTH);
 
-            sslBox.addActionListener(e -> {
-                String p = portField.getText().trim();
-                if (p.equals("80") && sslBox.isSelected()) portField.setText("443");
-                else if (p.equals("443") && !sslBox.isSelected()) portField.setText("80");
-            });
             go.addActionListener(e -> send());
             cancel.addActionListener(e -> { if (worker != null) worker.interrupt(); });
+        }
+
+        private JSplitPane split;
+        private JPanel reqPanel, respPanel;
+
+        /** 0 side by side, 1 stacked, 2 one at a time (tabs). */
+        private void setLayoutMode(int mode) {
+            if (split == null) return;
+            if (mode == 2) {
+                JTabbedPane one = new JTabbedPane();
+                one.setFont(Ui.PLAIN);
+                split.setLeftComponent(new JPanel());
+                split.setRightComponent(new JPanel());
+                remove(split);
+                one.addTab("Request", reqPanel);
+                one.addTab("Response", respPanel);
+                add(one, BorderLayout.CENTER);
+                revalidate(); repaint();
+                return;
+            }
+            for (Component c : getComponents()) if (c instanceof JTabbedPane) remove(c);
+            split.setOrientation(mode == 0 ? JSplitPane.HORIZONTAL_SPLIT : JSplitPane.VERTICAL_SPLIT);
+            split.setLeftComponent(reqPanel);
+            split.setRightComponent(respPanel);
+            if (split.getParent() != this) add(split, BorderLayout.CENTER);
+            split.setDividerLocation(0.5);
+            revalidate(); repaint();
         }
 
         private JLabel bold(String s) {
@@ -227,7 +379,7 @@ public class RepeaterTool implements ToolModule {
                 return;
             }
             HttpMessage req = new HttpMessage(reqEditor.bytes());
-            if (updateContentLength && req.body().length > 0) req.updateContentLength();
+            if ((tabUpdateCl != null ? tabUpdateCl : updateContentLength) && req.body().length > 0) req.updateContentLength();
 
             status.setText("waiting");
             go.setEnabled(false);
@@ -236,8 +388,8 @@ public class RepeaterTool implements ToolModule {
             worker = new Thread(() -> {
                 try {
                     HttpClient.Options opt = new HttpClient.Options();
-                    opt.updateContentLength = updateContentLength;
-                    opt.followRedirects = followRedirects;
+                    opt.updateContentLength = tabUpdateCl != null ? tabUpdateCl : updateContentLength;
+                    opt.followRedirects = tabFollow != null ? !"Never".equals(tabFollow) : followRedirects;
                     opt.unpackGzip = true;
                     opt.session = ctx.sessions();
                     opt.sessionTool = "repeater";
@@ -253,6 +405,8 @@ public class RepeaterTool implements ToolModule {
                             return;
                         }
                         respEditor.setMessage(svc, r.response, req);
+                        versionChip.setText(r.response.startLine().startsWith("HTTP/2") ? "HTTP/2" : "HTTP/1");
+                        versionChip.setVisible(true);
                         int redirs = r.redirectsFollowed;
                         String statusText = "done" + (redirs > 0 ? " (followed " + redirs + " redirect"
                                 + (redirs == 1 ? "" : "s") + ")" : "") + "  " + ms + " ms";
@@ -298,6 +452,7 @@ public class RepeaterTool implements ToolModule {
             hostField.setText(s.svc().host());
             portField.setText(String.valueOf(s.svc().port()));
             sslBox.setSelected(s.svc().secure());
+            refreshTarget();
             reqEditor.setMessage(s.svc(), new HttpMessage(s.request().clone()));
             if (s.response() != null) {
                 respEditor.setMessage(s.svc(), s.response(), new HttpMessage(s.request().clone()));

@@ -36,6 +36,8 @@ public final class RunTests {
         new opentrap.proxy.HistoryFilterTest().run();
         new opentrap.engine.ScanConfigStoreTest().run();
         new opentrap.ui.SendToComparerTest().run();
+        new opentrap.ui.ThemePaletteTest().run();
+        new opentrap.ui.TabbedPaneListenerTest().run();
         new opentrap.ui.ProjectTasksTest().run();
         new opentrap.ui.ProjectSlimTest().run();
 

@@ -40,14 +40,7 @@ public class DecoderTool implements ToolModule {
         scroll.setBorder(null);
         scroll.getVerticalScrollBar().setUnitIncrement(25);
 
-        JButton clear = Ui.button("Clear", "discard every stage and start again");
-        clear.addActionListener(e -> setData(new byte[0]));
-        JPanel north = new JPanel(new BorderLayout());
-        north.setOpaque(false);
-        north.add(Ui.row(clear), BorderLayout.EAST);
-
         root.setBorder(Ui.pad(8, 8, 8, 8));
-        root.add(north, BorderLayout.NORTH);
         root.add(scroll, BorderLayout.CENTER);
 
         setData(new byte[0]);
@@ -193,9 +186,36 @@ public class DecoderTool implements ToolModule {
         return m;
     }
 
+    /** The colour each transform is drawn in, in the dropdowns and on the stage it produced. */
+    static Color opColour(String name) {
+        if (name == null) return null;
+        return switch (name.trim().toLowerCase()) {
+            case "url" -> new Color(0xE0, 0x3C, 0x3C);
+            case "html" -> new Color(0xE8, 0x82, 0x0C);
+            case "base64" -> new Color(0xD4, 0xC2, 0x00);
+            case "ascii hex" -> new Color(0x2E, 0xA0, 0x4A);
+            case "hex" -> opentrap.ui.Theme.CONTROL;
+            case "octal" -> new Color(0x1F, 0x9E, 0xA8);
+            case "binary" -> new Color(0xC0, 0x3C, 0xC0);
+            case "gzip", "deflate", "brotli" -> new Color(0xE0, 0x7A, 0x7A);
+            default -> null;
+        };
+    }
+
+    /** Dropdown rows tinted by their transform's colour. */
+    private static final class OpRenderer extends DefaultListCellRenderer {
+        @Override public Component getListCellRendererComponent(JList<?> list, Object v, int i, boolean sel, boolean f) {
+            super.getListCellRendererComponent(list, v, i, sel, f);
+            Color c = opColour(String.valueOf(v));
+            if (c != null && !sel && i >= 0) { setOpaque(true); setBackground(c); setForeground(Color.WHITE); }
+            return this;
+        }
+    }
+
     /** One link in the chain: the data, how it is shown, and what it feeds. */
     private final class Stage {
 
+        final boolean first;
         byte[] data = new byte[0];
         boolean hexView;
         String opKind;
@@ -212,7 +232,8 @@ public class DecoderTool implements ToolModule {
         final JPanel panel = new JPanel(new BorderLayout(6, 0));
 
         Stage(boolean first) {
-            area.setFont(Ui.MONO);
+            this.first = first;
+            area.setFont(Ui.PLAIN);
             area.setLineWrap(true);
             area.setEditable(first);
             area.setBackground(opentrap.ui.Theme.BG);
@@ -241,6 +262,8 @@ public class DecoderTool implements ToolModule {
             text.addActionListener(e -> view.run());
             hex.addActionListener(e -> view.run());
 
+            decode.setRenderer(new OpRenderer());
+            encode.setRenderer(new OpRenderer());
             decode.addActionListener(e -> chosen(decode, Transforms.DECODE, encode, hash));
             encode.addActionListener(e -> chosen(encode, Transforms.ENCODE, decode, hash));
             hash.addActionListener(e -> chosen(hash, Transforms.HASH, decode, encode));
@@ -258,7 +281,15 @@ public class DecoderTool implements ToolModule {
             JPanel p = new JPanel();
             p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
             p.setOpaque(false);
-            p.add(fixed(Ui.row(text, hex)));
+            JPanel radios = Ui.row(text, hex);
+            if (first) {
+                JButton help = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(18, opentrap.ui.Theme.MUTED), "About Decoder", () ->
+                        JOptionPane.showMessageDialog(panel, "Type or paste into the top pane, then choose a decoding, encoding or hash.\n"
+                                + "Each result opens a new pane beneath; the text it came from is highlighted above.", "Decoder", JOptionPane.INFORMATION_MESSAGE));
+                radios.add(Box.createHorizontalStrut(10));
+                radios.add(help);
+            }
+            p.add(fixed(radios));
             p.add(fixed(decode));
             p.add(Box.createVerticalStrut(2));
             p.add(fixed(encode));
@@ -290,7 +321,12 @@ public class DecoderTool implements ToolModule {
             if (updating || combo.getSelectedIndex() <= 0) return;
             reset(a);
             reset(b);
-            apply(this, kind, (String) combo.getSelectedItem());
+            String name = (String) combo.getSelectedItem();
+            apply(this, kind, name);
+            // The combo returns to its prompt; the colour of the pane below says what was applied.
+            reset(combo);
+            Color c = opColour(name);
+            if (c != null) area.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue(), 60));
         }
 
         private void smartDecode() {

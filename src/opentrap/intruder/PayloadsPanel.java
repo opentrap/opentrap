@@ -19,7 +19,7 @@ public class PayloadsPanel extends JPanel {
 
     private final PayloadSet[] sets = new PayloadSet[MAX_SETS];
     private final JPanel cards = new JPanel(new CardLayout());
-    private final JComboBox<Integer> setCombo = new JComboBox<>();
+    private final JComboBox<String> setCombo = new JComboBox<>();
     private final JLabel payloadCount = Ui.label("0");
     private final JLabel requestCount = Ui.label("0");
     private final JButton start = Ui.primaryButton("start attack", "launch the attack with the current configuration");
@@ -27,6 +27,8 @@ public class PayloadsPanel extends JPanel {
     private AttackType attackType = AttackType.SNIPER;
     private int positions = 0;
     private int activeSetCount = 1;
+    /** Which set currently holds the shared count labels, or -1 for none. */
+    private int summaryAt = -1;
 
     public PayloadsPanel() {
         super(new BorderLayout());
@@ -43,20 +45,31 @@ public class PayloadsPanel extends JPanel {
         setCombo.setToolTipText("choose the payload set to configure; the attack type "
                 + "determines the number of payload sets available");
         setCombo.addActionListener(e -> {
-            Object sel = setCombo.getSelectedItem();
-            if (sel instanceof Integer n) {
-                ((CardLayout) cards.getLayout()).show(cards, String.valueOf(n - 1));
+            int i = setCombo.getSelectedIndex();
+            if (i >= 0 && positions > 0) {
+                ((CardLayout) cards.getLayout()).show(cards, String.valueOf(i));
                 refreshCounts();
             }
         });
 
         // As in the reference: payload position (set), then the counts, in one
         // aligned form. Start attack lives in the attack header on the left.
+        // The panel header, then the four summary rows: labels left-aligned in
+        // a shared column with the combos stretched across the rest, as the
+        // reference lays its side panels out.
+        JPanel heading = new JPanel(new BorderLayout());
+        heading.setOpaque(false);
+        heading.setBorder(Ui.pad(0, 0, 8, 0));
+        JLabel title = Ui.bold("Payloads");
+        title.setFont(Ui.HEADING.deriveFont(14f));
+        heading.add(title, BorderLayout.WEST);
+        heading.add(Ui.helpButton("Payload sets",
+                "One payload set feeds each payload position. The attack type decides how many "
+                + "sets there are and how their payloads are combined."), BorderLayout.EAST);
         JPanel top = Ui.vbox(
-                Ui.form("Payload position:", setCombo,
-                        "Payload count:", payloadCount,
-                        "Request count:", requestCount),
-                Box.createVerticalStrut(8));
+                heading,
+                Ui.leftForm("Payload position:", setCombo),
+                Box.createVerticalStrut(2));
 
         add(top, BorderLayout.NORTH);
         add(cards, BorderLayout.CENTER);
@@ -75,10 +88,15 @@ public class PayloadsPanel extends JPanel {
         this.positions = positions;
         this.activeSetCount = Math.min(Math.max(1, type.setCount(positions)), MAX_SETS);
 
-        int keep = Math.min(setCombo.getSelectedIndex() + 1, activeSetCount);
+        int keep = Math.max(0, Math.min(setCombo.getSelectedIndex(), activeSetCount - 1));
         setCombo.removeAllItems();
-        for (int i = 1; i <= activeSetCount; i++) setCombo.addItem(i);
-        setCombo.setSelectedItem(Math.max(1, keep));
+        if (positions == 0) {
+            // Nothing is marked yet, so say so rather than offering set 1.
+            setCombo.addItem("No payload positions configured");
+        } else {
+            for (int i = 1; i <= activeSetCount; i++) setCombo.addItem(String.valueOf(i));
+            setCombo.setSelectedIndex(keep);
+        }
         refreshCounts();
     }
 
@@ -90,9 +108,14 @@ public class PayloadsPanel extends JPanel {
     }
 
     private void refreshCounts() {
-        Object sel = setCombo.getSelectedItem();
-        int idx = sel instanceof Integer n ? n - 1 : 0;
+        int idx = positions == 0 ? 0 : setCombo.getSelectedIndex();
         if (idx < 0 || idx >= MAX_SETS) idx = 0;
+        // One label cannot sit in two containers, so the count rows move into
+        // whichever set is on screen.
+        if (idx != summaryAt) {
+            sets[idx].setSummary(payloadCount, requestCount);
+            summaryAt = idx;
+        }
         int c = sets[idx].count();
         payloadCount.setText(c < 0 ? "unknown" : String.valueOf(c));
 

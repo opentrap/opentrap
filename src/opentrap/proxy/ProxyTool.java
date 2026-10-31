@@ -170,6 +170,102 @@ public class ProxyTool implements ToolModule {
      * is held, the message editor.
      */
     static class InterceptPanel extends JPanel implements InterceptQueue.Presenter {
+        /** The idle card's illustration: a tilted blue signal head with a lit lamp, drawn in the reference's style. */
+        private static Icon trafficLights() {
+            int w = 180, h = 150;
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = img.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            // Grey "beam" lines behind the head.
+            g.setColor(new Color(0xD0, 0xD4, 0xDA));
+            g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(20, 20, 50, 42); g.drawLine(130, 20, 160, 42); g.drawLine(20, 110, 50, 92); g.drawLine(130, 110, 160, 92);
+            g.rotate(Math.toRadians(-12), 90, 75);
+            // Body: a rounded dark-blue slab with a lighter face.
+            g.setColor(new Color(0x2D, 0x5B, 0xA6));
+            g.fillRoundRect(62, 10, 56, 120, 16, 16);
+            g.setColor(new Color(0xBF, 0xD4, 0xEE));
+            g.fillRoundRect(70, 16, 40, 108, 12, 12);
+            // Lamps: two off, the bottom one lit green.
+            g.setColor(new Color(0x8E, 0xA6, 0xC8)); g.fillOval(78, 26, 24, 24);
+            g.setColor(new Color(0x8E, 0xA6, 0xC8)); g.fillOval(78, 58, 24, 24);
+            g.setColor(new Color(0x3F, 0xB0, 0x4E)); g.fillOval(78, 90, 24, 24);
+            // Pole.
+            g.setColor(new Color(0x2D, 0x5B, 0xA6));
+            g.fillRect(86, 128, 8, 20);
+            g.dispose();
+            return new ImageIcon(img);
+        }
+
+        private static Icon eyeIcon() {
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(18, 14, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = img.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(Theme.ICON);
+            g.setStroke(new BasicStroke(1.4f));
+            g.draw(new java.awt.geom.Arc2D.Double(1, 1, 16, 12, 20, 140, java.awt.geom.Arc2D.OPEN));
+            g.draw(new java.awt.geom.Arc2D.Double(1, 1, 16, 12, 200, 140, java.awt.geom.Arc2D.OPEN));
+            g.draw(new java.awt.geom.Ellipse2D.Double(6.5, 4.5, 5, 5));
+            g.dispose();
+            return new ImageIcon(img);
+        }
+
+        private static Icon globeIcon() {
+            java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = img.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(Theme.ICON);
+            g.setStroke(new BasicStroke(1.3f));
+            g.drawOval(1, 1, 13, 13); g.drawOval(5, 1, 5, 13); g.drawLine(1, 8, 14, 8);
+            g.dispose();
+            return new ImageIcon(img);
+        }
+
+        /** A button and its dropdown chevron drawn as one control. */
+        /**
+         * The Forward / Drop pair: one rounded shape carrying a label and a
+         * chevron, sized and coloured from the reference frames.
+         *
+         * <p>The reference draws two styles: Forward as a flat grey slab, and
+         * Drop as white with a hairline and a divider before its chevron. The
+         * style is fixed per button rather than following enablement. The
+         * whole shape is
+         * painted here rather than assembled from bordered panels, so there is
+         * no second box around the chevron.
+         */
+        private static JComponent splitButton(JButton main, JButton menu, int width, boolean filled) {
+            JPanel p = new JPanel(new BorderLayout(0, 0)) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int w = getWidth(), h = getHeight(), arc = Theme.RADIUS;
+                    g2.setColor(filled ? Theme.SEGMENT_OFF : Theme.CARD);
+                    g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                    if (!filled) {
+                        g2.setColor(Theme.BORDER);
+                        g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                        int x = w - menu.getPreferredSize().width;
+                        g2.drawLine(x, 3, x, h - 4);
+                    }
+                    g2.dispose();
+                }
+            };
+            p.setOpaque(false);
+            for (JButton b : new JButton[]{main, menu}) {
+                b.setContentAreaFilled(false);
+                b.setBorderPainted(false);
+                b.setOpaque(false);
+                b.setFocusPainted(false);
+            }
+            p.add(main, BorderLayout.CENTER);
+            p.add(menu, BorderLayout.EAST);
+            p.setPreferredSize(new Dimension(width, BUTTON_HEIGHT));
+            p.setMaximumSize(p.getPreferredSize());
+            return p;
+        }
+
+        /** Toolbar button height, measured from the reference frames. */
+        private static final int BUTTON_HEIGHT = 26;
         private final ProxyServer server;
         private final MessageEditor editor;
         private final JToggleButton toggle;
@@ -201,25 +297,69 @@ public class ProxyTool implements ToolModule {
 
             // Toolbar.
             toggle = new JToggleButton("Intercept off", false);
-            toggle.setFont(Ui.PLAIN);
+            toggle.setFont(Ui.BOLD);
+            toggle.setIcon(eyeIcon());
+            toggle.setIconTextGap(8);
             toggle.setToolTipText("toggle message interception");
+            toggle.setPreferredSize(new Dimension(180, BUTTON_HEIGHT));
             forward = Ui.button("Forward", "forward the displayed message");
+            forward.setFont(Ui.BOLD);
+            forward.setIcon(opentrap.ui.Glyphs.arrow(14, Theme.ICON, 0));
+            forward.setIconTextGap(8);
             drop = Ui.button("Drop", "drop the displayed message");
+            drop.setFont(Ui.BOLD);
             action = Ui.button("Action", "perform additional actions");
             forward.setEnabled(false); drop.setEnabled(false); action.setEnabled(false);
             status.setForeground(Theme.MUTED);
+            JButton forwardMenu = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.chevron(12, Theme.ICON, 1), "Forward options", null);
+            forwardMenu.addActionListener(ev -> {
+                JPopupMenu m = new JPopupMenu();
+                JMenuItem all = new JMenuItem("Forward all");
+                all.setFont(Ui.PLAIN);
+                all.addActionListener(x -> server.interceptQueue().releaseAll());
+                m.add(all);
+                m.show(forwardMenu, 0, forwardMenu.getHeight());
+            });
+            JButton dropMenu = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.chevron(12, Theme.ICON, 1), "Drop options", null);
+            dropMenu.addActionListener(ev -> {
+                JPopupMenu m = new JPopupMenu();
+                JMenuItem all = new JMenuItem("Drop all");
+                all.setFont(Ui.PLAIN);
+                all.addActionListener(x -> { if (current != null) resolve(InterceptQueue.Action.DROP); });
+                m.add(all);
+                m.show(dropMenu, 0, dropMenu.getHeight());
+            });
 
-            JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             left.setOpaque(false);
-            left.add(toggle); left.add(forward); left.add(drop); left.add(action);
-            left.add(Box.createHorizontalStrut(8));
+            left.add(toggle);
+            left.add(Box.createHorizontalStrut(10));
+            left.add(splitButton(forward, forwardMenu, 180, true));
+            left.add(Box.createHorizontalStrut(14));
+            left.add(splitButton(drop, dropMenu, 172, false));
+            left.add(Box.createHorizontalStrut(10));
             left.add(status);
             JButton openBrowser = Ui.button("Open browser",
                     "launch a browser routed through the proxy, with the CA already trusted");
+            openBrowser.setFont(Ui.BOLD);
+            openBrowser.setIcon(globeIcon());
+            openBrowser.setIconTextGap(8);
             openBrowser.addActionListener(ev -> launchBrowser.run());
             JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
             right.setOpaque(false);
             right.add(openBrowser);
+            right.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "About interception", () -> JOptionPane.showMessageDialog(this,
+                    "With interception on, each request and response from the browser is held here until you forward or drop it.\n"
+                  + "The rules under Settings > Tools > Proxy decide which messages are held.", "Intercept", JOptionPane.INFORMATION_MESSAGE)));
+            right.add(opentrap.ui.Glyphs.menuButton("More", () -> {
+                JPopupMenu m = current == null ? new JPopupMenu() : editor.buildMenu();
+                if (m.getComponentCount() > 0) m.addSeparator();
+                JMenuItem settings = new JMenuItem("Proxy settings");
+                settings.setFont(Ui.PLAIN);
+                settings.addActionListener(ev -> SettingsDialog.open(SwingUtilities.getWindowAncestor(this), ctx, "Proxy"));
+                m.add(settings);
+                return m;
+            }));
             JPanel bar = new JPanel(new BorderLayout());
             bar.setOpaque(false);
             bar.setBorder(Ui.pad(6, 8, 6, 8));
@@ -240,13 +380,26 @@ public class ProxyTool implements ToolModule {
                     "launch a browser routed through the proxy, with the CA already trusted");
             idleBrowser.addActionListener(ev -> launchBrowser.run());
             idleBrowser.setAlignmentX(Component.CENTER_ALIGNMENT);
+            JLabel lights = new JLabel(trafficLights());
+            lights.setAlignmentX(Component.CENTER_ALIGNMENT);
+            JButton learn = Ui.button("Learn more", "open the project documentation");
+            learn.setFont(Ui.BOLD);
+            learn.addActionListener(ev -> opentrap.ui.Unbuilt.openProject(this));
+            idleBrowser.setFont(Ui.BOLD);
+            JPanel idleButtons = new JPanel(new FlowLayout(FlowLayout.CENTER, 14, 0));
+            idleButtons.setOpaque(false);
+            idleButtons.add(learn);
+            idleButtons.add(idleBrowser);
+            idleButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
+            idleTitle.setFont(new Font("Dialog", Font.BOLD, 20));
+            idleListener.setVisible(false);
+            column.add(lights);
+            column.add(Box.createVerticalStrut(40));
             column.add(idleTitle);
-            column.add(Box.createVerticalStrut(12));
+            column.add(Box.createVerticalStrut(28));
             column.add(idleText);
-            column.add(Box.createVerticalStrut(8));
-            column.add(idleListener);
-            column.add(Box.createVerticalStrut(16));
-            column.add(idleBrowser);
+            column.add(Box.createVerticalStrut(28));
+            column.add(idleButtons);
             JPanel idle = new JPanel(new GridBagLayout());
             idle.setOpaque(false);
             idle.add(column, new GridBagConstraints());
@@ -288,9 +441,11 @@ public class ProxyTool implements ToolModule {
                 idleText.setText(on
                         ? "Waiting for a message. Requests and responses passing through the "
                           + "proxy will be held here for you to review, edit, forward or drop."
-                        : "If you turn Intercept on, messages between your browser and your "
-                          + "target servers are held here. This lets you analyse and modify "
-                          + "them before you forward them.");
+                        : "If you turn Intercept on, messages between OpenTRAP's browser and your "
+                          + "target servers are held here. This enables you to analyze and modify "
+                          + "these messages, before you forward them.");
+                idleText.setAlignmentX(Component.CENTER_ALIGNMENT);
+                Ui.sizeNote(idleText, 760);
                 idleListener.setText(server.listeningSummary());
                 status.setText(" ");
                 editor.setMessage(null, new HttpMessage(new byte[0]));
@@ -346,10 +501,11 @@ public class ProxyTool implements ToolModule {
 
             Ui.styleTable(table);
             // #, host, method, URL, params, edited, status, length, MIME, ext, title, SSL, IP, time
-            Ui.distributeWidths(table, 40, 170, 55, 300, 55, 55, 60, 70, 90, 75, 150, 45, 110, 120);
+            Ui.distributeWidths(table, 40, 170, 55, 300, 55, 55, 70, 70, 90, 75, 150, 110, 45, 110, 120);
             Ui.centerCells(table);
-            table.setRowSorter(new TableRowSorter<>(model));
-            Ui.newestFirst(table, 0);
+            TableRowSorter<HistoryModel> sorter = new TableRowSorter<>(model);
+            table.setRowSorter(sorter);
+            sorter.setSortKeys(java.util.List.of(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
 
             JPanel top = new JPanel(new BorderLayout());
             top.add(new OutOfScopeBanner(ctx), BorderLayout.NORTH);
@@ -392,12 +548,24 @@ public class ProxyTool implements ToolModule {
             // fast URL search beside it, both at one uniform height.
             filterButton.setText("Filter settings: " + filter.summary());
             filterButton.addActionListener(e -> openFilter());
-            JTextField urlSearch = Ui.field("", 22);
+            JTextField urlSearch = Ui.searchField(22);
             urlSearch.setToolTipText("quick search of the URL only");
             urlSearch.getDocument().addDocumentListener(new SimpleDoc(() -> {
                 filter.urlSearch = urlSearch.getText(); applyFilter();
             }));
-            return Ui.filterBar(filterButton, Ui.label("Search:"), urlSearch);
+            JCheckBox filterOn = Ui.check("Filter on", true);
+            filterOn.setToolTipText("apply the filter settings to the history");
+            final HistoryFilter saved = filter;
+            filterOn.addActionListener(e -> {
+                if (filterOn.isSelected()) { model.setFilter(saved::test); }
+                else model.setFilter(null);
+                filterButton.setText("Filter settings: " + (filterOn.isSelected() ? filter.summary() : "Showing all items"));
+            });
+            JButton help = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "About the history", () -> JOptionPane.showMessageDialog(this,
+                    "Every request that passed through the proxy, newest at the bottom.\nClick the filter bar to choose what is shown.",
+                    "HTTP history", JOptionPane.INFORMATION_MESSAGE));
+            JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(table));
+            return Ui.filterBar(filterButton, urlSearch, filterOn, help, kebab);
         }
 
         private void openFilter() {

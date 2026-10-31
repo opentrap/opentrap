@@ -4,7 +4,7 @@ import opentrap.core.HttpService;
 import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
 import opentrap.ui.Ui;
-import opentrap.ui.Unbuilt;
+import opentrap.ui.ResourcePoolPanel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -38,6 +38,8 @@ public class IntruderTool implements ToolModule {
 
     @Override public String name() { return "intruder"; }
 
+    private final ResourcePoolPanel resourcePool = new ResourcePoolPanel();
+
     @Override public boolean alwaysTabbed() { return false; }
 
     @Override public void init(SuiteContext ctx) {
@@ -68,14 +70,14 @@ public class IntruderTool implements ToolModule {
         strip.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Ui.GRID));
         ButtonGroup group = new ButtonGroup();
         Object[][] items = {
-            {"Payloads", payloads},
-            {"Resource pool", Unbuilt.INTRUDER_RESPOOL.panel()},
-            {"Settings", options},
+            {"Payloads", payloads, opentrap.ui.Glyphs.section(14, opentrap.ui.Theme.ICON)},
+            {"Resource pool", resourcePool, opentrap.ui.Glyphs.clock(14, opentrap.ui.Theme.ICON)},
+            {"Settings", options, opentrap.ui.Glyphs.gear(14, opentrap.ui.Theme.ICON)},
         };
         for (Object[] it : items) {
             final String name = (String) it[0];
             panes.add((Component) it[1], name);
-            opentrap.ui.VerticalTab t = new opentrap.ui.VerticalTab(name);
+            opentrap.ui.VerticalTab t = new opentrap.ui.VerticalTab(name, (javax.swing.Icon) it[2]);
             t.addActionListener(e -> cards.show(panes, name));
             group.add(t);
             strip.add(t);
@@ -94,6 +96,18 @@ public class IntruderTool implements ToolModule {
         return new Tab[]{ new Tab("intruder", split) };
     }
 
+    /** Concurrency from the chosen resource pool, capped by the Settings pane's thread count when it is lower. */
+    private int poolThreads() {
+        opentrap.core.ResourcePool p = resourcePool.selected();
+        return Math.max(1, Math.min(options.threads(), p.effectiveConcurrent()));
+    }
+
+    /** Pacing: the pool's delay when it has one, else the Settings pane's throttle. */
+    private long poolThrottle() {
+        opentrap.core.ResourcePool p = resourcePool.selected();
+        return p.delayOn() ? p.delayMs() : options.throttleMs();
+    }
+
     @Override public java.io.Serializable saveState() {
         String marked = positions.markedText();
         return (marked == null || marked.isEmpty()) ? null : marked;
@@ -108,9 +122,9 @@ public class IntruderTool implements ToolModule {
 
     @Override public JMenu[] menus() {
         JMenu menu = new JMenu("intruder");
-        JMenuItem start = new JMenuItem("start attack");
+        JMenuItem start = new JMenuItem("Start attack");
         start.addActionListener(e -> startAttack());
-        JMenuItem clear = new JMenuItem("clear positions");
+        JMenuItem clear = new JMenuItem("Clear positions");
         clear.addActionListener(e -> positions.clearPositions());
         start.setFont(Ui.PLAIN);
         clear.setFont(Ui.PLAIN);
@@ -157,13 +171,36 @@ public class IntruderTool implements ToolModule {
 
         List<String> grep = options.grepExpressions();
         ResultsWindow window = new ResultsWindow(ctx, attackCounter.incrementAndGet(), grep);
-        AttackEngine engine = new AttackEngine(ctx, svc, positions.markedText(),
+        String marked = positions.markedText();
+        if (target.updateHostHeader()) marked = withHost(marked, svc);
+        AttackEngine engine = new AttackEngine(ctx, svc, marked,
                 positions.attackType(), positionCount, materialised, grep,
-                options.threads(), options.followRedirects(), options.throttleMs(), options.mode(), window);
+                poolThreads(), options.followRedirects(), poolThrottle(), options.mode(), window);
         window.setOnClose(engine::stop);
         window.setPauseControl(engine::setPaused);
         window.setVisible(true);
         engine.start();
+    }
+
+    /**
+     * Rewrite the request's Host header so it names the target, which is what
+     * "Update Host header to match target" asks for. A request with no Host
+     * header gains one after the start line.
+     */
+    static String withHost(String marked, HttpService svc) {
+        String host = svc.host() + (svc.defaultPort() ? "" : ":" + svc.port());
+        String[] lines = marked.split("\r?\n", -1);
+        for (int i = 1; i < lines.length; i++) {
+            if (lines[i].isEmpty()) break;                     // end of the headers
+            if (lines[i].regionMatches(true, 0, "Host:", 0, 5)) {
+                lines[i] = "Host: " + host;
+                return String.join("\r\n", lines);
+            }
+        }
+        if (lines.length < 2) return marked;
+        StringBuilder sb = new StringBuilder(lines[0]).append("\r\nHost: ").append(host);
+        for (int i = 1; i < lines.length; i++) sb.append("\r\n").append(lines[i]);
+        return sb.toString();
     }
 
     /** The original text between each marker pair, for transforming payloads. */

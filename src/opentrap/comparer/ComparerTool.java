@@ -54,7 +54,12 @@ public class ComparerTool implements ToolModule {
                 + "between different data. You can load, paste, or send data here from other "
                 + "tools and then select the comparison you want to perform.");
         intro.setMaximumSize(new Dimension(Integer.MAX_VALUE, intro.getPreferredSize().height));
-        JPanel head = Ui.vbox(Ui.heading("Comparer"), Box.createVerticalStrut(4), intro,
+        JPanel headRow = new JPanel(new BorderLayout());
+        headRow.setOpaque(false);
+        headRow.add(Ui.heading("Comparer"), BorderLayout.WEST);
+        headRow.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(20, opentrap.ui.Theme.MUTED), "About Comparer", () ->
+                JOptionPane.showMessageDialog(root, "Pick one item in each list, then compare them by words or by bytes.", "Comparer", JOptionPane.INFORMATION_MESSAGE)), BorderLayout.EAST);
+        JPanel head = Ui.vbox(headRow, Box.createVerticalStrut(4), intro,
                 Box.createVerticalStrut(10));
 
         JPanel lists = new JPanel(new GridLayout(2, 1, 0, 10));
@@ -121,10 +126,10 @@ public class ComparerTool implements ToolModule {
 
     private void cards(JPanel cards, JTable table) {
         Ui.styleTable(table);
-        Ui.setWidths(table, 30, 70, 1000);
+        Ui.setWidths(table, 60, 120, 1000);
         // the two narrow columns are pinned so the preview column takes the rest
-        pin(table.getColumnModel().getColumn(0), 30);
-        pin(table.getColumnModel().getColumn(1), 70);
+        pin(table.getColumnModel().getColumn(0), 60);
+        pin(table.getColumnModel().getColumn(1), 120);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         // The table is always shown, with its headers, even while empty.
@@ -191,7 +196,7 @@ public class ComparerTool implements ToolModule {
 
         JPanel holder = new JPanel(new BorderLayout());
         holder.setOpaque(false);
-        holder.setBorder(Ui.pad(58, 2, 0, 0));
+        holder.setBorder(Ui.pad(22, 8, 0, 0));
         holder.add(actions, BorderLayout.NORTH);
         holder.add(compareBox, BorderLayout.SOUTH);
         return holder;

@@ -12,6 +12,8 @@ public final class OrganizerItem implements Serializable {
     public static final String[] STATUSES = {"todo", "in progress", "done", "ignored"};
 
     public String caption = "";
+    /** The collection this item sits in; "Inbox" is where everything lands. */
+    public String collection = "Inbox";
     public String sourceTool = "";
     public String status = "todo";
     public String notes = "";
@@ -32,4 +34,7 @@ public final class OrganizerItem implements Serializable {
 
     public String host() { return service == null ? "" : service.host(); }
     public String path() { return request == null ? "" : request.path(); }
+    public String query() { return request == null ? "" : request.query(); }
+    /** The collection name, treating a value missing from an older project as the Inbox. */
+    public String collection() { return collection == null || collection.isEmpty() ? "Inbox" : collection; }
 }

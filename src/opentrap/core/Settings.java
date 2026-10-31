@@ -45,6 +45,24 @@ public class Settings implements Serializable {
         for (Consumer<String> l : listeners()) l.accept(key);
     }
 
+    /** Forget a key so reads fall back to the default again. */
+    public void remove(String key) {
+        synchronized (this) {
+            values.remove(key);
+            if (prefs != null) {
+                try { prefs.remove(key); } catch (Exception ignored) {}
+            }
+        }
+        for (Consumer<String> l : listeners()) l.accept(key);
+    }
+
+    /** Every key currently set, including those only in the preferences store. */
+    public synchronized java.util.Set<String> keys() {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>(values.keySet());
+        if (prefs != null) { try { out.addAll(java.util.Arrays.asList(prefs.keys())); } catch (Exception ignored) {} }
+        return out;
+    }
+
     public boolean getBool(String k, boolean def) { return Boolean.parseBoolean(get(k, String.valueOf(def))); }
     public void setBool(String k, boolean v)      { set(k, String.valueOf(v)); }
 

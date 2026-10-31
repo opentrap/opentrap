@@ -47,11 +47,15 @@ public class SuiteFrame extends JFrame {
     private final JButton eventLogLabel = new JButton("Event log (0)");
     private final JButton issuesLabel = new JButton("All issues (0)");
     private AlertsPanel alertsPanel;
+    private IssuesPanel issuesPanel;
+    private final JSplitPane centreSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+    private final JPanel bottomDock = new JPanel(new BorderLayout());
+    private String bottomShowing;
     private opentrap.session.SessionPanel sessionPanel;   // Settings > Sessions, built on first use
     private ConfigLibraryPanel configLibrary;             // Settings > Configuration library
 
     public SuiteFrame(SuiteContext ctx, String title) {
-        super(title);
+        super(title + " - Temporary Project");
         this.ctx = ctx;
         ctx.setFrame(this);
         // Suite-level settings panes. Tools register their own in init().
@@ -81,7 +85,14 @@ public class SuiteFrame extends JFrame {
         // width). On a narrow window the row scrolls instead.
         tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         setLayout(new BorderLayout());
-        add(buildCenter(), BorderLayout.CENTER);
+        centreSplit.setTopComponent(buildCenter());
+        bottomDock.setOpaque(false);
+        bottomDock.setVisible(false);
+        centreSplit.setBottomComponent(bottomDock);
+        centreSplit.setDividerSize(0);
+        centreSplit.setBorder(null);
+        centreSplit.setResizeWeight(1.0);
+        add(centreSplit, BorderLayout.CENTER);
         add(buildStatusBar(), BorderLayout.SOUTH);
         setJMenuBar(menuBar);
 
@@ -113,8 +124,8 @@ public class SuiteFrame extends JFrame {
         memoryLabel.setFont(Ui.PLAIN);
         memoryLabel.setForeground(Theme.MUTED);
 
-        linkify(eventLogLabel, () -> selectTool("alerts"));
-        linkify(issuesLabel, () -> selectTool("dashboard"));
+        linkify(eventLogLabel, () -> toggleBottom("Event log", alertsPanel));
+        linkify(issuesLabel, () -> toggleBottom("All issues", issuesPanel));
 
         JPanel west = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         west.setOpaque(false);
@@ -125,16 +136,45 @@ public class SuiteFrame extends JFrame {
 
         JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         east.setOpaque(false);
-        east.add(memoryLabel);
+        JLabel info = new JLabel(Glyphs.help(16, Theme.MUTED));
+        info.setToolTipText("Memory in use by OpenTRAP");
+        east.add(info);
         east.add(memoryMeter);
         p.add(east, BorderLayout.EAST);
 
         // Live counters for the status bar.
         ctx.addAlertListener(a -> SwingUtilities.invokeLater(() ->
-                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")")));
+                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")" + ("Event log".equals(bottomShowing) ? "" : DOT))));
         ctx.addIssueListener(i -> SwingUtilities.invokeLater(() ->
-                issuesLabel.setText("All issues (" + ctx.issues().size() + ")")));
+                issuesLabel.setText("All issues (" + ctx.issues().size() + ")" + ("All issues".equals(bottomShowing) ? "" : DOT))));
         return p;
+    }
+
+    /** Open, switch or close the bottom panel the status bar links control. */
+    private void toggleBottom(String name, JComponent panel) {
+        if (name.equals(bottomShowing)) {
+            bottomDock.setVisible(false);
+            centreSplit.setDividerSize(0);
+            bottomShowing = null;
+        } else {
+            bottomDock.removeAll();
+            JPanel head = new JPanel(new BorderLayout());
+            head.setOpaque(false);
+            head.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, Ui.GRID), Ui.pad(4, 10, 4, 6)));
+            head.add(Ui.bold(name), BorderLayout.WEST);
+            head.add(Glyphs.button(Glyphs.cross(14, Theme.ICON), "Close", () -> toggleBottom(name, panel)), BorderLayout.EAST);
+            bottomDock.add(head, BorderLayout.NORTH);
+            bottomDock.add(panel, BorderLayout.CENTER);
+            bottomDock.setVisible(true);
+            centreSplit.setDividerSize(5);
+            centreSplit.setDividerLocation(Math.max(200, centreSplit.getHeight() - 320));
+            bottomShowing = name;
+            if ("Event log".equals(name)) eventLogLabel.setText(plainTitle(eventLogLabel.getText()));
+            else issuesLabel.setText(plainTitle(issuesLabel.getText()));
+        }
+        bottomDock.revalidate();
+        centreSplit.revalidate();
+        repaint();
     }
 
     /** Make a button read as a flat clickable link in the status bar. */
@@ -200,6 +240,17 @@ public class SuiteFrame extends JFrame {
 
         for (ToolModule m : modules) {
             ToolModule.Tab[] mt = m.tabs();
+            if ("scanner".equals(m.name())) {
+                // Scan checks live under Settings in the reference layout, not on the tab strip.
+                final ToolModule.Tab[] st = mt;
+                SettingsDialog.register("Scanner", () -> {
+                    JTabbedPane inner = new JTabbedPane();
+                    inner.setFont(Ui.PLAIN);
+                    for (ToolModule.Tab t : st) inner.addTab(capitalise(t.title()), t.component());
+                    return inner;
+                });
+                continue;
+            }
             JComponent comp;
             if (mt.length == 1 && !m.alwaysTabbed()) {
                 comp = mt[0].component();
@@ -213,13 +264,16 @@ public class SuiteFrame extends JFrame {
             tabs.addTab(m.name(), comp);
         }
 
-        // Suite-level tab after the tools. Settings used to live here as a "comms"
-        // tab; they now live in the Settings dialog (the gear in the top bar), so
-        // there is one home for them.
+        // The event log and the issue list slide open at the bottom of the window
+        // from the status bar links, as in the reference; neither is a tab.
         alertsPanel = new AlertsPanel(ctx);
-        tabs.addTab("alerts", alertsPanel);
+        issuesPanel = new IssuesPanel(ctx);
 
         buildMenus();
+
+        // Unread dots: sent-to tools get a dot until they are shown.
+        ctx.addSendListener(tool -> SwingUtilities.invokeLater(() -> badgeTool(tool)));
+        tabs.addChangeListener(e -> clearBadge(tabs.getSelectedIndex()));
     }
 
     private void buildMenus() {
@@ -259,15 +313,15 @@ public class SuiteFrame extends JFrame {
         view.setFont(Ui.PLAIN);
         // Changing scale relaunches the JVM; the session is written to its
         // project file on the way past, exactly as on exit.
-        JMenuItem bigger = new JMenuItem("increase text size");
+        JMenuItem bigger = new JMenuItem("Increase text size");
         bigger.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_EQUALS,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         bigger.addActionListener(e -> relaunchScaled(currentScale() + 0.25));
-        JMenuItem smaller = new JMenuItem("decrease text size");
+        JMenuItem smaller = new JMenuItem("Decrease text size");
         smaller.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_MINUS,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         smaller.addActionListener(e -> relaunchScaled(currentScale() - 0.25));
-        JMenuItem reset = new JMenuItem("reset text size");
+        JMenuItem reset = new JMenuItem("Reset text size");
         reset.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_0,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
         reset.addActionListener(e -> relaunchScaled(1.0));
@@ -283,13 +337,16 @@ public class SuiteFrame extends JFrame {
         }
         menuBar.add(view);
 
-        JMenu window = new JMenu("Window");
-        window.setFont(Ui.PLAIN);
-        for (int i = 0; i < modules.size(); i++) {
+        view.addSeparator();
+        JMenuItem restoreLayout = new JMenuItem("Restore default tab layout");
+        restoreLayout.setFont(Ui.PLAIN);
+        restoreLayout.addActionListener(e -> { if (bottomShowing != null) toggleBottom(bottomShowing, null); tabs.setSelectedIndex(0); });
+        view.add(restoreLayout);
+        view.addSeparator();
+        for (int i = 0; i < tabs.getTabCount(); i++) {
             final int idx = i;
-            addItem(window, "go to " + modules.get(i).name(), e -> tabs.setSelectedIndex(idx));
+            addItem(view, capitalise(plainTitle(tabs.getTitleAt(i))), e -> tabs.setSelectedIndex(idx));
         }
-        menuBar.add(window);
 
         JMenu help = new JMenu("Help");
         help.setFont(Ui.PLAIN);
@@ -409,10 +466,23 @@ public class SuiteFrame extends JFrame {
     private JComponent buildCenter() {
         final JPanel tools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         tools.setOpaque(false);
-        tools.add(iconButton(ToolIcons.browser(), "Open browser", this::launchBrowser));
-        tools.add(iconButton(ToolIcons.console(), "Console", () -> Unbuilt.CONSOLE.showDialog(this)));
-        tools.add(iconButton(ToolIcons.search(), "Search", () -> new SearchWindow(ctx).setVisible(true)));
+        // The order honours Settings > User interface > Display > Title bar actions; the gear is always last.
+        java.util.Map<String, JButton> actions = new java.util.LinkedHashMap<>();
+        actions.put("Open browser", iconButton(ToolIcons.browser(), "Open browser", this::launchBrowser));
+        JButton palette = iconButton(ToolIcons.console(), "Command palette (Ctrl+K)", null);
+        palette.addActionListener(e -> openPalette(palette));
+        actions.put("Open command palette", palette);
+        actions.put("Open search window", iconButton(ToolIcons.search(), "Search", () -> new SearchWindow(ctx).setVisible(true)));
+        String order = ctx.settings().get("ui.titleActions", "");
+        java.util.List<String> names = order.isEmpty() ? new java.util.ArrayList<>(actions.keySet()) : java.util.Arrays.asList(order.split("\\|"));
+        for (String n : names) if (actions.containsKey(n)) tools.add(actions.get(n));
         tools.add(iconButton(ToolIcons.gear(), "Settings", () -> SettingsDialog.open(this, ctx)));
+        // Ctrl+K opens the palette from anywhere in the window.
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, java.awt.event.InputEvent.CTRL_DOWN_MASK), "opentrap.palette");
+        getRootPane().getActionMap().put("opentrap.palette", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) { openPalette(palette); }
+        });
 
         final JLayeredPane layer = new JLayeredPane();
         layer.setLayout(null);
@@ -437,6 +507,9 @@ public class SuiteFrame extends JFrame {
      * trusted: the same action as Open browser on the Proxy tab, reachable from
      * the globe in the top bar.
      */
+    /** Open the suite browser; for dialogs that need to record a login. */
+    public void launchBrowserPublic() { launchBrowser(); }
+
     private void launchBrowser() {
         opentrap.proxy.ProxyServer server = null;
         for (ToolModule m : modules) {
@@ -465,8 +538,45 @@ public class SuiteFrame extends JFrame {
         b.setContentAreaFilled(false);
         b.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.addActionListener(e -> action.run());
+        if (action != null) b.addActionListener(e -> action.run());
         return b;
+    }
+
+    /** The command palette: every tool, sub-tab and settings page, searchable. */
+    private void openPalette(Component anchor) {
+        java.util.Map<String, java.util.List<String>> tools = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < tabs.getTabCount(); i++) {
+            java.util.List<String> subs = new java.util.ArrayList<>();
+            if (tabs.getComponentAt(i) instanceof JTabbedPane inner)
+                for (int j = 0; j < inner.getTabCount(); j++) subs.add(inner.getTitleAt(j));
+            tools.put(plainTitle(tabs.getTitleAt(i)), subs);
+        }
+        CommandPalette.show(anchor, ctx, tools, (tool, sub) -> {
+            selectTool(tool);
+            if (sub != null) {
+                int i = indexOfTool(tool);
+                if (i >= 0 && tabs.getComponentAt(i) instanceof JTabbedPane inner)
+                    for (int j = 0; j < inner.getTabCount(); j++) if (inner.getTitleAt(j).equals(sub)) inner.setSelectedIndex(j);
+            }
+        });
+    }
+
+    // ---- unread badges: a dot after a tool's name when something was sent to it while it was not showing ----
+
+    private static final String DOT = " \u2022";
+    private static String plainTitle(String t) { return t.endsWith(DOT) ? t.substring(0, t.length() - DOT.length()) : t; }
+    private int indexOfTool(String name) {
+        for (int i = 0; i < tabs.getTabCount(); i++) if (plainTitle(tabs.getTitleAt(i)).equals(name)) return i;
+        return -1;
+    }
+    /** Mark a tool as having unread content, unless it is the one on screen. */
+    public void badgeTool(String name) {
+        int i = indexOfTool(name);
+        if (i < 0 || i == tabs.getSelectedIndex() || tabs.getTitleAt(i).endsWith(DOT)) return;
+        tabs.setTitleAt(i, plainTitle(tabs.getTitleAt(i)) + DOT);
+    }
+    private void clearBadge(int i) {
+        if (i >= 0 && i < tabs.getTabCount() && tabs.getTitleAt(i).endsWith(DOT)) tabs.setTitleAt(i, plainTitle(tabs.getTitleAt(i)));
     }
 
     private void showProxyHelp() {
@@ -484,7 +594,7 @@ public class SuiteFrame extends JFrame {
     }
 
     private void addItem(JMenu menu, String label, java.awt.event.ActionListener l) {
-        JMenuItem mi = new JMenuItem(label);
+        JMenuItem mi = new JMenuItem(Ui.sentence(label));
         mi.setFont(Ui.PLAIN);
         mi.addActionListener(l);
         menu.add(mi);
@@ -492,15 +602,15 @@ public class SuiteFrame extends JFrame {
 
     public void selectTool(String name) {
         for (int i = 0; i < tabs.getTabCount(); i++) {
-            if (tabs.getTitleAt(i).equals(name)) { tabs.setSelectedIndex(i); return; }
+            if (plainTitle(tabs.getTitleAt(i)).equals(name)) { tabs.setSelectedIndex(i); return; }
         }
     }
 
     public void flashTool(String name) {
         for (int i = 0; i < tabs.getTabCount(); i++) {
-            if (tabs.getTitleAt(i).equals(name)) {
+            if (plainTitle(tabs.getTitleAt(i)).equals(name)) {
                 final int idx = i;
-                tabs.setBackgroundAt(idx, Ui.ACCENT);
+                tabs.setBackgroundAt(idx, Theme.CONTROL_TINT);
                 Timer t = new Timer(900, e -> tabs.setBackgroundAt(idx, null));
                 t.setRepeats(false);
                 t.start();
@@ -534,7 +644,8 @@ public class SuiteFrame extends JFrame {
     }
 
     private void confirmExit() {
-        int r = JOptionPane.showConfirmDialog(this,
+        int r = ctx.settings().getBool("suite.noConfirmClose", false) ? JOptionPane.YES_OPTION
+                : JOptionPane.showConfirmDialog(this,
                 "This will close all opentrap windows - are you sure you want to exit?",
                 "confirm", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null);
         if (r == JOptionPane.YES_OPTION) {

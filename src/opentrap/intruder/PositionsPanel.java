@@ -32,8 +32,10 @@ public class PositionsPanel extends JPanel {
 
     private final JTextArea area = new JTextArea(DEFAULT_REQUEST);
     private final JComboBox<AttackType> attackCombo = Ui.combo(AttackType.ordered());
-    private final JLabel posLabel = Ui.label("0 positions");
-    private final JLabel lenLabel = Ui.label("length: 0");
+    private final JLabel highlightLabel = Ui.label("0 highlights");
+    private final JLabel posLabel = Ui.label("0 payload positions");
+    private final JLabel lenLabel = Ui.label("Length: 0");
+    private final JTextField editorSearch = Ui.searchField(14);
     private final JButton start = Ui.primaryButton("Start attack", "launch the attack with the current configuration");
     /** Holds the target row supplied by the tool, under the attack type. */
     private final JPanel targetSlot = new JPanel(new BorderLayout());
@@ -62,16 +64,24 @@ public class PositionsPanel extends JPanel {
             public void changedUpdate(DocumentEvent e) { counts(); }
         });
 
-        // Header, as in the reference: the attack type across the top with Start
-        // attack at the right, the target row beneath it, then the Positions row
-        // with its marker buttons directly above the request editor.
+        // Header, as in the reference: a help mark, the attack type and the
+        // orange Start attack together on one left-aligned row, the target row
+        // beneath it, then the Positions row with its marker buttons directly
+        // above the request editor.
         attackCombo.setToolTipText("the attack type determines the way in which payloads are "
                 + "assigned to payload positions");
         attackCombo.addActionListener(e -> fire());
-        JPanel attackRow = new JPanel(new BorderLayout(10, 0));
+        attackCombo.setPreferredSize(new Dimension(190, attackCombo.getPreferredSize().height));
+        start.setIcon(opentrap.ui.Glyphs.play(12, Color.WHITE));
+        start.setIconTextGap(6);
+        JButton attackHelp = Ui.helpButton("Intruder",
+                "Choose an attack type, mark the payload positions in the request below, "
+                + "then configure the payloads on the right and start the attack.");
+        JPanel attackRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         attackRow.setOpaque(false);
-        attackRow.add(attackCombo, BorderLayout.CENTER);
-        attackRow.add(start, BorderLayout.EAST);
+        attackRow.add(attackHelp);
+        attackRow.add(attackCombo);
+        attackRow.add(start);
 
         JButton addMark   = Ui.button("Add §", "insert a payload marker");
         JButton clearMark = Ui.button("Clear §", "clear all payload markers");
@@ -86,17 +96,46 @@ public class PositionsPanel extends JPanel {
         JPanel header = Ui.vbox(attackRow, Box.createVerticalStrut(6), targetSlot,
                 Box.createVerticalStrut(2), posRow, Box.createVerticalStrut(4));
 
-        // South: position count and length.
+        // The editor footer, as in the reference: help, settings, the match
+        // steppers and search, then the three counts at the right.
         JPanel south = new JPanel(new BorderLayout());
         south.setOpaque(false);
-        south.add(posLabel, BorderLayout.WEST);
-        south.add(lenLabel, BorderLayout.EAST);
+        JPanel footLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        footLeft.setOpaque(false);
+        footLeft.add(Ui.helpButton("Payload positions",
+                "Select a value and press Add \u00a7 to mark it, or press Auto \u00a7 to mark every "
+                + "parameter. Each marked pair is one payload position."));
+        footLeft.add(opentrap.ui.Glyphs.menuButton("Editor settings", this::editorMenu));
+        footLeft.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.chevron(12, opentrap.ui.Theme.ICON, 3),
+                "Previous match", () -> step(-1)));
+        footLeft.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.chevron(12, opentrap.ui.Theme.ICON, 0),
+                "Next match", () -> step(1)));
+        footLeft.add(editorSearch);
+        JPanel footRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        footRight.setOpaque(false);
+        highlightLabel.setForeground(opentrap.ui.Theme.MUTED);
+        posLabel.setForeground(opentrap.ui.Theme.MUTED);
+        lenLabel.setForeground(opentrap.ui.Theme.MUTED);
+        footRight.add(highlightLabel);
+        footRight.add(posLabel);
+        footRight.add(lenLabel);
+        south.add(footLeft, BorderLayout.WEST);
+        south.add(footRight, BorderLayout.EAST);
 
+        editorSearch.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e)  { search(); }
+            public void removeUpdate(DocumentEvent e)  { search(); }
+            public void changedUpdate(DocumentEvent e) { search(); }
+        });
+
+        JScrollPane sp = Ui.scroll(area);
+        sp.setRowHeaderView(new opentrap.ui.LineGutter(area));
         add(header, BorderLayout.NORTH);
-        add(Ui.scroll(area), BorderLayout.CENTER);
+        add(sp, BorderLayout.CENTER);
         add(south, BorderLayout.SOUTH);
 
         counts();
+        paintMarkers();
     }
 
     // ---------------- configuration ----------------
@@ -191,8 +230,81 @@ public class PositionsPanel extends JPanel {
 
     private void counts() {
         int n = positionCount();
-        posLabel.setText(n + (n == 1 ? " position" : " positions"));
-        lenLabel.setText("length: " + stripMarkers(area.getText()).length());
+        posLabel.setText(n + (n == 1 ? " payload position" : " payload positions"));
+        lenLabel.setText("Length: " + stripMarkers(area.getText()).length());
+        paintMarkers();
         fire();
+    }
+
+    // ---------------- editor marks ----------------
+
+    /** Tint every marked payload position, so the positions read at a glance. */
+    private void paintMarkers() {
+        javax.swing.text.Highlighter h = area.getHighlighter();
+        for (javax.swing.text.Highlighter.Highlight hl : h.getHighlights()) {
+            if (hl.getPainter() instanceof javax.swing.text.DefaultHighlighter.DefaultHighlightPainter) h.removeHighlight(hl);
+        }
+        String s = area.getText();
+        int from = s.indexOf(MARK);
+        while (from >= 0) {
+            int to = s.indexOf(MARK, from + 1);
+            if (to < 0) break;
+            try { h.addHighlight(from, to + 1, MARKER_PAINT); } catch (javax.swing.text.BadLocationException ignored) {}
+            from = s.indexOf(MARK, to + 1);
+        }
+        searchHits = 0;
+        String q = editorSearch == null ? "" : editorSearch.getText();
+        if (!q.isEmpty()) {
+            String hay = s.toLowerCase();
+            String needle = q.toLowerCase();
+            int i = hay.indexOf(needle);
+            while (i >= 0) {
+                try { h.addHighlight(i, i + needle.length(), SEARCH_PAINT); } catch (javax.swing.text.BadLocationException ignored) {}
+                searchHits++;
+                i = hay.indexOf(needle, i + needle.length());
+            }
+        }
+        highlightLabel.setText(searchHits + (searchHits == 1 ? " highlight" : " highlights"));
+    }
+
+    private static final javax.swing.text.DefaultHighlighter.DefaultHighlightPainter MARKER_PAINT =
+            new javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(new Color(0xFF, 0xE2, 0xB3));
+    private static final javax.swing.text.DefaultHighlighter.DefaultHighlightPainter SEARCH_PAINT =
+            new javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(opentrap.ui.Theme.CONTROL_TINT);
+
+    private int searchHits;
+    private int searchAt;
+
+    private void search() { searchAt = 0; paintMarkers(); }
+
+    /** Move the caret to the next or previous search match. */
+    private void step(int dir) {
+        String q = editorSearch.getText();
+        if (q.isEmpty()) return;
+        String hay = area.getText().toLowerCase();
+        String needle = q.toLowerCase();
+        java.util.List<Integer> at = new ArrayList<>();
+        int i = hay.indexOf(needle);
+        while (i >= 0) { at.add(i); i = hay.indexOf(needle, i + needle.length()); }
+        if (at.isEmpty()) return;
+        searchAt = (searchAt + dir + at.size()) % at.size();
+        int off = at.get(searchAt);
+        area.setCaretPosition(off);
+        area.select(off, off + needle.length());
+        area.requestFocusInWindow();
+    }
+
+    /** The editor settings the footer gear offers. */
+    private JPopupMenu editorMenu() {
+        JPopupMenu m = new JPopupMenu();
+        JCheckBoxMenuItem wrap = new JCheckBoxMenuItem("Wrap lines", area.getLineWrap());
+        wrap.setFont(Ui.PLAIN);
+        wrap.addActionListener(e -> area.setLineWrap(wrap.isSelected()));
+        m.add(wrap);
+        JMenuItem reset = new JMenuItem("Clear payload positions");
+        reset.setFont(Ui.PLAIN);
+        reset.addActionListener(e -> clearMarkers());
+        m.add(reset);
+        return m;
     }
 }

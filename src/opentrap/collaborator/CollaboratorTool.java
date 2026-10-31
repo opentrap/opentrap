@@ -5,6 +5,7 @@ import opentrap.core.ToolModule;
 import opentrap.oast.Collaborator;
 import opentrap.oast.Interaction;
 import opentrap.ui.OptionsPage;
+import opentrap.ui.Theme;
 import opentrap.ui.Ui;
 
 import javax.swing.*;
@@ -41,7 +42,7 @@ public class CollaboratorTool implements ToolModule {
 
     @Override public String name() { return "collaborator"; }
 
-    @Override public boolean alwaysTabbed() { return true; }
+    @Override public boolean alwaysTabbed() { return false; }
 
     @Override public void init(SuiteContext ctx) {
         this.ctx = ctx;
@@ -58,8 +59,7 @@ public class CollaboratorTool implements ToolModule {
 
     @Override public Tab[] tabs() {
         return new Tab[]{
-            new Tab("interactions", buildMain()),
-            new Tab("options", buildOptions())
+            new Tab("1", buildMain())
         };
     }
 
@@ -72,7 +72,7 @@ public class CollaboratorTool implements ToolModule {
         sorter = new javax.swing.table.TableRowSorter<>(model);
         table.setRowSorter(sorter);
         Ui.newestFirst(table, 0);
-        Ui.distributeWidths(table, 40, 150, 70, 380, 160);
+        Ui.distributeWidths(table, 40, 150, 70, 380, 160, 160);
         table.getSelectionModel().addListSelectionListener(e -> showSelected());
 
         // Detail area as tabs, rebuilt per interaction so the set matches the
@@ -81,8 +81,31 @@ public class CollaboratorTool implements ToolModule {
         detailTabs = new JTabbedPane();
         detailTabs.setFont(Ui.PLAIN);
 
+        // Empty state over the table until the first interaction arrives.
+        final CardLayout tableCards = new CardLayout();
+        final JPanel tableArea = new JPanel(tableCards);
+        tableArea.setOpaque(false);
+        JPanel emptyCol = new JPanel();
+        emptyCol.setLayout(new BoxLayout(emptyCol, BoxLayout.Y_AXIS));
+        emptyCol.setOpaque(false);
+        JLabel emptyIcon = new JLabel(opentrap.ui.Glyphs.search(64, opentrap.ui.Theme.BORDER));
+        JLabel emptyTitle = new JLabel("Your interactions will appear here");
+        emptyTitle.setFont(new Font("Dialog", Font.BOLD, 18));
+        JTextArea emptyText = Ui.note("Click \"Copy to clipboard\" to generate Collaborator payloads that you can use when testing");
+        Ui.sizeNote(emptyText, 420);
+        JButton learn = Ui.button("Learn more");
+        learn.addActionListener(e -> opentrap.ui.Unbuilt.openProject(table));
+        for (JComponent c : new JComponent[]{emptyIcon, emptyTitle, emptyText, learn}) { c.setAlignmentX(Component.CENTER_ALIGNMENT); emptyCol.add(c); emptyCol.add(Box.createVerticalStrut(10)); }
+        JPanel empty = new JPanel(new GridBagLayout());
+        empty.setOpaque(false);
+        empty.add(emptyCol, new GridBagConstraints());
+        tableArea.add(empty, "empty");
+        tableArea.add(Ui.scroll(table), "table");
+        tableCards.show(tableArea, "empty");
+        model.addTableModelListener(e -> tableCards.show(tableArea, model.getRowCount() == 0 ? "empty" : "table"));
+
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                Ui.scroll(table), detailTabs);
+                tableArea, detailTabs);
         split.setResizeWeight(0.5);
         split.setBorder(null);
         // Give the detail pane half the height once the tab is laid out, rather
@@ -153,14 +176,24 @@ public class CollaboratorTool implements ToolModule {
             refreshStatus();
         });
 
+        JTextField count = Ui.field("1", 4);
+        count.setToolTipText("how many payloads Copy to clipboard generates");
+        JCheckBox includeLocation = Ui.check("Include Collaborator server location", true);
+        includeLocation.setToolTipText("copy the full hostname rather than only the unique prefix");
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
         bar.setOpaque(false);
+        bar.add(Ui.label("Payloads to generate:"));
+        bar.add(count);
         bar.add(copy);
-        bar.add(Box.createHorizontalStrut(12));
+        bar.add(includeLocation);
+        bar.add(new JSeparator(SwingConstants.VERTICAL) {{ setPreferredSize(new Dimension(1, 22)); }});
         bar.add(pollNow);
         bar.add(auto);
+        statusLabel.setForeground(Theme.MUTED);
+        auto.addPropertyChangeListener("text", e -> {});
         bar.add(Box.createHorizontalStrut(12));
         bar.add(statusLabel);
+        statusLabel.setVisible(false);
 
         // The payload row stretches the field to the full width so the whole
         // hostname is always visible, never clipped.
@@ -172,11 +205,13 @@ public class CollaboratorTool implements ToolModule {
 
         // Filter row, as in the reference: protocol toggles and a search box.
         JToggleButton fHttp = filterToggle("HTTP"), fDns = filterToggle("DNS"), fSmtp = filterToggle("SMTP");
-        JTextField search = Ui.field("", 18);
+        JTextField search = Ui.searchField(18);
         search.setToolTipText("show only interactions containing this text");
         Runnable applyFilter = () -> {
             final String q = search.getText().trim().toLowerCase();
-            final boolean http = fHttp.isSelected(), dns = fDns.isSelected(), smtp = fSmtp.isSelected();
+            // No chip pressed means no filter: every protocol shows.
+            boolean any = fHttp.isSelected() || fDns.isSelected() || fSmtp.isSelected();
+            final boolean http = !any || fHttp.isSelected(), dns = !any || fDns.isSelected(), smtp = !any || fSmtp.isSelected();
             sorter.setRowFilter(new RowFilter<InteractionTableModel, Integer>() {
                 @Override public boolean include(Entry<? extends InteractionTableModel, ? extends Integer> en) {
                     String type = en.getStringValue(2);
@@ -203,13 +238,26 @@ public class CollaboratorTool implements ToolModule {
 
         JPanel filterLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
         filterLeft.setOpaque(false);
+        filterLeft.add(new JLabel(opentrap.ui.Glyphs.funnel(16, Theme.ICON)));
         filterLeft.add(Ui.label("Filter"));
         filterLeft.add(fHttp); filterLeft.add(fDns); filterLeft.add(fSmtp);
         JPanel filterRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
         filterRight.setOpaque(false);
-        filterRight.add(Ui.label("Search"));
         filterRight.add(search);
-        filterRight.add(clear);
+        filterRight.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "About Collaborator", () -> JOptionPane.showMessageDialog(ctx.frame(),
+                "Copy a payload, place it where the target might call out, then watch here for the interaction.",
+                "Collaborator", JOptionPane.INFORMATION_MESSAGE)));
+        filterRight.add(opentrap.ui.Glyphs.menuButton("More", () -> {
+            JPopupMenu m = new JPopupMenu();
+            JMenuItem c = new JMenuItem("Clear interaction history");
+            c.setFont(Ui.PLAIN);
+            c.addActionListener(e -> clear.doClick());
+            m.add(c);
+            JMenuItem st = new JMenuItem(collab.status());
+            st.setEnabled(false);
+            m.add(st);
+            return m;
+        }));
         JPanel filterRow = new JPanel(new BorderLayout());
         filterRow.setOpaque(false);
         filterRow.setBorder(BorderFactory.createCompoundBorder(
@@ -217,6 +265,7 @@ public class CollaboratorTool implements ToolModule {
         filterRow.add(filterLeft, BorderLayout.WEST);
         filterRow.add(filterRight, BorderLayout.EAST);
 
+        payloadRow.setVisible(false);
         JPanel top = Ui.vbox(bar, payloadRow, filterRow);
         top.setBorder(Ui.pad(2, 2, 0, 2));
 
@@ -229,11 +278,22 @@ public class CollaboratorTool implements ToolModule {
 
     /** A small on/off chip for the protocol filter, on by default. */
     private static JToggleButton filterToggle(String text) {
-        JToggleButton t = new JToggleButton(text, true);
+        JToggleButton t = new JToggleButton(text, false);
         t.setFont(Ui.BOLD);
         t.setFocusable(false);
         t.setMargin(new Insets(1, 8, 1, 8));
         return t;
+    }
+
+    private static JComponent proseTab(String content) {
+        JTextArea a = new JTextArea(content);
+        a.setEditable(false);
+        a.setFont(Ui.PLAIN);
+        a.setLineWrap(true);
+        a.setWrapStyleWord(true);
+        a.setBorder(Ui.pad(10, 10, 10, 10));
+        a.setCaretPosition(0);
+        return Ui.scroll(a);
     }
 
     private static JComponent textTab(String content, boolean wrap) {
@@ -292,12 +352,12 @@ public class CollaboratorTool implements ToolModule {
         if (i.isDns()) {
             detailTabs.addTab("DNS query", textTab(orNone(i.rawRequest(), "query"), false));
         } else if (i.isHttp()) {
-            detailTabs.addTab("request to collaborator", textTab(orNone(i.rawRequest(), "request"), false));
-            detailTabs.addTab("response from collaborator", textTab(orNone(i.rawResponse(), "response"), false));
+            detailTabs.addTab("Request to Collaborator", textTab(orNone(i.rawRequest(), "request"), false));
+            detailTabs.addTab("Response from Collaborator", textTab(orNone(i.rawResponse(), "response"), false));
         } else {
-            detailTabs.addTab("interaction", textTab(orNone(i.rawRequest(), "data"), false));
+            detailTabs.addTab("Interaction", textTab(orNone(i.rawRequest(), "data"), false));
             if (!i.rawResponse().isBlank())
-                detailTabs.addTab("response", textTab(i.rawResponse(), false));
+                detailTabs.addTab("Response", textTab(i.rawResponse(), false));
         }
 
         // Keep the same tab selected across rows where it still exists, so a
@@ -360,9 +420,14 @@ public class CollaboratorTool implements ToolModule {
     // ------------------------------------------------------------ table model
 
     private final class InteractionTableModel extends AbstractTableModel {
-        private final String[] cols = {"#", "Time", "Type", "Payload", "Source IP address"};
+        private final String[] cols = {"#", "Time", "Type", "Payload", "Source IP address", "Comment"};
         private final List<Interaction> rows = new ArrayList<>();
-        private final SimpleDateFormat fmt = new SimpleDateFormat("HH:mm:ss");
+        private final SimpleDateFormat fmt = utc();
+        private static SimpleDateFormat utc() {
+            SimpleDateFormat f = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss.SSS 'UTC'", java.util.Locale.ENGLISH);
+            f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            return f;
+        }
 
         void add(List<Interaction> added) {
             if (added.isEmpty()) return;
