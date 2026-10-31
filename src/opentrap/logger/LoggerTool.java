@@ -47,41 +47,50 @@ public class LoggerTool implements ToolModule {
         // #, time, tool, method, host, path, query, params, status, length, timer, comment
         Ui.distributeWidths(table, 45, 95, 70, 55, 160, 240, 160, 80, 75, 70, 120, 150);
         Ui.centerCells(table);
-        table.setRowSorter(new TableRowSorter<>(model));
-        Ui.newestFirst(table, 0);
+        TableRowSorter<Model> sorter = new TableRowSorter<>(model);
+        table.setRowSorter(sorter);
+        sorter.setSortKeys(java.util.List.of(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
 
         reqView = new MessageEditor(ctx, MessageEditor.REQUEST, false);
         respView = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
         table.getSelectionModel().addListSelectionListener(e -> showSelected());
 
-        // View-filter bar, as in the reference: what is shown on the left, the
-        // search box, the logging toggle and the actions on the right.
-        JPanel bar = new JPanel(new BorderLayout());
-        bar.setBorder(BorderFactory.createCompoundBorder(Ui.pad(2, 2, 3, 2),
-                BorderFactory.createLineBorder(Ui.GRID)));
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
-        left.setOpaque(false);
-        left.add(viewFilterLabel);
-        bar.add(left, BorderLayout.WEST);
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
-        right.setOpaque(false);
-        right.add(Ui.label("Search"));
-        JTextField search = Ui.field("", 22);
-        search.setToolTipText("show only entries containing this text");
-        search.getDocument().addDocumentListener(new SimpleDoc(() -> { filter = search.getText(); model.reapply(); }));
-        right.add(search);
-        right.add(opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(table)));
+        // Two bars, as in the reference: the capture filter with the logging switch,
+        // then the view filter with the search box and the table menu.
+        int capMb = ctx.settings().getInt(opentrap.core.ProjectOptions.AUDIT_MEMORY_MB, opentrap.core.ProjectOptions.DEFAULT_AUDIT_MEMORY_MB);
+        JButton capture = Ui.filterButton();
+        capture.setText("Capture filter: Logger memory limit set to " + capMb + "MB | Capturing requests up to 1MB; capturing responses up to 1MB");
+        capture.addActionListener(e -> opentrap.ui.SettingsDialog.open(ctx.frame(), ctx, "Project > Project file"));
         JCheckBox logging = Ui.check("Logging on", true);
         logging.setToolTipText("stop or resume recording new traffic here");
         logging.addActionListener(e -> loggingOn = logging.isSelected());
-        right.add(logging);
-        JButton export = Ui.button("Export", "export the filtered traffic as CSV or HAR");
-        export.addActionListener(e -> exportTraffic());
-        JButton clear = Ui.button("Clear", "remove every logged entry");
-        clear.addActionListener(e -> model.clear());
-        right.add(export);
-        right.add(clear);
-        bar.add(right, BorderLayout.EAST);
+        JButton help = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "About the Logger", () -> JOptionPane.showMessageDialog(ctx.frame(),
+                "Every request any tool makes, as it happens. The capture filter limits what is kept; the view filter what is shown.",
+                "Logger", JOptionPane.INFORMATION_MESSAGE));
+        JPanel captureBar = Ui.filterBar(capture, logging, help);
+
+        viewFilterLabel.setText("View filter: Showing all items");
+        JButton view = Ui.filterButton();
+        view.setText(viewFilterLabel.getText());
+        viewFilterLabel.addPropertyChangeListener("text", e -> view.setText(viewFilterLabel.getText()));
+        JTextField search = Ui.searchField(22);
+        search.setToolTipText("show only entries containing this text");
+        search.getDocument().addDocumentListener(new SimpleDoc(() -> { filter = search.getText(); model.reapply(); }));
+        JButton kebab = opentrap.ui.Glyphs.menuButton("More", () -> {
+            JPopupMenu m = opentrap.ui.TableLayoutMenu.build(table);
+            m.addSeparator();
+            JMenuItem export = new JMenuItem("Export log");
+            export.setFont(Ui.PLAIN);
+            export.addActionListener(e -> exportTraffic());
+            JMenuItem clear = new JMenuItem("Clear log");
+            clear.setFont(Ui.PLAIN);
+            clear.addActionListener(e -> model.clear());
+            m.add(export);
+            m.add(clear);
+            return m;
+        });
+        JPanel viewBar = Ui.filterBar(view, search, kebab);
+        JPanel bar = Ui.vbox(captureBar, viewBar);
 
         JSplitPane detail = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, reqView, respView);
         detail.setDividerSize(5);
@@ -134,7 +143,7 @@ public class LoggerTool implements ToolModule {
                 "Param count", "Status code", "Length", "Start response timer", "Comment"};
         private final List<LogEntry> all = new ArrayList<>();
         private final List<LogEntry> shown = new ArrayList<>();
-        private final DateFormat fmt = DateFormat.getTimeInstance(DateFormat.MEDIUM);
+        private final DateFormat fmt = new java.text.SimpleDateFormat("HH:mm:ss d MMM yyyy");
 
         void add(LogEntry e) {
             all.add(e);
@@ -163,8 +172,8 @@ public class LoggerTool implements ToolModule {
         void reload(List<LogEntry> entries) { all.clear(); all.addAll(entries); reapply(); }
         private void refreshFilterLabel() {
             viewFilterLabel.setText(filter.isEmpty()
-                    ? "View filter: showing all items"
-                    : "View filter: showing " + shown.size() + " of " + all.size() + " items");
+                    ? "View filter: Showing all items"
+                    : "View filter: Showing " + shown.size() + " of " + all.size() + " items");
         }
         LogEntry at(int r) { return (r >= 0 && r < shown.size()) ? shown.get(r) : null; }
 
@@ -177,9 +186,9 @@ public class LoggerTool implements ToolModule {
             return switch (c) {
                 case 0 -> e.number();
                 case 1 -> fmt.format(e.time());
-                case 2 -> e.tool();
+                case 2 -> e.tool() == null || e.tool().isEmpty() ? "" : Character.toUpperCase(e.tool().charAt(0)) + e.tool().substring(1);
                 case 3 -> e.request() == null ? "" : e.request().method();
-                case 4 -> e.service() == null ? "" : e.service().url();
+                case 4 -> e.service() == null ? "" : e.service().host();
                 case 5 -> e.request() == null ? "" : e.request().path();
                 case 6 -> e.request() == null ? "" : e.request().query();
                 case 7 -> e.request() == null ? "" : String.valueOf(e.request().parameters().size());

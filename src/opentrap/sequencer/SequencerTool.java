@@ -77,9 +77,9 @@ public class SequencerTool implements ToolModule {
 
     @Override public Tab[] tabs() {
         return new Tab[] {
-            new Tab("live capture", liveTab),
-            new Tab("manual load", manualTab),
-            new Tab("options", opentrap.ui.SettingsDialog.launcher(ctx, "Sequencer", "Sequencer settings",
+            new Tab("Live capture", liveTab),
+            new Tab("Manual load", manualTab),
+            new Tab("Sequencer settings", opentrap.ui.SettingsDialog.launcher(ctx, "Sequencer", "Sequencer settings",
                     "Which randomness tests run on a captured token set is chosen under "
                     + "Settings > Sequencer.")),
         };
@@ -150,11 +150,15 @@ public class SequencerTool implements ToolModule {
         optCompression = Ui.check("compression", true);
 
         JPanel body = Ui.vbox(
-            Ui.heading("character-level analysis"),
+            Ui.heading("Live capture"),
+            Ui.form("Number of threads:", threadsField == null ? (threadsField = Ui.field("5", 6)) : threadsField,
+                    "Throttle between requests (milliseconds):", throttleField == null ? (throttleField = Ui.field("0", 6)) : throttleField),
+            Box.createVerticalStrut(15),
+            Ui.heading("Character-level analysis"),
             optCount,
             optTransitions,
             Box.createVerticalStrut(15),
-            Ui.heading("bit-level analysis"),
+            Ui.heading("Bit-level analysis"),
             optMonobit,
             optPoker,
             optRuns,
@@ -323,7 +327,7 @@ public class SequencerTool implements ToolModule {
         reqRow.add(reqScroll, BorderLayout.CENTER);
         reqRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 130));
 
-        startCaptureButton = Ui.button("Start live capture");
+        startCaptureButton = Ui.primaryButton("Start live capture", "start sampling tokens from the selected request");
         startCaptureButton.setFont(Ui.BOLD);
         startCaptureButton.setEnabled(false);
         startCaptureButton.addActionListener(e -> toggleCapture());
@@ -337,27 +341,53 @@ public class SequencerTool implements ToolModule {
         JTextArea tokenNote = Ui.note("Select the location in the response where the token appears.");
         tokenNote.setMaximumSize(new Dimension(Integer.MAX_VALUE, tokenNote.getPreferredSize().height));
 
+        buildCaptureOptions();   // the fields live on the Settings page; keep them created
         JPanel body = Ui.vbox(
-            Ui.heading("Select live capture request"),
+            helpHeading("Select live capture request"),
             Box.createVerticalStrut(4),
-            selectNote,
-            Box.createVerticalStrut(8),
-            reqRow,
-            Box.createVerticalStrut(8),
-            startRow,
-            Box.createVerticalStrut(18),
-            Ui.heading("Token location within response"),
+            indent(selectNote),
+            Box.createVerticalStrut(10),
+            indent(reqRow),
+            Box.createVerticalStrut(10),
+            indent(startRow),
+            Box.createVerticalStrut(22),
+            rule(),
+            Box.createVerticalStrut(14),
+            helpHeading("Token location within response"),
             Box.createVerticalStrut(4),
-            tokenNote,
-            Box.createVerticalStrut(8),
-            buildTokenLocation(),
-            Box.createVerticalStrut(18),
-            Ui.heading("Live capture options"),
-            Box.createVerticalStrut(4),
-            buildCaptureOptions());
+            indent(tokenNote),
+            Box.createVerticalStrut(10),
+            indent(buildTokenLocation()));
 
         panel.add(body, BorderLayout.NORTH);
         return Ui.scroll(panel);
+    }
+
+    /** A bold section heading with the help mark before it, as the reference draws them. */
+    private static JComponent helpHeading(String text) {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        p.setOpaque(false);
+        p.add(new JLabel(opentrap.ui.Glyphs.help(20, opentrap.ui.Theme.MUTED)));
+        JLabel h = Ui.heading(text);
+        h.setFont(new Font("Dialog", Font.BOLD, 15));
+        p.add(h);
+        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, p.getPreferredSize().height));
+        return p;
+    }
+
+    private static JComponent indent(JComponent c) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.setBorder(Ui.pad(0, 32, 0, 0));
+        p.add(c, BorderLayout.CENTER);
+        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, c.getPreferredSize().height + 2));
+        return p;
+    }
+
+    private static JComponent rule() {
+        JSeparator s = new JSeparator();
+        s.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        return s;
     }
 
     private JComponent buildTokenLocation() {
@@ -377,24 +407,32 @@ public class SequencerTool implements ToolModule {
         endDelim   = Ui.field("", 14);
         startDelim.setToolTipText("the token starts after this expression");
         endDelim.setToolTipText("the token ends at this delimiter");
-        JPanel custom = Ui.row(Ui.label("starts after"), startDelim, Ui.label("ends at"), endDelim);
+        JTextField customSummary = Ui.field("", 24);
+        customSummary.setEditable(false);
+        JButton configure = Ui.button("Configure", "set the expressions the token sits between");
+        configure.addActionListener(e -> {
+            JPanel f = Ui.form("Starts after:", startDelim, "Ends at:", endDelim);
+            f.setBorder(Ui.pad(10, 10, 10, 10));
+            if (JOptionPane.showConfirmDialog(this.liveTab, f, "Custom token location", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION)
+                customSummary.setText(startDelim.getText().isEmpty() && endDelim.getText().isEmpty() ? "" : "after \"" + startDelim.getText() + "\" until \"" + endDelim.getText() + "\"");
+        });
+        JPanel custom = Ui.row(customSummary, configure);
 
         // The two choosers are as wide as the custom-location row, so the three
         // controls share one right edge as well as one left edge.
         int w = custom.getPreferredSize().width;
-        cookieCombo.setPreferredSize(new Dimension(w, cookieCombo.getPreferredSize().height));
-        formCombo.setPreferredSize(new Dimension(w, formCombo.getPreferredSize().height));
+        cookieCombo.setPreferredSize(new Dimension(customSummary.getPreferredSize().width, cookieCombo.getPreferredSize().height));
+        formCombo.setPreferredSize(new Dimension(customSummary.getPreferredSize().width, formCombo.getPreferredSize().height));
         JPanel form = Ui.form(rCookie, cookieCombo, rForm, formCombo, rManual, custom);
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(false);
-        panel.setBorder(Ui.pad(0, 16, 0, 0));
         panel.add(form, BorderLayout.WEST);
         return panel;
     }
 
     private JComponent buildCaptureOptions() {
-        threadsField  = Ui.field("5", 6);
-        throttleField = Ui.field("0", 6);
+        if (threadsField == null) threadsField  = Ui.field("5", 6);
+        if (throttleField == null) throttleField = Ui.field("0", 6);
 
         JPanel body = Ui.form(
             "Number of threads:", threadsField,

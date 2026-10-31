@@ -28,7 +28,7 @@ final class CompareWindow extends JFrame {
     CompareWindow(ComparerTool.Item one, ComparerTool.Item two, boolean words, Frame owner) {
         List<Diff.Block> blocks = Diff.compare(one.data(), two.data(), words);
         int differences = Diff.differences(blocks);
-        setTitle((words ? "word" : "byte") + " compare of #" + one.id() + " and #" + two.id()
+        setTitle((words ? "Word" : "Byte") + " compare of #" + one.id() + " and #" + two.id()
                 + "  (" + differences + (differences == 1 ? " difference" : " differences") + ")");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
@@ -41,8 +41,8 @@ final class CompareWindow extends JFrame {
 
         JPanel centre = new JPanel(new GridLayout(1, 2, 25, 0));
         centre.setOpaque(false);
-        centre.add(side(one.data().length, leftScroll));
-        centre.add(side(two.data().length, rightScroll));
+        centre.add(side(one.data(), leftScroll));
+        centre.add(side(two.data(), rightScroll));
 
         JPanel root = new JPanel(new BorderLayout(0, 8));
         root.setBorder(Ui.pad(10, 10, 10, 10));
@@ -56,19 +56,35 @@ final class CompareWindow extends JFrame {
 
     private static JTextPane pane() {
         JTextPane p = new JTextPane();
-        p.setFont(Ui.MONO);
+        p.setFont(Ui.PLAIN);
         p.setEditable(false);
         return p;
     }
 
-    private static JComponent side(int length, JScrollPane scroll) {
+    /** One side: Text / Hex tabs with a wrap mark, the coloured text, and the length with step arrows beneath. */
+    private static JComponent side(byte[] data, JScrollPane scroll) {
         JPanel p = new JPanel(new BorderLayout(0, 4));
         p.setOpaque(false);
-        JPanel header = new JPanel(new BorderLayout());
-        header.setOpaque(false);
-        header.add(Ui.label("Length: " + String.format("%,d", length)), BorderLayout.WEST);
-        p.add(header, BorderLayout.NORTH);
-        p.add(scroll, BorderLayout.CENTER);
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(Ui.PLAIN);
+        tabs.addTab("Text", scroll);
+        opentrap.ui.HexView hex = new opentrap.ui.HexView(false);
+        hex.setData(data);
+        tabs.addTab("Hex", hex);
+        JPanel head = new JPanel(new BorderLayout());
+        head.setOpaque(false);
+        head.add(tabs, BorderLayout.CENTER);
+        p.add(head, BorderLayout.CENTER);
+        JPanel foot = new JPanel(new BorderLayout());
+        foot.setOpaque(false);
+        foot.add(Ui.label("Length: " + String.format("%,d", data.length)), BorderLayout.WEST);
+        JPanel arrows = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
+        arrows.setOpaque(false);
+        JScrollBar bar = scroll.getVerticalScrollBar();
+        arrows.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.arrow(16, opentrap.ui.Theme.ICON, 3), "Previous difference", () -> bar.setValue(Math.max(0, bar.getValue() - bar.getVisibleAmount()))));
+        arrows.add(opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.arrow(16, opentrap.ui.Theme.ICON, 0), "Next difference", () -> bar.setValue(bar.getValue() + bar.getVisibleAmount())));
+        foot.add(arrows, BorderLayout.EAST);
+        p.add(foot, BorderLayout.SOUTH);
         return p;
     }
 
@@ -100,19 +116,19 @@ final class CompareWindow extends JFrame {
     private static JComponent footer(JScrollPane left, JScrollPane right) {
         JPanel legend = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 2));
         legend.setOpaque(false);
-        legend.add(Ui.bold("key:  "));
-        legend.add(chip(" modified ", MODIFIED));
+        legend.add(Ui.bold("Key:  "));
+        legend.add(chip(" Modified ", MODIFIED));
         legend.add(Ui.bold("  "));
-        legend.add(chip(" deleted ", DELETED));
+        legend.add(chip(" Deleted ", DELETED));
         legend.add(Ui.bold("  "));
-        legend.add(chip(" added ", ADDED));
+        legend.add(chip(" Added ", ADDED));
 
         // Ticked, the right bar drives off the left bar's model, so one thumb
         // moves both panes together. Unticking hands its own model back, carrying
         // the current position over first: without that the pane keeps the synced
         // position while its thumb springs back to the top.
         BoundedRangeModel ownScroll = right.getVerticalScrollBar().getModel();
-        JCheckBox sync = Ui.check("sync views", false);
+        JCheckBox sync = Ui.check("Sync views", false);
         sync.addActionListener(e -> {
             JScrollBar bar = right.getVerticalScrollBar();
             if (sync.isSelected()) {

@@ -31,7 +31,8 @@ public class RepeaterTool implements ToolModule {
         tabs.setFont(Ui.PLAIN);
         if (tabs.getTabCount() == 0) newTab(new HttpService("127.0.0.1", 80, false),
                 new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")), null);
-        return new Tab[]{ new Tab("repeater", tabs) };
+        return new Tab[]{ new Tab("repeater", opentrap.ui.TabStrip.wrap(tabs, () -> newTab(new HttpService("127.0.0.1", 80, false),
+                new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")), null))) };
     }
 
     @Override public java.io.Serializable saveState() {
@@ -117,6 +118,7 @@ public class RepeaterTool implements ToolModule {
         RepeaterTab tab = new RepeaterTab(svc, req);
         String title = caption != null && !caption.isBlank() ? caption : String.valueOf(counter.incrementAndGet());
         tabs.addTab(title, tab);
+        opentrap.ui.TabStrip.closable(tabs, tabs.indexOfComponent(tab));
         tabs.setSelectedComponent(tab);
     }
 
@@ -135,6 +137,7 @@ public class RepeaterTool implements ToolModule {
         private final JButton next = Ui.button(">", "next request/response in this tab");
         private final JLabel histLabel = Ui.label("");
         private JLabel targetLabel;
+        private final JLabel versionChip = new JLabel("HTTP/1");
         private boolean overrideSni;
         private volatile Thread worker;
 
@@ -204,7 +207,14 @@ public class RepeaterTool implements ToolModule {
                 JRadioButtonMenuItem r = new JRadioButtonMenuItem(o, "10 minutes".equals(o));
                 tg.add(r); timeout.add(r);
             }
-            for (JMenuItem it : new JMenuItem[]{ucl, unpack, follow, cookies, enforce, normalize, h1reuse, h2reuse, strip, alpn, timeout}) { it.setFont(Ui.PLAIN); m.add(it); }
+            JMenu version = new JMenu("HTTP version");
+            ButtonGroup vg = new ButtonGroup();
+            for (HttpMode mode : HttpMode.values()) {
+                JRadioButtonMenuItem r = new JRadioButtonMenuItem(String.valueOf(mode), mode == modeCombo.getSelectedItem());
+                r.addActionListener(e -> modeCombo.setSelectedItem(mode));
+                vg.add(r); version.add(r);
+            }
+            for (JMenuItem it : new JMenuItem[]{ucl, unpack, follow, cookies, enforce, normalize, h1reuse, h2reuse, strip, alpn, timeout, version}) { it.setFont(Ui.PLAIN); m.add(it); }
             return m;
         }
 
@@ -278,7 +288,11 @@ public class RepeaterTool implements ToolModule {
             JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
             right.add(targetLabel);
             right.add(pencil);
-            right.add(modeCombo);
+            versionChip.setFont(Ui.PLAIN);
+            versionChip.setForeground(Theme.MUTED);
+            versionChip.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Theme.BORDER), Ui.pad(2, 8, 2, 8)));
+            versionChip.setVisible(false);
+            right.add(versionChip);
             right.add(help);
 
             JPanel north = new JPanel(new BorderLayout());
@@ -290,10 +304,16 @@ public class RepeaterTool implements ToolModule {
             reqPanel.add(bold(" Request"), BorderLayout.NORTH);
             reqPanel.add(reqEditor, BorderLayout.CENTER);
             JPanel respPanel = new JPanel(new BorderLayout());
-            respPanel.add(bold(" Response"), BorderLayout.NORTH);
+            JPanel respHead = new JPanel(new BorderLayout());
+            respHead.add(bold(" Response"), BorderLayout.WEST);
+            respHead.add(opentrap.ui.LayoutIcons.create(this::setLayoutMode), BorderLayout.EAST);
+            respPanel.add(respHead, BorderLayout.NORTH);
             respPanel.add(respEditor, BorderLayout.CENTER);
             // Request and response side by side.
             JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, reqPanel, respPanel);
+            this.split = split;
+            this.reqPanel = reqPanel;
+            this.respPanel = respPanel;
             split.setResizeWeight(0.5);
             split.addComponentListener(new java.awt.event.ComponentAdapter() {
                 private boolean set = false;
@@ -306,12 +326,41 @@ public class RepeaterTool implements ToolModule {
 
             JPanel south = new JPanel(new BorderLayout());
             south.setBorder(Ui.pad(2, 6, 2, 6));
+            status.setText("Ready");
             south.add(status, BorderLayout.CENTER);
+            lengthLabel.setForeground(Theme.MUTED);
             south.add(lengthLabel, BorderLayout.EAST);
             add(south, BorderLayout.SOUTH);
 
             go.addActionListener(e -> send());
             cancel.addActionListener(e -> { if (worker != null) worker.interrupt(); });
+        }
+
+        private JSplitPane split;
+        private JPanel reqPanel, respPanel;
+
+        /** 0 side by side, 1 stacked, 2 one at a time (tabs). */
+        private void setLayoutMode(int mode) {
+            if (split == null) return;
+            if (mode == 2) {
+                JTabbedPane one = new JTabbedPane();
+                one.setFont(Ui.PLAIN);
+                split.setLeftComponent(new JPanel());
+                split.setRightComponent(new JPanel());
+                remove(split);
+                one.addTab("Request", reqPanel);
+                one.addTab("Response", respPanel);
+                add(one, BorderLayout.CENTER);
+                revalidate(); repaint();
+                return;
+            }
+            for (Component c : getComponents()) if (c instanceof JTabbedPane) remove(c);
+            split.setOrientation(mode == 0 ? JSplitPane.HORIZONTAL_SPLIT : JSplitPane.VERTICAL_SPLIT);
+            split.setLeftComponent(reqPanel);
+            split.setRightComponent(respPanel);
+            if (split.getParent() != this) add(split, BorderLayout.CENTER);
+            split.setDividerLocation(0.5);
+            revalidate(); repaint();
         }
 
         private JLabel bold(String s) {
@@ -355,6 +404,8 @@ public class RepeaterTool implements ToolModule {
                         return;
                     }
                     respEditor.setMessage(svc, r.response, req);
+                    versionChip.setText(r.response.startLine().startsWith("HTTP/2") ? "HTTP/2" : "HTTP/1");
+                    versionChip.setVisible(true);
                     int redirs = r.redirectsFollowed;
                     String statusText = "done" + (redirs > 0 ? " (followed " + redirs + " redirect"
                             + (redirs == 1 ? "" : "s") + ")" : "") + "  " + ms + " ms";
