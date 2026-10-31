@@ -42,6 +42,10 @@ public final class Theme {
     public static Color ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
     /** Row selection: a light blue selection that stays legible against the orange accent. */
     public static Color ACCENT_LIGHT = new Color(0xCA, 0xDA, 0xF0);
+    /** The colour of switched-on controls: check marks, radio dots, toggles, filter chips, selection bars. */
+    public static Color CONTROL      = new Color(0x2F, 0x6F, 0xD6);
+    /** The tint behind a selected card or list row. */
+    public static Color CONTROL_TINT = new Color(0xE8, 0xF0, 0xFB);
     public static Color ACCENT_FAINT = new Color(0xF7, 0xF7, 0xF7);
 
     // ---- the rest of the palette: everything a tool used to hard-code ----
@@ -151,6 +155,8 @@ public final class Theme {
             DIFF_DELETED  = new Color(0xF7, 0xC9, 0xC9);
             DIFF_ADDED    = new Color(0xCB, 0xE8, 0xCB);
             DIFF_MODIFIED = new Color(0xC7, 0xDC, 0xF5);
+            CONTROL       = new Color(0x5B, 0x8F, 0xE8);
+            CONTROL_TINT  = new Color(0x22, 0x2E, 0x44);
         }
     }
 
@@ -283,12 +289,19 @@ public final class Theme {
         d.put("TableHeader.background", new ColorUIResource(HEADER));
         d.put("TableHeader.foreground", text);
         d.put("TableHeader.cellBorder", BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 1, BORDER), BorderFactory.createEmptyBorder(4, 6, 4, 6)));
+                BorderFactory.createMatteBorder(0, 0, 1, 1, BORDER), BorderFactory.createEmptyBorder(5, 6, 5, 6)));
+        d.put("TableHeader.font", font);
         d.put("Tree.background", bg);
         d.put("Tree.selectionBackground", sel);
         d.put("Tree.selectionForeground", text);
         d.put("Tree.selectionBorderColor", sel);
         d.put("Tree.rowHeight", 22);
+        d.put("Tree.expandedIcon", Glyphs.chevron(12, MUTED, 1));
+        d.put("Tree.collapsedIcon", Glyphs.chevron(12, MUTED, 0));
+        d.put("Tree.leftChildIndent", 10);
+        d.put("Tree.rightChildIndent", 12);
+        d.put("Tree.paintLines", Boolean.FALSE);
+        d.put("Tree.lineTypeDashed", Boolean.FALSE);
         d.put("List.selectionBackground", sel);
         d.put("List.selectionForeground", text);
 

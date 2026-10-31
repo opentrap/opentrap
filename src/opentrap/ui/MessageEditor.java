@@ -62,7 +62,7 @@ public class MessageEditor extends JPanel {
     private final JEditorPane renderPane = new JEditorPane();
 
     private final JTextField searchField = Ui.field("", 18);
-    private final JLabel matchLabel = Ui.label("0 matches");
+    private final JLabel matchLabel = Ui.label("0 highlights");
     private final JLabel selectionLabel = Ui.label("");
 
     private final Inspector inspector;
@@ -99,8 +99,12 @@ public class MessageEditor extends JPanel {
         renderPane.setEditorKit(Theme.htmlKit());   // page colours from the theme, not black on white
 
         views.setFont(Ui.PLAIN);
-        views.addTab("Pretty", Ui.scroll(prettyPane));
-        views.addTab("Raw", Ui.scroll(rawArea));
+        JScrollPane prettyScroll = Ui.scroll(prettyPane);
+        prettyScroll.setRowHeaderView(new LineGutter(prettyPane));
+        JScrollPane rawScroll = Ui.scroll(rawArea);
+        rawScroll.setRowHeaderView(new LineGutter(rawArea));
+        views.addTab("Pretty", prettyScroll);
+        views.addTab("Raw", rawScroll);
         views.addTab("Hex", hexView);
         if ((flags & RESPONSE) != 0) views.addTab("Render", Ui.scroll(renderPane));
         views.addChangeListener(e -> onViewChanged());
@@ -109,12 +113,26 @@ public class MessageEditor extends JPanel {
         noteLabel.setForeground(Theme.MUTED);
         noteLabel.setBorder(Ui.pad(3, 8, 3, 8));
         noteLabel.setVisible(false);
-        JPanel top = new JPanel(new BorderLayout());
-        top.add(buildToolbar(), BorderLayout.NORTH);
-        top.add(noteLabel, BorderLayout.SOUTH);
+        // The icons sit on the tab row's right end, like the reference, so the
+        // tabs and the icons share one line.
+        final JComponent icons = buildToolbar();
+        final JLayeredPane layer = new JLayeredPane();
+        layer.setLayout(null);
+        layer.add(views, JLayeredPane.DEFAULT_LAYER);
+        layer.add(icons, JLayeredPane.PALETTE_LAYER);
+        layer.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override public void componentResized(java.awt.event.ComponentEvent e) {
+                int w = layer.getWidth(), h = layer.getHeight();
+                views.setBounds(0, 0, w, h);
+                views.doLayout();
+                Dimension d = icons.getPreferredSize();
+                int rowH = views.getTabCount() > 0 ? views.getUI().getTabBounds(views, 0).height : d.height;
+                icons.setBounds(w - d.width - 6, Math.max(0, (rowH - d.height) / 2), d.width, d.height);
+            }
+        });
         JComponent editorSide = new JPanel(new BorderLayout());
-        editorSide.add(top, BorderLayout.NORTH);
-        editorSide.add(views, BorderLayout.CENTER);
+        editorSide.add(noteLabel, BorderLayout.NORTH);
+        editorSide.add(layer, BorderLayout.CENTER);
 
         add(editorSide, BorderLayout.CENTER);
         // One Inspector per request/response pair, on the far-right (response)
@@ -138,24 +156,54 @@ public class MessageEditor extends JPanel {
         installPopup(rawArea);
     }
 
+    private JToggleButton wrapToggle;
+    private boolean showNewlines;
+
+    /** The view icons: hide headers, word wrap (lit when on), show line endings, and the actions menu. */
     private JComponent buildToolbar() {
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
         bar.setOpaque(false);
-        JToggleButton wrap = new JToggleButton("↵");
-        wrap.setFont(Ui.PLAIN);
-        wrap.setFocusable(false);
-        wrap.setMargin(new Insets(1, 5, 1, 5));
-        wrap.setToolTipText("word-wrap");
-        wrap.addActionListener(e -> rawArea.setLineWrap(wrap.isSelected()));
-        JButton menu = new JButton("≡");
-        menu.setFont(Ui.PLAIN);
-        menu.setFocusable(false);
-        menu.setMargin(new Insets(1, 5, 1, 5));
-        menu.setToolTipText("actions");
+        JButton hide = Glyphs.button(eyeOffIcon(), "Hide headers", () -> {
+            java.awt.Window w = SwingUtilities.getWindowAncestor(this);
+            SettingsDialog.open(w, ctx, "User interface > Message editor");
+        });
+        wrapToggle = new JToggleButton(Glyphs.wrap(16, Theme.ICON), true);
+        wrapToggle.setSelectedIcon(Glyphs.wrap(16, Color.WHITE));
+        wrapToggle.setToolTipText("Word wrap");
+        wrapToggle.setFocusable(false);
+        wrapToggle.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));
+        wrapToggle.setContentAreaFilled(false);
+        wrapToggle.setOpaque(true);
+        wrapToggle.setBackground(Theme.CONTROL);
+        wrapToggle.addActionListener(e -> {
+            boolean on = wrapToggle.isSelected();
+            rawArea.setLineWrap(on);
+            wrapToggle.setBackground(on ? Theme.CONTROL : Theme.BG);
+        });
+        rawArea.setLineWrap(true);
+        rawArea.setWrapStyleWord(false);
+        JButton nl = Glyphs.button(textGlyph("\\n", false, false), "Show line endings", () -> { showNewlines = !showNewlines; refreshViews(); });
+        JButton menu = Glyphs.button(Glyphs.hamburger(16, Theme.ICON), "Actions", null);
         menu.addActionListener(e -> buildMenu().show(menu, 0, menu.getHeight()));
-        bar.add(wrap);
+        bar.add(hide);
+        bar.add(wrapToggle);
+        bar.add(nl);
         bar.add(menu);
         return bar;
+    }
+
+    private static Icon eyeOffIcon() {
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Theme.ICON);
+        g.setStroke(new BasicStroke(1.4f));
+        g.draw(new java.awt.geom.Arc2D.Double(1, 2, 14, 12, 20, 140, java.awt.geom.Arc2D.OPEN));
+        g.draw(new java.awt.geom.Arc2D.Double(1, 2, 14, 12, 200, 140, java.awt.geom.Arc2D.OPEN));
+        g.draw(new java.awt.geom.Ellipse2D.Double(5.5, 5.5, 5, 5));
+        g.drawLine(2, 14, 14, 2);
+        g.dispose();
+        return new ImageIcon(img);
     }
 
     /** The right edge: a vertical Inspector / Notes strip whose buttons flyout a panel. */
@@ -300,35 +348,39 @@ public class MessageEditor extends JPanel {
 
     /** A vertical (rotated) tab button for the Inspector/Notes strip. */
     private JPanel buildFooter() {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setBorder(Ui.pad(3, 4, 3, 4));
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        JPanel p = new JPanel(new BorderLayout(6, 0));
+        p.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Ui.GRID), Ui.pad(4, 4, 4, 6)));
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
         left.setOpaque(false);
-        JButton prev = Ui.button("<", "previous match");
-        JButton next = Ui.button(">", "next match");
-        prev.setMargin(new Insets(0, 6, 0, 6));
-        next.setMargin(new Insets(0, 6, 0, 6));
-        searchField.setToolTipText("search this message");
-        left.add(Ui.label("Search:"));
-        left.add(searchField);
+        left.add(Glyphs.button(Glyphs.help(), "About the message editor", () -> JOptionPane.showMessageDialog(this,
+                "Pretty, Raw and Hex show the same message; edit in any of them.\nSearch finds text in the shown view; the arrows step through matches.",
+                "Message editor", JOptionPane.INFORMATION_MESSAGE)));
+        left.add(Glyphs.button(Glyphs.gear(), "Message editor settings", () -> {
+            java.awt.Window w = SwingUtilities.getWindowAncestor(this);
+            SettingsDialog.open(w, ctx, "User interface > Message editor");
+        }));
+        JButton prev = Glyphs.button(Glyphs.arrow(16, Theme.ICON, 3), "Previous match", () -> highlightMatches(-1));
+        JButton next = Glyphs.button(Glyphs.arrow(16, Theme.ICON, 0), "Next match", () -> highlightMatches(1));
         left.add(prev);
         left.add(next);
-        left.add(matchLabel);
         p.add(left, BorderLayout.WEST);
-        // A flexible centre gap keeps the match count and the length label apart,
-        // and a left margin guarantees a gap even when the editor is narrow so
-        // they never run together ("0 matcheslength: 344").
-        p.add(Box.createHorizontalGlue(), BorderLayout.CENTER);
-        selectionLabel.setBorder(Ui.pad(0, 14, 0, 2));
-        p.add(selectionLabel, BorderLayout.EAST);
+        searchField.setToolTipText("search this message");
+        searchField.putClientProperty("JTextField.placeholderText", "Search");
+        p.add(searchField, BorderLayout.CENTER);
+        matchLabel.setText("0 highlights");
+        matchLabel.setForeground(Theme.MUTED);
+        selectionLabel.setForeground(Theme.MUTED);
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        right.setOpaque(false);
+        right.add(selectionLabel);
+        right.add(matchLabel);
+        p.add(right, BorderLayout.EAST);
 
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e)  { highlightMatches(0); }
             public void removeUpdate(DocumentEvent e)  { highlightMatches(0); }
             public void changedUpdate(DocumentEvent e) { highlightMatches(0); }
         });
-        next.addActionListener(e -> highlightMatches(1));
-        prev.addActionListener(e -> highlightMatches(-1));
         return p;
     }
 
@@ -458,8 +510,7 @@ public class MessageEditor extends JPanel {
     private void updateSelectionLabel() {
         JTextComponent a = activeText();
         int n = Math.abs(a.getSelectionEnd() - a.getSelectionStart());
-        if (n > 0) selectionLabel.setText("selection: " + n + " (0x" + Integer.toHexString(n) + ")");
-        else selectionLabel.setText("length: " + message.length());
+        selectionLabel.setText(n > 0 ? "Selection: " + n + " (0x" + Integer.toHexString(n) + ")" : "");
     }
 
     // ---------------- syntax highlighting ----------------
@@ -608,7 +659,7 @@ public class MessageEditor extends JPanel {
         Highlighter h = a.getHighlighter();
         h.removeAllHighlights();
         String term = searchField.getText();
-        if (term.isEmpty()) { matchLabel.setText("0 matches"); return; }
+        if (term.isEmpty()) { matchLabel.setText("0 highlights"); return; }
 
         String text = a.getText().toLowerCase(Locale.ROOT);
         String want = term.toLowerCase(Locale.ROOT);
@@ -624,7 +675,7 @@ public class MessageEditor extends JPanel {
             count++;
             i = text.indexOf(want, i + 1);
         }
-        matchLabel.setText(count + (count == 1 ? " match" : " matches"));
+        matchLabel.setText(count + (count == 1 ? " highlight" : " highlights"));
 
         if (!positions.isEmpty() && direction != 0) {
             int idx = positions.indexOf(lastMatchPos);

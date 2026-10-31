@@ -1608,7 +1608,7 @@ public class DashboardTool implements ToolModule {
             row.setOpaque(false);
             row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
             row.add(Box.createHorizontalGlue());
-            JLabel lbl = Ui.label(task.type() == ScanTask.Type.LIVE_PASSIVE ? "All issues:" : "Issues:");
+            JLabel lbl = Ui.label("Issues:");
             lbl.setForeground(GREY_TEXT);
             row.add(lbl);
             row.add(Box.createHorizontalStrut(6));
@@ -1644,16 +1644,14 @@ public class DashboardTool implements ToolModule {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int w = getWidth(), h = getHeight();
-            // A clean rounded card, the same whether or not it is selected.
-            g2.setColor(Theme.CARD);
-            g2.fillRoundRect(0, 0, w - 1, h - 1, 12, 12);
+            // A rounded card; the selected one is tinted and carries a bar on its right edge.
+            g2.setColor(selectedLook ? Theme.CONTROL_TINT : Theme.CARD);
+            g2.fillRoundRect(0, 0, w - 1, h - 1, 8, 8);
             g2.setColor(Ui.GRID);
-            g2.drawRoundRect(0, 0, w - 1, h - 1, 12, 12);
-            // The card stays a clean white tile whether or not it is selected;
-            // selection shows only as a slim accent bar on the left edge.
+            g2.drawRoundRect(0, 0, w - 1, h - 1, 8, 8);
             if (selectedLook) {
-                g2.setColor(Ui.ACCENT);
-                g2.fillRoundRect(2, 8, 4, h - 17, 4, 4);
+                g2.setColor(Theme.CONTROL);
+                g2.fillRoundRect(w - 7, 4, 5, h - 9, 4, 4);
             }
             g2.dispose();
         }
@@ -1874,7 +1872,7 @@ public class DashboardTool implements ToolModule {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int w = getWidth(), h = getHeight();
-            g2.setColor(on ? Ui.ACCENT : Theme.TOGGLE_OFF);
+            g2.setColor(on ? Theme.CONTROL : Theme.TOGGLE_OFF);
             g2.fillRoundRect(0, 1, w - 1, h - 3, h - 2, h - 2);
             int knob = h - 8;
             int x = on ? w - knob - 4 : 4;

@@ -31,9 +31,9 @@ public class CheckIcon implements Icon, UIResource {
         Shape box = round
                 ? new Ellipse2D.Float(x + 0.5f, y + 0.5f, SIZE - 1, SIZE - 1)
                 : new RoundRectangle2D.Float(x + 0.5f, y + 0.5f, SIZE - 1, SIZE - 1, 4, 4);
-        Color fill = on ? (enabled ? Theme.ACCENT : Theme.SURFACE_3) : Theme.BG;
+        Color fill = on ? (enabled ? Theme.CONTROL : Theme.SURFACE_3) : Theme.BG;
         Color edge = on ? fill : (enabled ? Theme.SURFACE_3 : Theme.BORDER);
-        if (m.isRollover() && enabled && !on) edge = Theme.ACCENT;
+        if (m.isRollover() && enabled && !on) edge = Theme.CONTROL;
         g2.setColor(fill);
         g2.fill(box);
         g2.setColor(edge);

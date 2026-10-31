@@ -47,11 +47,15 @@ public class SuiteFrame extends JFrame {
     private final JButton eventLogLabel = new JButton("Event log (0)");
     private final JButton issuesLabel = new JButton("All issues (0)");
     private AlertsPanel alertsPanel;
+    private IssuesPanel issuesPanel;
+    private final JSplitPane centreSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+    private final JPanel bottomDock = new JPanel(new BorderLayout());
+    private String bottomShowing;
     private opentrap.session.SessionPanel sessionPanel;   // Settings > Sessions, built on first use
     private ConfigLibraryPanel configLibrary;             // Settings > Configuration library
 
     public SuiteFrame(SuiteContext ctx, String title) {
-        super(title);
+        super(title + " - Temporary Project");
         this.ctx = ctx;
         ctx.setFrame(this);
         // Suite-level settings panes. Tools register their own in init().
@@ -81,7 +85,14 @@ public class SuiteFrame extends JFrame {
         // width). On a narrow window the row scrolls instead.
         tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         setLayout(new BorderLayout());
-        add(buildCenter(), BorderLayout.CENTER);
+        centreSplit.setTopComponent(buildCenter());
+        bottomDock.setOpaque(false);
+        bottomDock.setVisible(false);
+        centreSplit.setBottomComponent(bottomDock);
+        centreSplit.setDividerSize(0);
+        centreSplit.setBorder(null);
+        centreSplit.setResizeWeight(1.0);
+        add(centreSplit, BorderLayout.CENTER);
         add(buildStatusBar(), BorderLayout.SOUTH);
         setJMenuBar(menuBar);
 
@@ -113,8 +124,8 @@ public class SuiteFrame extends JFrame {
         memoryLabel.setFont(Ui.PLAIN);
         memoryLabel.setForeground(Theme.MUTED);
 
-        linkify(eventLogLabel, () -> selectTool("alerts"));
-        linkify(issuesLabel, () -> selectTool("dashboard"));
+        linkify(eventLogLabel, () -> toggleBottom("Event log", alertsPanel));
+        linkify(issuesLabel, () -> toggleBottom("All issues", issuesPanel));
 
         JPanel west = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         west.setOpaque(false);
@@ -125,21 +136,45 @@ public class SuiteFrame extends JFrame {
 
         JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         east.setOpaque(false);
-        east.add(memoryLabel);
+        JLabel info = new JLabel(Glyphs.help(16, Theme.MUTED));
+        info.setToolTipText("Memory in use by OpenTRAP");
+        east.add(info);
         east.add(memoryMeter);
         p.add(east, BorderLayout.EAST);
 
         // Live counters for the status bar.
         ctx.addAlertListener(a -> SwingUtilities.invokeLater(() ->
-                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")" + (plainTitle(tabs.getTitleAt(Math.max(0, tabs.getSelectedIndex()))).equals("alerts") ? "" : DOT))));
-        tabs.addChangeListener(e -> {
-            String t = plainTitle(tabs.getTitleAt(Math.max(0, tabs.getSelectedIndex())));
-            if ("alerts".equals(t)) eventLogLabel.setText(plainTitle(eventLogLabel.getText()));
-            if ("dashboard".equals(t)) issuesLabel.setText(plainTitle(issuesLabel.getText()));
-        });
+                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")" + ("Event log".equals(bottomShowing) ? "" : DOT))));
         ctx.addIssueListener(i -> SwingUtilities.invokeLater(() ->
-                issuesLabel.setText("All issues (" + ctx.issues().size() + ")" + (plainTitle(tabs.getTitleAt(Math.max(0, tabs.getSelectedIndex()))).equals("dashboard") ? "" : DOT))));
+                issuesLabel.setText("All issues (" + ctx.issues().size() + ")" + ("All issues".equals(bottomShowing) ? "" : DOT))));
         return p;
+    }
+
+    /** Open, switch or close the bottom panel the status bar links control. */
+    private void toggleBottom(String name, JComponent panel) {
+        if (name.equals(bottomShowing)) {
+            bottomDock.setVisible(false);
+            centreSplit.setDividerSize(0);
+            bottomShowing = null;
+        } else {
+            bottomDock.removeAll();
+            JPanel head = new JPanel(new BorderLayout());
+            head.setOpaque(false);
+            head.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, Ui.GRID), Ui.pad(4, 10, 4, 6)));
+            head.add(Ui.bold(name), BorderLayout.WEST);
+            head.add(Glyphs.button(Glyphs.cross(14, Theme.ICON), "Close", () -> toggleBottom(name, panel)), BorderLayout.EAST);
+            bottomDock.add(head, BorderLayout.NORTH);
+            bottomDock.add(panel, BorderLayout.CENTER);
+            bottomDock.setVisible(true);
+            centreSplit.setDividerSize(5);
+            centreSplit.setDividerLocation(Math.max(200, centreSplit.getHeight() - 320));
+            bottomShowing = name;
+            if ("Event log".equals(name)) eventLogLabel.setText(plainTitle(eventLogLabel.getText()));
+            else issuesLabel.setText(plainTitle(issuesLabel.getText()));
+        }
+        bottomDock.revalidate();
+        centreSplit.revalidate();
+        repaint();
     }
 
     /** Make a button read as a flat clickable link in the status bar. */
@@ -205,6 +240,17 @@ public class SuiteFrame extends JFrame {
 
         for (ToolModule m : modules) {
             ToolModule.Tab[] mt = m.tabs();
+            if ("scanner".equals(m.name())) {
+                // Scan checks live under Settings in the reference layout, not on the tab strip.
+                final ToolModule.Tab[] st = mt;
+                SettingsDialog.register("Scanner", () -> {
+                    JTabbedPane inner = new JTabbedPane();
+                    inner.setFont(Ui.PLAIN);
+                    for (ToolModule.Tab t : st) inner.addTab(capitalise(t.title()), t.component());
+                    return inner;
+                });
+                continue;
+            }
             JComponent comp;
             if (mt.length == 1 && !m.alwaysTabbed()) {
                 comp = mt[0].component();
@@ -218,11 +264,10 @@ public class SuiteFrame extends JFrame {
             tabs.addTab(m.name(), comp);
         }
 
-        // Suite-level tab after the tools. Settings used to live here as a "comms"
-        // tab; they now live in the Settings dialog (the gear in the top bar), so
-        // there is one home for them.
+        // The event log and the issue list slide open at the bottom of the window
+        // from the status bar links, as in the reference; neither is a tab.
         alertsPanel = new AlertsPanel(ctx);
-        tabs.addTab("alerts", alertsPanel);
+        issuesPanel = new IssuesPanel(ctx);
 
         buildMenus();
 
@@ -290,13 +335,16 @@ public class SuiteFrame extends JFrame {
         }
         menuBar.add(view);
 
-        JMenu window = new JMenu("Window");
-        window.setFont(Ui.PLAIN);
-        for (int i = 0; i < modules.size(); i++) {
+        view.addSeparator();
+        JMenuItem restoreLayout = new JMenuItem("Restore default tab layout");
+        restoreLayout.setFont(Ui.PLAIN);
+        restoreLayout.addActionListener(e -> { if (bottomShowing != null) toggleBottom(bottomShowing, null); tabs.setSelectedIndex(0); });
+        view.add(restoreLayout);
+        view.addSeparator();
+        for (int i = 0; i < tabs.getTabCount(); i++) {
             final int idx = i;
-            addItem(window, "go to " + modules.get(i).name(), e -> tabs.setSelectedIndex(idx));
+            addItem(view, capitalise(plainTitle(tabs.getTitleAt(i))), e -> tabs.setSelectedIndex(idx));
         }
-        menuBar.add(window);
 
         JMenu help = new JMenu("Help");
         help.setFont(Ui.PLAIN);

@@ -185,8 +185,44 @@ public final class Ui {
     }
 
     public static JTextField field(String text, int columns) {
-        JTextField f = new JTextField(text, columns);
+        JTextField f = new PlaceholderField(text, columns);
         f.setFont(PLAIN);
+        return f;
+    }
+
+    /**
+     * A text field that paints the "JTextField.placeholderText" client property
+     * in muted text while it is empty, as every search box in the suite does.
+     */
+    public static class PlaceholderField extends JTextField {
+        public PlaceholderField(String text, int columns) { super(text, columns); }
+        @Override protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Object ph = getClientProperty("JTextField.placeholderText");
+            if (ph == null || !getText().isEmpty()) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setColor(Theme.MUTED);
+            g2.setFont(getFont());
+            Insets in = getInsets();
+            FontMetrics fm = g2.getFontMetrics();
+            g2.drawString(String.valueOf(ph), in.left, (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
+            g2.dispose();
+        }
+    }
+
+    /** A search box: placeholder "Search" and a magnifier at its right edge. */
+    public static JTextField searchField(int columns) {
+        JTextField f = new PlaceholderField("", columns) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Icon ic = Glyphs.search(14, Theme.MUTED);
+                ic.paintIcon(this, g, getWidth() - ic.getIconWidth() - 8, (getHeight() - ic.getIconHeight()) / 2);
+            }
+        };
+        f.setFont(PLAIN);
+        f.putClientProperty("JTextField.placeholderText", "Search");
+        f.setBorder(BorderFactory.createCompoundBorder(f.getBorder(), BorderFactory.createEmptyBorder(0, 0, 0, 18)));
         return f;
     }
 
@@ -307,7 +343,8 @@ public final class Ui {
     public static void styleTable(JTable t) {
         t.setFont(PLAIN);
         t.setRowHeight(22);
-        t.getTableHeader().setFont(BOLD);
+        t.getTableHeader().setFont(PLAIN);
+        t.setDefaultRenderer(Boolean.class, new TickRenderer());
         // Column titles read with a leading capital, as in the reference.
         for (int i = 0; i < t.getColumnModel().getColumnCount(); i++) {
             javax.swing.table.TableColumn c = t.getColumnModel().getColumn(i);
@@ -450,11 +487,10 @@ public final class Ui {
         b.setFocusable(false);
         b.setIcon(funnelIcon());
         b.setIconTextGap(8);
-        b.setBackground(Theme.BG);
+        b.setBackground(Theme.SURFACE);
         b.setOpaque(true);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(ACCENT), pad(4, 8, 4, 8)));
+        b.setBorder(new opentrap.ui.theme.RoundedBorder(GRID, null, Theme.RADIUS, new Insets(5, 8, 5, 8)));
         b.setToolTipText("click to open the filter and full-text search");
         return b;
     }
@@ -512,8 +548,8 @@ public final class Ui {
      */
     public static JPanel filterBar(JButton filterButton, JComponent... right) {
         JPanel bar = new JPanel(new GridBagLayout());
-        bar.setBorder(BorderFactory.createCompoundBorder(
-                pad(2, 2, 3, 2), BorderFactory.createLineBorder(GRID)));
+        bar.setOpaque(false);
+        bar.setBorder(pad(4, 4, 4, 4));
 
         // The field's natural height is the common height; shrink the button to it
         // so the two are the same size rather than the button standing taller.
@@ -539,12 +575,31 @@ public final class Ui {
         return bar;
     }
 
+    /**
+     * Boolean cells: a tick when true and nothing when false, as the reference
+     * draws Params / Edited / TLS; an editable cell keeps its check box.
+     */
+    public static final class TickRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        private final javax.swing.table.TableCellRenderer box = new JTable().getDefaultRenderer(Boolean.class);
+        @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f, int r, int c) {
+            if (t.isCellEditable(r, c)) {
+                Component cb = box.getTableCellRendererComponent(t, v, sel, f, r, c);
+                if (cb instanceof JComponent jc) jc.setOpaque(true);
+                return cb;
+            }
+            super.getTableCellRendererComponent(t, "", sel, f, r, c);
+            setIcon(Boolean.TRUE.equals(v) ? Glyphs.tick(14, Theme.TEXT) : null);
+            setHorizontalAlignment(CENTER);
+            return this;
+        }
+    }
+
     /** A small funnel glyph for the filter bar, drawn so it needs no resource. */
     private static Icon funnelIcon() {
         BufferedImage img = new BufferedImage(14, 14, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(ACCENT);
+        g.setColor(Theme.ICON);
         Polygon funnel = new Polygon(new int[]{1, 13, 8, 8, 6, 6}, new int[]{2, 2, 7, 12, 12, 7}, 6);
         g.fill(funnel);
         g.dispose();

@@ -273,6 +273,26 @@ public final class Glyphs {
         });
     }
 
+    /** Three horizontal lines: the actions menu. */
+    public static Icon hamburger(int size, Color c) {
+        return make(size, c, (g, s) -> {
+            for (double y : new double[]{s * 0.25, s * 0.5, s * 0.75}) g.draw(new Line2D.Double(s * 0.15, y, s * 0.85, y));
+        });
+    }
+
+    /** Word wrap: lines with a returning arrow. */
+    public static Icon wrap(int size, Color c) {
+        return make(size, c, (g, s) -> {
+            g.draw(new Line2D.Double(s * 0.15, s * 0.25, s * 0.85, s * 0.25));
+            g.draw(new Line2D.Double(s * 0.15, s * 0.5, s * 0.7, s * 0.5));
+            g.draw(new java.awt.geom.Arc2D.Double(s * 0.5, s * 0.5, s * 0.36, s * 0.3, -90, 180, java.awt.geom.Arc2D.OPEN));
+            g.draw(new Line2D.Double(s * 0.4, s * 0.8, s * 0.68, s * 0.8));
+            g.draw(new Line2D.Double(s * 0.48, s * 0.72, s * 0.4, s * 0.8));
+            g.draw(new Line2D.Double(s * 0.48, s * 0.88, s * 0.4, s * 0.8));
+            g.draw(new Line2D.Double(s * 0.15, s * 0.8, s * 0.3, s * 0.8));
+        });
+    }
+
     /** A flat icon-only button, the style used for every toolbar glyph. */
     public static JButton button(Icon icon, String tip, Runnable action) {
         JButton b = new JButton(icon);
