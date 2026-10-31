@@ -125,6 +125,8 @@ public final class Theme {
             DIFF_DELETED  = new Color(0x6B, 0x2B, 0x2B);
             DIFF_ADDED    = new Color(0x2B, 0x5B, 0x2B);
             DIFF_MODIFIED = new Color(0x2B, 0x45, 0x66);
+            CONTROL       = new Color(0x5B, 0x8F, 0xE8);
+            CONTROL_TINT  = new Color(0x22, 0x2E, 0x44);
         } else {
             BG           = new Color(0xFF, 0xFF, 0xFF);
             SURFACE      = new Color(0xEE, 0xEE, 0xEE);
@@ -155,8 +157,8 @@ public final class Theme {
             DIFF_DELETED  = new Color(0xF7, 0xC9, 0xC9);
             DIFF_ADDED    = new Color(0xCB, 0xE8, 0xCB);
             DIFF_MODIFIED = new Color(0xC7, 0xDC, 0xF5);
-            CONTROL       = new Color(0x5B, 0x8F, 0xE8);
-            CONTROL_TINT  = new Color(0x22, 0x2E, 0x44);
+            CONTROL       = new Color(0x2F, 0x6F, 0xD6);
+            CONTROL_TINT  = new Color(0xE8, 0xF0, 0xFB);
         }
     }
 
