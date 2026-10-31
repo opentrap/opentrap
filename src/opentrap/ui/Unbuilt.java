@@ -55,9 +55,6 @@ public final class Unbuilt {
     public static final Unbuilt SCAN_TYPE_API        = of("OT-SCAN-TYPE-API",        "New scan > API-only scan");
     public static final Unbuilt SCAN_LOGIN           = of("OT-SCAN-LOGIN",           "New scan > Application login");
 
-    // Intruder
-    public static final Unbuilt INTRUDER_RESPOOL     = of("OT-INTRUDER-RESPOOL",     "Intruder > Resource pool");
-
     // Suite chrome (the browser and search in the top bar are real features)
     public static final Unbuilt CONSOLE              = of("OT-CONSOLE",              "Console");
 

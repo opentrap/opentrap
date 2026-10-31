@@ -4,7 +4,7 @@ import opentrap.core.HttpService;
 import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
 import opentrap.ui.Ui;
-import opentrap.ui.Unbuilt;
+import opentrap.ui.ResourcePoolPanel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -38,6 +38,8 @@ public class IntruderTool implements ToolModule {
 
     @Override public String name() { return "intruder"; }
 
+    private final ResourcePoolPanel resourcePool = new ResourcePoolPanel();
+
     @Override public boolean alwaysTabbed() { return false; }
 
     @Override public void init(SuiteContext ctx) {
@@ -69,7 +71,7 @@ public class IntruderTool implements ToolModule {
         ButtonGroup group = new ButtonGroup();
         Object[][] items = {
             {"Payloads", payloads},
-            {"Resource pool", Unbuilt.INTRUDER_RESPOOL.panel()},
+            {"Resource pool", resourcePool},
             {"Settings", options},
         };
         for (Object[] it : items) {
@@ -92,6 +94,18 @@ public class IntruderTool implements ToolModule {
         split.setDividerSize(5);
         Ui.balance(split, 0.62);
         return new Tab[]{ new Tab("intruder", split) };
+    }
+
+    /** Concurrency from the chosen resource pool, capped by the Settings pane's thread count when it is lower. */
+    private int poolThreads() {
+        opentrap.core.ResourcePool p = resourcePool.selected();
+        return Math.max(1, Math.min(options.threads(), p.effectiveConcurrent()));
+    }
+
+    /** Pacing: the pool's delay when it has one, else the Settings pane's throttle. */
+    private long poolThrottle() {
+        opentrap.core.ResourcePool p = resourcePool.selected();
+        return p.delayOn() ? p.delayMs() : options.throttleMs();
     }
 
     @Override public java.io.Serializable saveState() {
@@ -159,7 +173,7 @@ public class IntruderTool implements ToolModule {
         ResultsWindow window = new ResultsWindow(ctx, attackCounter.incrementAndGet(), grep);
         AttackEngine engine = new AttackEngine(ctx, svc, positions.markedText(),
                 positions.attackType(), positionCount, materialised, grep,
-                options.threads(), options.followRedirects(), options.throttleMs(), options.mode(), window);
+                poolThreads(), options.followRedirects(), poolThrottle(), options.mode(), window);
         window.setOnClose(engine::stop);
         window.setPauseControl(engine::setPaused);
         window.setVisible(true);

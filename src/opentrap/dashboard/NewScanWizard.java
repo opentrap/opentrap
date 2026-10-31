@@ -38,7 +38,7 @@ public class NewScanWizard extends JDialog {
     private final JTextArea urls = new JTextArea();
     private String configPreset = "Lightweight";
     private final java.util.Map<String, JPanel> configCards = new java.util.LinkedHashMap<>();
-    private final JSpinner threads = new JSpinner(new SpinnerNumberModel(10, 1, 50, 1));
+    private final opentrap.ui.ResourcePoolPanel resourcePool = new opentrap.ui.ResourcePoolPanel();
 
     // Custom tier controls, seeded from "Balanced" as a sensible starting point.
     // Read by config() to build a ScanConfig straight from the engine knobs the
@@ -114,7 +114,8 @@ public class NewScanWizard extends JDialog {
 
     public boolean started()       { return started; }
     public boolean crawlAndAudit() { return typeCrawlAudit.isSelected(); }
-    public int threads()           { return (Integer) threads.getValue(); }
+    public int threads()           { return resourcePool.concurrency(); }
+    public opentrap.core.ResourcePool resourcePool() { return resourcePool.selected(); }
 
     public String targetUrl() {
         for (String line : urls.getText().split("\n")) {
@@ -555,18 +556,7 @@ public class NewScanWizard extends JDialog {
     }
 
     private JComponent buildResourcePool() {
-        threads.setFont(Ui.PLAIN);
-        threads.setPreferredSize(new Dimension(70, threads.getPreferredSize().height));
-        threads.setMaximumSize(threads.getPreferredSize());
-        JPanel spinnerWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        spinnerWrap.setOpaque(false);
-        spinnerWrap.add(threads);
-        JPanel body = new JPanel(new BorderLayout(0, 10));
-        body.setOpaque(false);
-        body.add(Ui.form("Concurrent requests:", spinnerWrap), BorderLayout.NORTH);
-        body.add(Ui.note("The number of requests the scan engine sends at once. Lower this to "
-                + "be gentler on the target; raise it to scan faster."), BorderLayout.CENTER);
-        return stepPanel("Resource pool", "Specify the resources the scan may use.", body);
+        return stepPanel("Resource pool", "Specify the resources the scan may use.", resourcePool);
     }
 
     /**
