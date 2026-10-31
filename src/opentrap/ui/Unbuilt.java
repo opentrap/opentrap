@@ -50,10 +50,6 @@ public final class Unbuilt {
     // Suite chrome (the browser and search in the top bar are real features)
     public static final Unbuilt CONSOLE              = of("OT-CONSOLE",              "Console");
 
-    // Settings dialog panes (the dialog and the Proxy, Browser, Intruder, Repeater,
-    // Sequencer, Project, Sessions and Configuration library panes are built; these are not)
-    public static final Unbuilt SETTINGS_COMPARER       = of("OT-SETTINGS-COMPARER",       "Settings > Comparer");
-    public static final Unbuilt SETTINGS_SUITE          = of("OT-SETTINGS-SUITE",          "Settings > Suite");
 
     public String code()     { return code; }
     public String location() { return location; }

@@ -529,7 +529,8 @@ public class SuiteFrame extends JFrame {
     }
 
     private void confirmExit() {
-        int r = JOptionPane.showConfirmDialog(this,
+        int r = ctx.settings().getBool("suite.noConfirmClose", false) ? JOptionPane.YES_OPTION
+                : JOptionPane.showConfirmDialog(this,
                 "This will close all opentrap windows - are you sure you want to exit?",
                 "confirm", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null);
         if (r == JOptionPane.YES_OPTION) {

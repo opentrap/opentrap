@@ -12,11 +12,4 @@ This file is generated from the registry in `src/opentrap/ui/Unbuilt.java`, whic
 |---|---|
 | Console | `OT-CONSOLE` |
 
-## Settings
-
-| Feature | Reference |
-|---|---|
-| Comparer | `OT-SETTINGS-COMPARER` |
-| Suite | `OT-SETTINGS-SUITE` |
-
-3 open items.
+1 open items.

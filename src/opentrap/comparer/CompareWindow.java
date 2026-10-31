@@ -19,6 +19,12 @@ final class CompareWindow extends JFrame {
     private static final Color ADDED    = opentrap.ui.Theme.DIFF_ADDED;
     private static final Color MODIFIED = opentrap.ui.Theme.DIFF_MODIFIED;
 
+    /** Settings > Tools > Comparer: whether new result windows start with their panes synced. */
+    private static boolean syncDefault() {
+        try { return java.util.prefs.Preferences.userRoot().node("opentrap.v1").getBoolean("comparer.syncViews", false); }
+        catch (Exception e) { return false; }
+    }
+
     CompareWindow(ComparerTool.Item one, ComparerTool.Item two, boolean words, Frame owner) {
         List<Diff.Block> blocks = Diff.compare(one.data(), two.data(), words);
         int differences = Diff.differences(blocks);
@@ -116,6 +122,7 @@ final class CompareWindow extends JFrame {
                 bar.setModel(ownScroll);
             }
         });
+        if (syncDefault()) sync.doClick();
 
         JPanel p = new JPanel(new BorderLayout());
         p.setOpaque(false);
