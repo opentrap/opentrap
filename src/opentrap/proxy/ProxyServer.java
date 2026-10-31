@@ -160,6 +160,26 @@ public class ProxyServer {
     public String listeningSummary() { return summary(listeners); }
 
     /**
+     * Restrict the handshake to the protocols a listener names.
+     *
+     * <p>Names the runtime does not know are dropped rather than refused: a
+     * configuration mentioning a protocol this Java has no support for should
+     * narrow the handshake, not break every connection through the listener.
+     * Naming nothing usable leaves the runtime's own defaults alone.
+     */
+    static void applyProtocols(SSLSocket socket, ProxyListener cfg) {
+        if (cfg == null || cfg.tlsProtocols == null || cfg.tlsProtocols.isBlank()) return;
+        java.util.Set<String> supported =
+                new java.util.HashSet<>(java.util.Arrays.asList(socket.getSupportedProtocols()));
+        java.util.List<String> wanted = new ArrayList<>();
+        for (String p : cfg.tlsProtocols.split("[,\\s]+")) {
+            String name = p.trim();
+            if (!name.isEmpty() && supported.contains(name) && !wanted.contains(name)) wanted.add(name);
+        }
+        if (!wanted.isEmpty()) socket.setEnabledProtocols(wanted.toArray(new String[0]));
+    }
+
+    /**
      * Give an edited request exactly one blank line between its headers and its
      * body, and no stray new lines after it. Hand-editing a request in the
      * intercept editor is where these creep in, and a server is entitled to
@@ -270,12 +290,22 @@ public class ProxyServer {
             out.write(Bytes.bytes("HTTP/1.1 200 Connection established\r\n\r\n"));
             out.flush();
 
-            SSLContext sslCtx = ca.contextFor(host);
+            SSLContext sslCtx;
+            try {
+                sslCtx = ca.contextFor(host, cfg);
+            } catch (Exception e) {
+                // A listener pointed at a certificate that cannot be loaded
+                // would otherwise fail every connection silently.
+                ctx.alert("proxy", "listener on port " + cfg.port
+                        + " could not load its certificate: " + e.getMessage());
+                return;
+            }
             SSLSocketFactory f = sslCtx.getSocketFactory();
             SSLSocket tls;
             try {
                 tls = (SSLSocket) f.createSocket(client, host, port, true);
                 tls.setUseClientMode(false);
+                applyProtocols(tls, cfg);
                 tls.setSoTimeout(120000);
                 tls.startHandshake();
             } catch (Exception e) {

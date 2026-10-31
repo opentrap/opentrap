@@ -145,34 +145,123 @@ public class CertificateAuthority {
         catch (Exception ignored) {}
     }
 
-    /** A TLS context presenting a certificate valid for this host. */
+    /** A TLS context presenting a CA-signed certificate valid for this host. */
     public SSLContext contextFor(String host) throws Exception {
-        SSLContext f = cache.get(host);
+        return contextFor(host, null);
+    }
+
+    /**
+     * A TLS context for this host, built the way the listener asks for.
+     *
+     * <p>Per-host is the default and signs a fresh leaf with this
+     * installation's CA. A specific hostname signs one leaf and presents it
+     * whatever host is asked for, which is what a client that pins a name
+     * wants. Self-signed skips the CA altogether, so a client sees an
+     * untrusted certificate unless it was told to accept that one. A custom
+     * store presents a PKCS#12 the tester supplies, untouched.
+     */
+    public SSLContext contextFor(String host, ProxyListener cfg) throws Exception {
+        String key = cacheKey(host, cfg);
+        SSLContext f = cache.get(key);
         if (f != null) return f;
         synchronized (this) {
-            f = cache.get(host);
+            f = cache.get(key);
             if (f != null) return f;
-            X509Certificate leaf = mint(host);
-            KeyStore ks = KeyStore.getInstance("PKCS12");
-            ks.load(null, PASSWORD);
-            ks.setKeyEntry("leaf", leafKeyPair.getPrivate(), PASSWORD,
-                    new Certificate[]{leaf, caCert});
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(
-                    KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(ks, PASSWORD);
-            SSLContext sc = SSLContext.getInstance("TLS");
-            sc.init(kmf.getKeyManagers(), null, new SecureRandom());
-            f = sc;
-            cache.put(host, f);
+            f = build(host, cfg);
+            cache.put(key, f);
             // Bounded, oldest first: keep the cache from growing one context
             // per hostname ever visited.
-            cacheOrder.addLast(host);
+            cacheOrder.addLast(key);
             while (cacheOrder.size() > MAX_CACHED_CONTEXTS) {
                 String evict = cacheOrder.pollFirst();
                 if (evict != null) cache.remove(evict);
             }
             return f;
         }
+    }
+
+    /**
+     * The cache is keyed by the certificate the listener will present, not by
+     * host alone: changing the mode on a listener must not keep serving the
+     * context minted under the previous one.
+     */
+    static String cacheKey(String host, ProxyListener cfg) {
+        if (cfg == null) return "per-host\u0000" + host;
+        return switch (cfg.cert) {
+            case PER_HOST -> "per-host\u0000" + host;
+            case SELF_SIGNED -> "self\u0000" + host;
+            case SPECIFIC_HOSTNAME -> "named\u0000" + cfg.certHostname;
+            case CUSTOM -> "custom\u0000" + cfg.certFile;
+        };
+    }
+
+    private SSLContext build(String host, ProxyListener cfg) throws Exception {
+        ProxyListener.Cert mode = cfg == null ? ProxyListener.Cert.PER_HOST : cfg.cert;
+        if (mode == ProxyListener.Cert.CUSTOM) return customContext(cfg);
+
+        String subject = mode == ProxyListener.Cert.SPECIFIC_HOSTNAME
+                && cfg.certHostname != null && !cfg.certHostname.isBlank()
+                ? cfg.certHostname.trim() : host;
+        boolean selfSigned = mode == ProxyListener.Cert.SELF_SIGNED;
+
+        X509Certificate leaf = selfSigned ? mintSelfSigned(subject) : mint(subject);
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(null, PASSWORD);
+        // A self-signed leaf stands alone; a CA-signed one carries the CA so
+        // the client can build the chain.
+        ks.setKeyEntry("leaf", leafKeyPair.getPrivate(), PASSWORD,
+                selfSigned ? new Certificate[]{leaf} : new Certificate[]{leaf, caCert});
+        return contextOf(ks, PASSWORD);
+    }
+
+    /** A PKCS#12 the tester supplied, presented as it is. */
+    private SSLContext customContext(ProxyListener cfg) throws Exception {
+        if (cfg.certFile == null || cfg.certFile.isBlank()) {
+            throw new IOException("No certificate file is set for this listener.");
+        }
+        char[] pw = (cfg.certPassword == null ? "" : cfg.certPassword).toCharArray();
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        try (InputStream in = Files.newInputStream(Path.of(cfg.certFile))) {
+            ks.load(in, pw);
+        }
+        return contextOf(ks, pw);
+    }
+
+    private static SSLContext contextOf(KeyStore ks, char[] password) throws Exception {
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(
+                KeyManagerFactory.getDefaultAlgorithm());
+        kmf.init(ks, password);
+        SSLContext sc = SSLContext.getInstance("TLS");
+        sc.init(kmf.getKeyManagers(), null, new SecureRandom());
+        return sc;
+    }
+
+    /**
+     * A leaf that signs itself. No CA is involved, so a client that trusts
+     * this installation's CA still will not trust this: that is the point of
+     * the choice, and it is how a server with its own certificate behaves.
+     */
+    private X509Certificate mintSelfSigned(String host) throws Exception {
+        long now = System.currentTimeMillis();
+        Date from = new Date(now - 24L * 3600 * 1000);
+        Date to = new Date(now + 825L * 24 * 3600 * 1000);
+        X500Name subject = new X500Name("CN=" + host.replace(",", "") + ", O=OpenTRAP");
+
+        X509v3CertificateBuilder b = new JcaX509v3CertificateBuilder(
+                subject, BigInteger.valueOf(now + host.hashCode()), from, to,
+                subject, leafKeyPair.getPublic());
+        b.addExtension(Extension.basicConstraints, false, new BasicConstraints(false));
+        b.addExtension(Extension.keyUsage, true,
+                new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
+        b.addExtension(Extension.extendedKeyUsage, false,
+                new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth));
+        GeneralName gn = isIpAddress(host)
+                ? new GeneralName(GeneralName.iPAddress, host)
+                : new GeneralName(GeneralName.dNSName, host);
+        b.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(gn));
+
+        ContentSigner signer = new JcaContentSignerBuilder(SIG_ALG).build(leafKeyPair.getPrivate());
+        return new JcaX509CertificateConverter().getCertificate(b.build(signer));
     }
 
     private X509Certificate mint(String host) throws Exception {

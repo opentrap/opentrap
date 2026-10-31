@@ -67,10 +67,18 @@ public final class Ui {
      * otherwise. Every issue list uses this, so a finding looks the same
      * wherever it is listed.
      */
+    /**
+     * The character a badge carries: "?" for a finding that is only suspected,
+     * "i" for one that is informational, "!" for the rest.
+     */
+    public static String issueGlyph(opentrap.core.Issue.Severity sev, opentrap.core.Issue.Confidence conf) {
+        if (conf == opentrap.core.Issue.Confidence.TENTATIVE) return "?";
+        return sev == opentrap.core.Issue.Severity.INFORMATION ? "i" : "!";
+    }
+
     public static Icon issueBadge(opentrap.core.Issue.Severity sev, opentrap.core.Issue.Confidence conf) {
         final Color col = severityColor(sev);
-        final String glyph = conf == opentrap.core.Issue.Confidence.TENTATIVE ? "?"
-                : (sev == opentrap.core.Issue.Severity.INFORMATION ? "i" : "!");
+        final String glyph = issueGlyph(sev, conf);
         return new Icon() {
             @Override public int getIconWidth()  { return 15; }
             @Override public int getIconHeight() { return 15; }
