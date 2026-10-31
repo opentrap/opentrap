@@ -8,43 +8,46 @@ import java.awt.*;
 
 /**
  * The attack target as a single row under the attack type, as in the reference:
- * host, port and whether to use TLS. The values are filled in automatically when
- * a request is sent to Intruder.
+ * the target URL and whether the request's Host header should be rewritten to
+ * match it. The URL is filled in automatically when a request is sent to
+ * Intruder.
  */
 public class TargetPanel extends JPanel {
 
-    private final JTextField host = Ui.field("", 28);
-    private final JTextField port = Ui.field("80", 5);
-    private final JCheckBox ssl = Ui.check("use SSL", false);
+    private final JTextField url = Ui.field("", 34);
+    private final JCheckBox updateHost = Ui.check("Update Host header to match target", true);
 
     public TargetPanel() {
         super(new FlowLayout(FlowLayout.LEFT, 8, 2));
         setOpaque(false);
-        ssl.addActionListener(e -> {
-            String p = port.getText().trim();
-            if (ssl.isSelected() && p.equals("80")) port.setText("443");
-            else if (!ssl.isSelected() && p.equals("443")) port.setText("80");
-        });
-        host.setToolTipText("host of the server to attack");
-        port.setToolTipText("port of the server to attack");
-        add(Ui.bold("Target"));
-        add(host);
-        add(Ui.label("port"));
-        add(port);
-        add(ssl);
+        url.setToolTipText("the server the attack is sent to, as a URL");
+        url.putClientProperty("JTextField.placeholderText", "https://host");
+        updateHost.setToolTipText("rewrite the request's Host header so it matches the target URL");
+        add(Ui.bold("Target:"));
+        add(url);
+        add(updateHost);
     }
 
     public void set(HttpService svc) {
         if (svc == null) return;
-        host.setText(svc.host());
-        port.setText(String.valueOf(svc.port()));
-        ssl.setSelected(svc.secure());
+        url.setText(svc.url());
     }
 
+    /** Whether the Host header should be rewritten to match the target. */
+    public boolean updateHostHeader() { return updateHost.isSelected(); }
+
     public HttpService service() {
-        int p;
-        try { p = Integer.parseInt(port.getText().trim()); }
-        catch (Exception e) { p = ssl.isSelected() ? 443 : 80; }
-        return new HttpService(host.getText().trim(), p, ssl.isSelected());
+        String s = url.getText().trim();
+        boolean secure = s.toLowerCase().startsWith("https://");
+        String rest = s.replaceFirst("(?i)^https?://", "");
+        int slash = rest.indexOf('/');
+        if (slash >= 0) rest = rest.substring(0, slash);
+        int port = secure ? 443 : 80;
+        int colon = rest.lastIndexOf(':');
+        if (colon > 0) {
+            try { port = Integer.parseInt(rest.substring(colon + 1)); } catch (NumberFormatException ignored) {}
+            rest = rest.substring(0, colon);
+        }
+        return new HttpService(rest, port, secure);
     }
 }

@@ -23,10 +23,14 @@ public class TargetTool implements ToolModule {
     // One filter for the tree and the contents table, as the reference has it.
     private final opentrap.proxy.HistoryFilter itemsFilter = opentrap.proxy.HistoryFilter.siteMapDefaults();
     private JButton itemsFilterButton;
+    private JPanel layoutMarks;
+    private boolean crawlPathsView;
     private MessageEditor reqView, respView;
     private JTree issuesTree;
     private DefaultTreeModel issuesTreeModel;
     private javax.swing.JEditorPane issueAdvisory;
+    private JTextArea pathToIssue;
+    private IssueLogModel issueLogModel;
     private MessageEditor issueReq, issueResp;
     private SiteMap.Node selectedNode;
     private java.util.List<SiteMap.Node> selectedNodes = new java.util.ArrayList<>();
@@ -147,6 +151,20 @@ public class TargetTool implements ToolModule {
     }
 
     private void buildTree(SiteMap.Node sm, DefaultMutableTreeNode tn) {
+        // Crawl paths view drops the folder hierarchy: under each host every
+        // requested item hangs directly off the host, labelled by its full
+        // path, so the paths that were actually reached read as one list.
+        if (crawlPathsView && sm.isHost) {
+            java.util.List<SiteMap.Node> leaves = new ArrayList<>();
+            collectRequested(sm, leaves);
+            for (SiteMap.Node leaf : leaves) {
+                if (!nodeVisible(leaf)) continue;
+                DefaultMutableTreeNode c = new DefaultMutableTreeNode(leaf);
+                treeNodes.put(leaf, c);
+                tn.add(c);
+            }
+            return;
+        }
         for (SiteMap.Node child : sm.children.values()) {
             if (!nodeVisible(child)) continue;
             DefaultMutableTreeNode c = new DefaultMutableTreeNode(child);
@@ -154,6 +172,60 @@ public class TargetTool implements ToolModule {
             tn.add(c);
             buildTree(child, c);
         }
+    }
+
+    /** Every node at or below {@code n} that stands for a request that was made. */
+    private void collectRequested(SiteMap.Node n, java.util.List<SiteMap.Node> out) {
+        for (SiteMap.Node c : n.children.values()) {
+            if (c.entry != null) out.add(c);
+            collectRequested(c, out);
+        }
+    }
+
+    /** The "URL view" / "Crawl paths view" switch above the filter bar. */
+    private JComponent buildViewSwitch() {
+        return Ui.segmented(i -> { crawlPathsView = i == 1; rebuildTree(); },
+                "URL view", "Crawl paths view");
+    }
+
+    /**
+     * The "Path to issue" tab: the chain of requests that led to the finding,
+     * or a plain note for a passively detected one, which has no chain.
+     */
+    private JComponent buildPathToIssue() {
+        pathToIssue = Ui.note("");
+        pathToIssue.setBorder(Ui.pad(10, 12, 10, 12));
+        return Ui.scroll(pathToIssue);
+    }
+
+    /** The "Log" tab: when the issue was recorded, by what, and against what path. */
+    private JComponent buildIssueLog() {
+        issueLogModel = new IssueLogModel();
+        JTable t = new JTable(issueLogModel);
+        Ui.styleTable(t);
+        Ui.distributeWidths(t, 150, 90, 160, 300);
+        return Ui.scroll(t);
+    }
+
+    /** One row per recorded step for the selected issue. */
+    private static final class IssueLogModel extends AbstractTableModel {
+        private final String[] cols = {"Time", "Source", "Action", "Path"};
+        private final java.text.DateFormat fmt = new java.text.SimpleDateFormat("HH:mm:ss d MMM yyyy");
+        private java.util.List<Object[]> rows = new ArrayList<>();
+
+        void show(Issue i) {
+            rows = new ArrayList<>();
+            if (i != null) {
+                rows.add(new Object[]{fmt.format(new java.util.Date(i.time())), i.source(), "Issue recorded", i.path()});
+                if (i.request() != null) rows.add(new Object[]{fmt.format(new java.util.Date(i.time())), i.source(), "Request sent", i.request().startLine()});
+            }
+            fireTableDataChanged();
+        }
+
+        @Override public int getRowCount() { return rows.size(); }
+        @Override public int getColumnCount() { return cols.length; }
+        @Override public String getColumnName(int c) { return cols[c]; }
+        @Override public Object getValueAt(int r, int c) { return rows.get(r)[c]; }
     }
 
     @Override public Tab[] tabs() {
@@ -189,7 +261,8 @@ public class TargetTool implements ToolModule {
                         setText(n.service.host() + (n.service.defaultPort() ? "" : ":" + n.service.port()));
                         setIcon(SiteIcons.host(n.service.secure(), muted));
                     } else {
-                        setIcon(n.children.isEmpty() ? SiteIcons.page(muted) : SiteIcons.folder(muted));
+                        if (crawlPathsView) setText(n.label.startsWith("?") ? n.path + n.label : n.path);
+                        setIcon(n.children.isEmpty() || crawlPathsView ? SiteIcons.page(muted) : SiteIcons.folder(muted));
                     }
                     if (!sel) setForeground(muted ? Theme.MUTED : Theme.TEXT);
                 }
@@ -201,9 +274,10 @@ public class TargetTool implements ToolModule {
         itemsModel = new ItemsModel();
         itemsTable = new JTable(itemsModel);
         Ui.styleTable(itemsTable);
-        // host, method, URL, status, length, MIME type, title
-        Ui.distributeWidths(itemsTable, 180, 55, 300, 60, 70, 90, 200);
+        // host, method, URL, params, status code, length, MIME type, title
+        Ui.distributeWidths(itemsTable, 180, 55, 300, 50, 70, 70, 90, 200);
         Ui.centerCells(itemsTable);
+        itemsTable.getColumnModel().getColumn(3).setCellRenderer(new Ui.TickRenderer());
 
         reqView = new MessageEditor(ctx, MessageEditor.REQUEST, false);
         respView = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
@@ -214,6 +288,9 @@ public class TargetTool implements ToolModule {
 
         itemsFilter.scope = ctx.scope();
         JComponent contents = new JPanel(new BorderLayout());
+        JLabel contentsHeader = Ui.bold(" Contents");
+        contentsHeader.setBorder(Ui.pad(3, 2, 3, 2));
+        contents.add(contentsHeader, BorderLayout.NORTH);
         contents.add(Ui.scroll(itemsTable), BorderLayout.CENTER);
 
         JSplitPane detail = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, reqView, respView);
@@ -225,19 +302,33 @@ public class TargetTool implements ToolModule {
 
         JComponent issuesPanel = buildIssuesPanel();
 
-        JSplitPane rightmost = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, center, issuesPanel);
+        final JSplitPane rightmost = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, center, issuesPanel);
         rightmost.setDividerSize(5);
         Ui.balance(rightmost, 0.6);
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, Ui.scroll(tree), rightmost);
         split.setDividerSize(5);
         Ui.balance(split, 0.22);
 
+        // Two layout marks at the right of the filter bar: the issues pane
+        // beside the contents, or the contents alone across the full width.
+        layoutMarks = Ui.segmented(i -> {
+            if (i == 0) { rightmost.setRightComponent(issuesPanel); rightmost.setDividerSize(5); Ui.balance(rightmost, 0.6); }
+            else { rightmost.setRightComponent(null); rightmost.setDividerSize(0); }
+        }, "Split", "Single");
+
         // The filter bar spans the tree and the contents, as in the reference,
-        // because one filter drives both; above it, the out-of-scope logging
-        // notice when the proxy has stopped recording other sites.
+        // because one filter drives both; above it the view switch, and above
+        // that the out-of-scope logging notice when the proxy has stopped
+        // recording other sites.
         JPanel top = new JPanel(new BorderLayout());
         top.add(new OutOfScopeBanner(ctx), BorderLayout.NORTH);
-        top.add(buildItemsFilterBar(), BorderLayout.CENTER);
+        JPanel viewRow = new JPanel(new BorderLayout());
+        viewRow.setBorder(Ui.pad(4, 4, 0, 4));
+        viewRow.add(buildViewSwitch(), BorderLayout.WEST);
+        JPanel stacked = new JPanel(new BorderLayout());
+        stacked.add(viewRow, BorderLayout.NORTH);
+        stacked.add(buildItemsFilterBar(), BorderLayout.CENTER);
+        top.add(stacked, BorderLayout.CENTER);
         JPanel page = new JPanel(new BorderLayout());
         page.add(top, BorderLayout.NORTH);
         page.add(split, BorderLayout.CENTER);
@@ -284,12 +375,14 @@ public class TargetTool implements ToolModule {
         top.add(header, BorderLayout.NORTH);
         top.add(Ui.scroll(issuesTree), BorderLayout.CENTER);
 
-        // One tabbed detail pane: Advisory, Request, Response.
+        // One tabbed detail pane: Advisory, Request, Response, Path to issue, Log.
         JTabbedPane detailTabs = new JTabbedPane();
         detailTabs.setFont(Ui.PLAIN);
-        detailTabs.addTab("advisory", Ui.scroll(issueAdvisory));
-        detailTabs.addTab("request", issueReq);
-        detailTabs.addTab("response", issueResp);
+        detailTabs.addTab("Advisory", Ui.scroll(issueAdvisory));
+        detailTabs.addTab("Request", issueReq);
+        detailTabs.addTab("Response", issueResp);
+        detailTabs.addTab("Path to issue", buildPathToIssue());
+        detailTabs.addTab("Log", buildIssueLog());
 
         JSplitPane panel = new JSplitPane(JSplitPane.VERTICAL_SPLIT, top, detailTabs);
         panel.setDividerSize(5);
@@ -373,6 +466,8 @@ public class TargetTool implements ToolModule {
             issueAdvisory.setText("");
             issueReq.setMessage(null, new HttpMessage(new byte[0]));
             issueResp.setMessage(null, new HttpMessage(new byte[0]));
+            if (pathToIssue != null) pathToIssue.setText("");
+            if (issueLogModel != null) issueLogModel.show(null);
         }
     }
 
@@ -448,6 +543,16 @@ public class TargetTool implements ToolModule {
         String ev = i.evidence();
         issueReq.highlight(ev);
         issueResp.highlight(ev);
+        if (pathToIssue != null) {
+            pathToIssue.setText(i.request() == null
+                    ? "No path available\n\nThis is a passively detected issue. No modified requests were "
+                      + "made to find it, so there is no chain of requests to show."
+                    : "The issue was found against this request:\n\n" + i.request().startLine()
+                      + "\n\nHost: " + (i.service() == null ? i.host() : i.service().url())
+                      + (i.param() == null ? "" : "\nParameter: " + i.param()));
+            pathToIssue.setCaretPosition(0);
+        }
+        if (issueLogModel != null) issueLogModel.show(i);
     }
 
 
@@ -523,7 +628,7 @@ public class TargetTool implements ToolModule {
             new opentrap.proxy.FilterDialog(owner, "Site map filter",
                     itemsFilter, true, TargetTool.this::applyItemsFilter).setVisible(true);
         });
-        JTextField urlSearch = Ui.field("", 22);
+        JTextField urlSearch = Ui.searchField(22);
         urlSearch.setToolTipText("quick search of the URL only");
         urlSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             void go() { itemsFilter.urlSearch = urlSearch.getText(); applyItemsFilter(); }
@@ -532,7 +637,10 @@ public class TargetTool implements ToolModule {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { go(); }
         });
         JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(itemsTable));
-        return Ui.filterBar(itemsFilterButton, Ui.label("Search:"), urlSearch, kebab);
+        JButton help = Ui.helpButton("Site map",
+                "The site map records every host, folder and request the suite has seen.\n"
+                + "The filter above decides which of them the tree and the contents table show.");
+        return Ui.filterBar(itemsFilterButton, urlSearch, help, layoutMarks, kebab);
     }
 
     private void applyItemsFilter() {
@@ -658,7 +766,7 @@ public class TargetTool implements ToolModule {
     }
 
     private static class ItemsModel extends AbstractTableModel {
-        private final String[] cols = {"Host", "Method", "URL", "Status", "Length", "MIME type", "Title"};
+        private final String[] cols = {"Host", "Method", "URL", "Params", "Status code", "Length", "MIME type", "Title"};
         private List<LogEntry> all = new ArrayList<>();
         private List<LogEntry> entries = new ArrayList<>();
         private java.util.function.Predicate<LogEntry> filter = e -> true;
@@ -681,15 +789,18 @@ public class TargetTool implements ToolModule {
         @Override public int getRowCount() { return entries.size(); }
         @Override public int getColumnCount() { return cols.length; }
         @Override public String getColumnName(int c) { return cols[c]; }
+        @Override public Class<?> getColumnClass(int c) { return c == 3 ? Boolean.class : String.class; }
+
         @Override public Object getValueAt(int r, int c) {
             LogEntry e = entries.get(r);
             return switch (c) {
                 case 0 -> e.service().url();
                 case 1 -> e.request() == null ? "" : e.request().method();
                 case 2 -> e.pathAndQuery();
-                case 3 -> e.status() == 0 ? "" : String.valueOf(e.status());
-                case 4 -> e.responseLen() == 0 ? "" : String.valueOf(e.responseLen());
-                case 5 -> e.mimeType();
+                case 3 -> e.request() != null && e.request().hasParameters();
+                case 4 -> e.status() == 0 ? "" : String.valueOf(e.status());
+                case 5 -> e.responseLen() == 0 ? "" : String.valueOf(e.responseLen());
+                case 6 -> e.mimeType();
                 default -> e.title();
             };
         }

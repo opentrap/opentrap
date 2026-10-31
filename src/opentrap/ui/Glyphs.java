@@ -294,6 +294,35 @@ public final class Glyphs {
     }
 
     /** A flat icon-only button, the style used for every toolbar glyph. */
+    /** A filled triangle: the mark on a button that starts something. */
+    public static Icon play(int size, Color c) {
+        return make(size, c, (g, s) -> {
+            int m = Math.max(2, s / 5);
+            g.fill(new Polygon(new int[]{m, m, s - m}, new int[]{m - 1, s - m + 1, s / 2}, 3));
+        });
+    }
+
+    /** A clock face: the mark for a resource pool, which is about pacing. */
+    public static Icon clock(int size, Color c) {
+        return make(size, c, (g, s) -> {
+            g.draw(new Ellipse2D.Double(1.5, 1.5, s - 3.5, s - 3.5));
+            double cx = (s - 1) / 2.0, cy = (s - 1) / 2.0;
+            g.draw(new Line2D.Double(cx, cy, cx, cy - s / 4.0));
+            g.draw(new Line2D.Double(cx, cy, cx + s / 5.0, cy));
+        });
+    }
+
+    /** The section mark, the glyph Intruder uses to bracket a payload position. */
+    public static Icon section(int size, Color c) {
+        return make(size, c, (g, s) -> {
+            g.setFont(new Font("Dialog", Font.BOLD, Math.round(s * 0.85f)));
+            FontMetrics fm = g.getFontMetrics();
+            String t = "\u00a7";
+            g.drawString(t, (float) (s / 2.0 - fm.stringWidth(t) / 2.0),
+                    (float) (s / 2.0 + (fm.getAscent() - fm.getDescent()) / 2.0));
+        });
+    }
+
     public static JButton button(Icon icon, String tip, Runnable action) {
         JButton b = new JButton(icon);
         b.setToolTipText(tip);

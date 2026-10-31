@@ -576,6 +576,48 @@ public final class Ui {
     }
 
     /**
+     * A pill pair (or triple) of mutually exclusive views, as the site map's
+     * "URL view" / "Crawl paths view" switch. The chosen pill is filled with
+     * the control colour; {@code onChoose} is handed the chosen index.
+     */
+    public static JPanel segmented(java.util.function.IntConsumer onChoose, String... labels) {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        p.setOpaque(false);
+        ButtonGroup g = new ButtonGroup();
+        final java.util.List<JToggleButton> all = new java.util.ArrayList<>();
+        for (int i = 0; i < labels.length; i++) {
+            final int idx = i;
+            JToggleButton b = new JToggleButton(labels[i], i == 0);
+            b.setFont(PLAIN);
+            b.setFocusable(false);
+            b.setContentAreaFilled(false);
+            b.setOpaque(true);
+            b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            b.setBorder(new opentrap.ui.theme.RoundedBorder(GRID, null, Theme.RADIUS, new Insets(4, 10, 4, 10)));
+            all.add(b);
+            g.add(b);
+            p.add(b);
+            b.addActionListener(e -> { paintSegments(all); onChoose.accept(idx); });
+        }
+        paintSegments(all);
+        return p;
+    }
+
+    private static void paintSegments(java.util.List<JToggleButton> all) {
+        for (JToggleButton t : all) {
+            t.setBackground(t.isSelected() ? Theme.CONTROL : Theme.SURFACE);
+            t.setForeground(t.isSelected() ? Color.WHITE : Theme.TEXT);
+        }
+    }
+
+    /** A round "?" that explains the panel it sits on. */
+    public static JButton helpButton(String title, String body) {
+        JButton b = Glyphs.button(Glyphs.help(18, Theme.ICON), title, null);
+        b.addActionListener(e -> JOptionPane.showMessageDialog(b, body, title, JOptionPane.INFORMATION_MESSAGE));
+        return b;
+    }
+
+    /**
      * Boolean cells: a tick when true and nothing when false, as the reference
      * draws Params / Edited / TLS; an editable cell keeps its check box.
      */

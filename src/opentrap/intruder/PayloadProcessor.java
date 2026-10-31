@@ -31,13 +31,13 @@ public class PayloadProcessor extends JPanel {
     private final JTextField prefixField = Ui.field("", 14);
     private final JTextField suffixField = Ui.field("", 14);
 
-    private final JRadioButton encNone   = Ui.radio("do not encode", false);
+    private final JRadioButton encNone   = Ui.radio("Do not encode", false);
     private final JRadioButton encUrl    = Ui.radio("URL-encode these characters:", true);
-    private final JRadioButton encB64    = Ui.radio("base-64 encode", false);
-    private final JRadioButton encHash   = Ui.radio("hash", false);
+    private final JRadioButton encB64    = Ui.radio("Base-64 encode", false);
+    private final JRadioButton encHash   = Ui.radio("Hash", false);
     private final JRadioButton encUrlDec = Ui.radio("URL-decode", false);
-    private final JRadioButton encB64Dec = Ui.radio("base-64 decode", false);
-    private final JTextField urlChars  = Ui.field(" ./\\=<>?+&*;:#%@\"'", 14);
+    private final JRadioButton encB64Dec = Ui.radio("Base-64 decode", false);
+    private final JTextField urlChars  = Ui.field(".\\=<>?+&*;:\"{}|^`#", 14);
     private final JComboBox<String> hashAlgo =
             Ui.combo(new String[]{"MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512"});
 
@@ -52,7 +52,7 @@ public class PayloadProcessor extends JPanel {
         enc.add(encNone); enc.add(encUrl); enc.add(encB64); enc.add(encHash);
         enc.add(encUrlDec); enc.add(encB64Dec);
 
-        JLabel heading = Ui.heading("payload processing");
+        JLabel heading = Ui.heading("Payload processing");
         heading.setAlignmentX(LEFT_ALIGNMENT);
         add(heading);
         add(Box.createVerticalStrut(6));
@@ -64,11 +64,11 @@ public class PayloadProcessor extends JPanel {
         form.setOpaque(false);
         GridBagConstraints c = new GridBagConstraints();
         int y = 0;
-        y = formRow(form, c, y, "case:", caseCombo);
-        y = formRow(form, c, y, "match regex:", matchField);
-        y = formRow(form, c, y, "replace with:", Ui.row(replaceField, replaceAll));
-        y = formRow(form, c, y, "add prefix:", prefixField);
-        y = formRow(form, c, y, "add suffix:", suffixField);
+        y = formRow(form, c, y, "Case:", caseCombo);
+        y = formRow(form, c, y, "Match regex:", matchField);
+        y = formRow(form, c, y, "Replace with:", Ui.row(replaceField, replaceAll));
+        y = formRow(form, c, y, "Add prefix:", prefixField);
+        y = formRow(form, c, y, "Add suffix:", suffixField);
         // Absorb spare width on the right so the label/field columns stay packed
         // to the left under the heading instead of centring in the panel.
         c.gridx = 2; c.gridy = 0; c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL;
@@ -77,7 +77,7 @@ public class PayloadProcessor extends JPanel {
         add(left(form));
 
         add(Box.createVerticalStrut(10));
-        add(left(Ui.bold("encoding")));
+        add(left(Ui.heading("Payload encoding")));
         add(Box.createVerticalStrut(2));
         // Every encoding choice is wrapped the same way so the radios line up at
         // one left margin, whether or not they carry a trailing field.
