@@ -267,8 +267,12 @@ public final class Theme {
             d.put(k + ".caretForeground", text);
             d.put(k + ".selectionBackground", sel);
             d.put(k + ".selectionForeground", text);
-            d.put(k + ".inactiveBackground", surface);
-            d.put(k + ".inactiveForeground", muted);
+            // A read-only viewer keeps the page colour: the request and
+            // response editors are not editable, and the reference draws them
+            // on white like any other page. Only a genuinely disabled field is
+            // greyed, which is what disabledBackground covers.
+            d.put(k + ".inactiveBackground", bg);
+            d.put(k + ".inactiveForeground", text);
             d.put(k + ".disabledBackground", surface);
         }
         d.put("List.background", bg);

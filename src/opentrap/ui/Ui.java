@@ -41,21 +41,20 @@ public final class Ui {
     }
 
     /** Colour the given table column by its severity label (High/Medium/Low/Information). */
+    /**
+     * The severity cell reads as ordinary text. The reference carries severity
+     * on the coloured dot in the issue-type column, not by tinting the word, so
+     * colouring it here as well said the same thing twice and made the column
+     * shout.
+     */
     public static void severityColumn(JTable table, int col) {
         javax.swing.table.DefaultTableCellRenderer r = new javax.swing.table.DefaultTableCellRenderer() {
             @Override public Component getTableCellRendererComponent(JTable t, Object v,
                     boolean sel, boolean focus, int row, int column) {
                 super.getTableCellRendererComponent(t, v, sel, focus, row, column);
                 setHorizontalAlignment(SwingConstants.LEADING);
-                setFont(BOLD);
-                String s = (v == null) ? "" : v.toString();
-                Color c = switch (s) {
-                    case "High" -> SEV_HIGH;
-                    case "Medium" -> SEV_MEDIUM;
-                    case "Low" -> SEV_LOW;
-                    default -> SEV_INFO;
-                };
-                setForeground(sel ? t.getSelectionForeground() : c);
+                setFont(PLAIN);
+                setForeground(sel ? t.getSelectionForeground() : Theme.TEXT);
                 return this;
             }
         };
