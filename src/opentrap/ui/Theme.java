@@ -52,6 +52,13 @@ public final class Theme {
     public static Color CONTROL_TINT = new Color(0xEA, 0xEF, 0xF5);
     /** The fill of an unselected segment in a segmented control. */
     public static Color SEGMENT_OFF  = new Color(0xDF, 0xDF, 0xDF);
+    /**
+     * Tab titles. The reference keeps an unselected tab near-black rather than
+     * greying it out: the selected tab is marked by its underline, not by the
+     * others fading. Both values are sampled from the reference frames.
+     */
+    public static Color TAB_TEXT     = new Color(0x2B, 0x2B, 0x2B);
+    public static Color TAB_TEXT_ON  = new Color(0x00, 0x00, 0x00);
     public static Color ACCENT_FAINT = new Color(0xF7, 0xF7, 0xF7);
 
     // ---- the rest of the palette: everything a tool used to hard-code ----
@@ -134,6 +141,8 @@ public final class Theme {
             CONTROL       = new Color(0x55, 0x93, 0xD0);
             CONTROL_TINT  = new Color(0x1E, 0x2A, 0x36);
             SEGMENT_OFF   = new Color(0x3A, 0x3A, 0x3A);
+            TAB_TEXT      = new Color(0xCF, 0xCF, 0xCF);
+            TAB_TEXT_ON   = new Color(0xFF, 0xFF, 0xFF);
         } else {
             BG           = new Color(0xFF, 0xFF, 0xFF);
             SURFACE      = new Color(0xEE, 0xEE, 0xEE);
@@ -167,6 +176,8 @@ public final class Theme {
             CONTROL       = new Color(0x26, 0x63, 0x9C);
             CONTROL_TINT  = new Color(0xEA, 0xEF, 0xF5);
             SEGMENT_OFF   = new Color(0xDF, 0xDF, 0xDF);
+            TAB_TEXT      = new Color(0x2B, 0x2B, 0x2B);
+            TAB_TEXT_ON   = new Color(0x00, 0x00, 0x00);
         }
     }
 

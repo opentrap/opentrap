@@ -19,6 +19,16 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
 
     private int hover = -1;
 
+    /**
+     * Held so they can be taken off again. Swing calls uninstallUI whenever a
+     * pane's UI is replaced (a theme switch, or any setUI), and that nulls
+     * tabPane. A listener left attached to the pane then fires against a null
+     * tabPane and throws on the event thread, once per mouse move, until the
+     * interface stops repainting.
+     */
+    private java.awt.event.MouseMotionListener hoverMotion;
+    private java.awt.event.MouseListener hoverExit;
+
     public static ComponentUI createUI(JComponent c) { return new FlatTabbedPaneUI(); }
 
     @Override protected void installDefaults() {
@@ -29,15 +39,35 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
 
     @Override protected void installListeners() {
         super.installListeners();
-        tabPane.addMouseMotionListener(new MouseMotionAdapter() {
+        hoverMotion = new MouseMotionAdapter() {
             @Override public void mouseMoved(MouseEvent e) {
-                int i = tabForCoordinate(tabPane, e.getX(), e.getY());
-                if (i != hover) { hover = i; tabPane.repaint(); }
+                JTabbedPane p = tabPane;
+                if (p == null) return;
+                int i = tabForCoordinate(p, e.getX(), e.getY());
+                if (i != hover) { hover = i; p.repaint(); }
             }
-        });
-        tabPane.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseExited(MouseEvent e) { hover = -1; tabPane.repaint(); }
-        });
+        };
+        hoverExit = new java.awt.event.MouseAdapter() {
+            @Override public void mouseExited(MouseEvent e) {
+                JTabbedPane p = tabPane;
+                if (p == null) return;
+                hover = -1;
+                p.repaint();
+            }
+        };
+        tabPane.addMouseMotionListener(hoverMotion);
+        tabPane.addMouseListener(hoverExit);
+    }
+
+    @Override protected void uninstallListeners() {
+        if (tabPane != null) {
+            if (hoverMotion != null) tabPane.removeMouseMotionListener(hoverMotion);
+            if (hoverExit != null) tabPane.removeMouseListener(hoverExit);
+        }
+        hoverMotion = null;
+        hoverExit = null;
+        hover = -1;
+        super.uninstallListeners();
     }
 
     /** Never stretch a row of tabs to fill the width; tabs keep their natural size. */
@@ -74,8 +104,8 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
         g2.setFont(font);
         Color fg = tabPane.getForegroundAt(i);
         if (!tabPane.isEnabledAt(i)) fg = Theme.BORDER;
-        else if (sel || i == hover) fg = Theme.TEXT;
-        else if (fg == null || fg instanceof javax.swing.plaf.UIResource) fg = Theme.MUTED;
+        else if (sel) fg = Theme.TAB_TEXT_ON;
+        else if (fg == null || fg instanceof javax.swing.plaf.UIResource) fg = Theme.TAB_TEXT;
         g2.setColor(fg);
         int tw = fm.stringWidth(shown);
         g2.drawString(shown, r.x + (r.width - tw) / 2, r.y + fm.getAscent());

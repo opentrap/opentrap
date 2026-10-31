@@ -54,16 +54,38 @@ public class MessageEditor extends JPanel {
      * the editor while the tabs stop short of the marks.
      */
     private int tabRowReserve;
-    private final JTabbedPane views = new JTabbedPane() {
-        @Override public void updateUI() {
-            setUI(new opentrap.ui.theme.FlatTabbedPaneUI() {
-                @Override protected void installDefaults() {
-                    super.installDefaults();
-                    contentBorderInsets = new java.awt.Insets(contentBorderInsets.top, contentBorderInsets.left,
-                            contentBorderInsets.bottom, -tabRowReserve);
-                }
-            });
+
+    /**
+     * Narrows the tab row by {@code reserve} and widens the content area back
+     * by the same amount, so the pages still fill the editor while the tabs
+     * stop short of the marks that share their line. The reserve is adjusted in
+     * place rather than by reinstalling the UI: replacing a pane's UI during
+     * layout churns listeners and is what the resize handler used to do.
+     */
+    private static final class ReserveTabUI extends opentrap.ui.theme.FlatTabbedPaneUI {
+        private int reserve;
+
+        @Override protected void installDefaults() {
+            super.installDefaults();
+            apply();
         }
+
+        void setReserve(int r) {
+            if (r == reserve) return;
+            reserve = r;
+            apply();
+            if (tabPane != null) { tabPane.revalidate(); tabPane.repaint(); }
+        }
+
+        private void apply() {
+            if (contentBorderInsets == null) return;
+            contentBorderInsets = new java.awt.Insets(contentBorderInsets.top, contentBorderInsets.left,
+                    contentBorderInsets.bottom, -reserve);
+        }
+    }
+
+    private final JTabbedPane views = new JTabbedPane() {
+        @Override public void updateUI() { setUI(new ReserveTabUI()); }
     };
     // A pretty pane that does not word-wrap: very long unbreakable lines (a
     // base64 VIEWSTATE, a JWT) otherwise render as overlapping, garbled glyphs.
@@ -150,7 +172,7 @@ public class MessageEditor extends JPanel {
                 if (reserve != tabRowReserve) {
                     tabRowReserve = reserve;
                     views.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, reserve));
-                    views.updateUI();
+                    if (views.getUI() instanceof ReserveTabUI u) u.setReserve(reserve);
                     views.setBounds(0, 0, w, h);
                     views.doLayout();
                 }
