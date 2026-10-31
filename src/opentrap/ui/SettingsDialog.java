@@ -54,6 +54,24 @@ public final class SettingsDialog {
     }
 
     /** The tree: section -> pages, in the reference order. */
+    /**
+     * Every settings page, built. Used by the test that opens all of them: a
+     * page that throws on construction takes the whole dialog down, and that
+     * is only noticed by someone clicking that one entry in the tree.
+     */
+    public static java.util.List<String> buildEveryPage(SuiteContext ctx) {
+        java.util.List<String> failures = new ArrayList<>();
+        for (Page p : pages(ctx)) {
+            try {
+                JComponent c = p.pane().get();
+                if (c == null) failures.add(p.path() + ": built nothing");
+            } catch (Throwable t) {
+                failures.add(p.path() + ": " + t);
+            }
+        }
+        return failures;
+    }
+
     private static List<Page> pages(SuiteContext ctx) {
         List<Page> out = new ArrayList<>();
         // Tools

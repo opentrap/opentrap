@@ -577,6 +577,61 @@ public final class Ui {
         });
     }
 
+    /**
+     * Let a table fill the width it is given, and scroll only when it genuinely
+     * cannot fit.
+     *
+     * <p>Every table was left on AUTO_RESIZE_OFF, which keeps columns at the
+     * widths the calling code asked for and never uses the rest of the pane.
+     * A narrow table therefore sat against a wide band of empty grey while its
+     * own headers were clipped to "Open by ...". Tables that really are wider
+     * than the pane still scroll, because stretching those would squash every
+     * column instead.
+     *
+     * <p>The decision is made against the width the columns were asked for,
+     * recorded once, rather than against their current width: comparing with
+     * the live width would flip back and forth as each mode changed it.
+     */
+    private static void fitColumnsToViewport(JTable t, JScrollPane s) {
+        final String naturalKey = "opentrap.table.naturalWidth";
+        Runnable fit = () -> {
+            Integer natural = (Integer) t.getClientProperty(naturalKey);
+            if (natural == null) {
+                int sum = 0;
+                for (int i = 0; i < t.getColumnModel().getColumnCount(); i++) {
+                    sum += t.getColumnModel().getColumn(i).getPreferredWidth();
+                }
+                if (sum <= 0) return;
+                natural = sum;
+                t.putClientProperty(naturalKey, natural);
+            }
+            int available = s.getViewport().getWidth();
+            if (available <= 0) return;
+            int wanted = natural <= available
+                    ? JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS
+                    : JTable.AUTO_RESIZE_OFF;
+            if (t.getAutoResizeMode() != wanted) t.setAutoResizeMode(wanted);
+        };
+        s.getViewport().addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override public void componentResized(java.awt.event.ComponentEvent e) { fit.run(); }
+        });
+        // A table whose columns arrive after it is wrapped still gets fitted.
+        t.getColumnModel().addColumnModelListener(new javax.swing.event.TableColumnModelListener() {
+            public void columnAdded(javax.swing.event.TableColumnModelEvent e) {
+                t.putClientProperty(naturalKey, null);
+                SwingUtilities.invokeLater(fit);
+            }
+            public void columnRemoved(javax.swing.event.TableColumnModelEvent e) {
+                t.putClientProperty(naturalKey, null);
+                SwingUtilities.invokeLater(fit);
+            }
+            public void columnMoved(javax.swing.event.TableColumnModelEvent e) {}
+            public void columnMarginChanged(javax.swing.event.ChangeEvent e) {}
+            public void columnSelectionChanged(javax.swing.event.ListSelectionEvent e) {}
+        });
+        SwingUtilities.invokeLater(fit);
+    }
+
     public static JScrollPane scroll(Component c) {
         JScrollPane s = new JScrollPane(c);
         s.getVerticalScrollBar().setUnitIncrement(16);
@@ -586,6 +641,7 @@ public final class Ui {
             // grey hole: same background, and the table paints to the bottom.
             t.setFillsViewportHeight(true);
             s.getViewport().setBackground(t.getBackground());
+            fitColumnsToViewport(t, s);
         }
         return s;
     }

@@ -24,19 +24,15 @@ public final class KeyedTable extends JPanel {
     private final String[] cols;
     private final boolean enabledColumn;
     private final List<String[]> rows = new ArrayList<>();
-    private final AbstractTableModel model = new AbstractTableModel() {
-        @Override public int getRowCount() { return rows.size(); }
-        @Override public int getColumnCount() { return cols.length; }
-        @Override public String getColumnName(int c) { return cols[c]; }
-        @Override public Class<?> getColumnClass(int c) { return enabledColumn && c == 0 ? Boolean.class : String.class; }
-        @Override public boolean isCellEditable(int r, int c) { return enabledColumn && c == 0; }
-        @Override public Object getValueAt(int r, int c) {
-            String v = c < rows.get(r).length ? rows.get(r)[c] : "";
-            return enabledColumn && c == 0 ? !"false".equals(v) : v;
-        }
-        @Override public void setValueAt(Object v, int r, int c) { if (enabledColumn && c == 0) { rows.get(r)[0] = String.valueOf(Boolean.TRUE.equals(v)); save(); } }
-    };
-    private final JTable table = new JTable(model);
+    /**
+     * Built in the constructor, not here. A field initialiser runs before the
+     * constructor body, so a model created at this point would be handed to a
+     * JTable that immediately asks it how many columns it has, while the
+     * column names were still null. Every settings page carrying one of these
+     * tables threw on the way open.
+     */
+    private final AbstractTableModel model;
+    private final JTable table;
 
     /**
      * @param cols          column names; if the first is "Enabled" it becomes a checkbox column
@@ -48,6 +44,21 @@ public final class KeyedTable extends JPanel {
         this.key = key;
         this.cols = cols;
         this.enabledColumn = cols.length > 0 && "Enabled".equals(cols[0]);
+        this.model = new AbstractTableModel() {
+            @Override public int getRowCount() { return rows.size(); }
+            @Override public int getColumnCount() { return KeyedTable.this.cols.length; }
+            @Override public String getColumnName(int c) { return KeyedTable.this.cols[c]; }
+            @Override public Class<?> getColumnClass(int c) { return enabledColumn && c == 0 ? Boolean.class : String.class; }
+            @Override public boolean isCellEditable(int r, int c) { return enabledColumn && c == 0; }
+            @Override public Object getValueAt(int r, int c) {
+                String v = c < rows.get(r).length ? rows.get(r)[c] : "";
+                return enabledColumn && c == 0 ? !"false".equals(v) : v;
+            }
+            @Override public void setValueAt(Object v, int r, int c) {
+                if (enabledColumn && c == 0) { rows.get(r)[0] = String.valueOf(Boolean.TRUE.equals(v)); save(); }
+            }
+        };
+        this.table = new JTable(model);
         setOpaque(false);
         load();
         Ui.styleTable(table);
