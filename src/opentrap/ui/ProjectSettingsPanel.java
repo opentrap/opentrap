@@ -13,10 +13,14 @@ import java.awt.*;
  */
 public final class ProjectSettingsPanel extends JPanel {
 
+    private final opentrap.core.Settings settings;
+    private java.util.function.Consumer<String> prefListener;
+
     public ProjectSettingsPanel(SuiteContext ctx) {
         super(new BorderLayout());
+        this.settings = ctx.settings();
         OptionsPage page = new OptionsPage();
-        var s = ctx.settings();
+        var s = settings;
 
         JCheckBox keepAudit = Ui.check("keep full audit responses in the project",
                 ProjectOptions.keepAuditBodies(s));
@@ -54,10 +58,14 @@ public final class ProjectSettingsPanel extends JPanel {
 
         JCheckBox logoos = Ui.check("log out-of-scope traffic", ProjectOptions.logOutOfScope(s));
         logoos.addActionListener(e -> s.setBool(ProjectOptions.LOG_OUT_OF_SCOPE, logoos.isSelected()));
-        s.addListener(key -> {
+        // Registered only while the panel is on screen (see addNotify); the
+        // Settings dialog builds a fresh panel each time it opens, so a
+        // constructor-registered listener would accumulate on the app-lifetime
+        // Settings object for every dialog open.
+        prefListener = key -> {
             if (ProjectOptions.LOG_OUT_OF_SCOPE.equals(key))
                 SwingUtilities.invokeLater(() -> logoos.setSelected(ProjectOptions.logOutOfScope(s)));
-        });
+        };
         String[] choices = {"ask each time", "stop logging out-of-scope traffic", "keep logging everything"};
         String[] keys = {"ask", "stop", "keep"};
         JComboBox<String> onScope = Ui.combo(choices);
@@ -72,5 +80,18 @@ public final class ProjectSettingsPanel extends JPanel {
         page.section("proxy history", logoos, scopeRow, scopeNote);
 
         add(page, BorderLayout.CENTER);
+    }
+
+    /** On screen: start hearing setting changes. */
+    @Override public void addNotify() {
+        super.addNotify();
+        if (prefListener != null) settings.addListener(prefListener);
+    }
+
+    /** Off screen: stop hearing them, so a closed Settings dialog takes its
+     *  listener with it instead of leaving it on Settings forever. */
+    @Override public void removeNotify() {
+        if (prefListener != null) settings.removeListener(prefListener);
+        super.removeNotify();
     }
 }

@@ -10,9 +10,12 @@ import java.time.format.DateTimeFormatter;
 /**
  * Verbose diagnostic logging, enabled with the {@code --debug} command-line
  * flag. When on, every log line is written to the console and appended to a
- * dated file under {@code ~/.opentrap/logs/}, and all uncaught exceptions
- * (including on the Swing event thread) are captured there too, so a crash or a
- * failed launch leaves a full trace to work from instead of vanishing.
+ * dated file under {@code ~/.opentrap/logs/}, and uncaught exceptions are
+ * appended there too, so a crash or a failed launch leaves a full trace to
+ * work from instead of vanishing.
+ *
+ * Uncaught exceptions are captured on the console even without {@code --debug}:
+ * {@link #installUncaughtHandler} is called unconditionally at startup.
  *
  * When off, this is nearly free: {@link #log} returns immediately.
  */
@@ -32,7 +35,18 @@ public final class Debug {
     /** The file the current session is logging to, or null if not enabled. */
     public static Path logFile() { return logPath; }
 
-    /** Turn on debug logging: open the dated log file and capture uncaught exceptions. */
+    /**
+     * Capture every uncaught exception on every thread (the Swing event
+     * thread routes here too), so a failure is never a bare stack trace with
+     * no context. Installed unconditionally at startup; with {@code --debug}
+     * the trace is also appended to the session log file.
+     */
+    public static void installUncaughtHandler() {
+        Thread.setDefaultUncaughtExceptionHandler(
+                (t, ex) -> error("uncaught exception in thread '" + t.getName() + "'", ex));
+    }
+
+    /** Turn on debug logging: open the dated log file. */
     public static synchronized void enable() {
         if (enabled) return;
         enabled = true;
@@ -44,10 +58,6 @@ public final class Debug {
         } catch (Exception e) {
             System.err.println("[debug] could not open log file: " + e);
         }
-        // Capture everything that would otherwise be lost, including Swing EDT
-        // exceptions, which route to the thread's default uncaught handler.
-        Thread.setDefaultUncaughtExceptionHandler(
-                (t, ex) -> error("uncaught exception in thread '" + t.getName() + "'", ex));
 
         log("debug logging enabled");
         if (logPath != null) log("log file: " + logPath);

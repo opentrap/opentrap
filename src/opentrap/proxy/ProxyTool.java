@@ -55,7 +55,7 @@ public class ProxyTool implements ToolModule {
             for (ProxyListener l : server.listeners()) if (l.running) { ctx.setProxyPort(l.port); break; }
             ctx.setCaSpki(server.ca().spkiFingerprint());
             ctx.setBrowserBinary(opentrap.proxy.EmbeddedBrowser.findBinary());
-        } catch (Exception ignored) {}
+        } catch (Exception e) { Debug.log("could not publish proxy routing info: " + e); }
     }
 
     @Override public void shutdown() { server.stopAll(); }
@@ -124,7 +124,15 @@ public class ProxyTool implements ToolModule {
             try {
                 Path home = Path.of(System.getProperty("user.home"), ".opentrap");
                 server = new ProxyServer(ctx, home.resolve("ca"));
-            } catch (Exception e) { throw new RuntimeException(e); }
+            } catch (Exception e) {
+                // init() already reported this once and left the proxy for a
+                // retry; if it still fails, degrade to an explanatory tab
+                // rather than killing the whole suite at startup.
+                ctx.alert("proxy", "failed to initialise proxy: " + e.getMessage());
+                return new Tab[] { new Tab("proxy", Ui.note(
+                        "The proxy could not start: " + e.getMessage()
+                        + ". Fix the cause and restart OpenTRAP.")) };
+            }
         }
         interceptPanel = new InterceptPanel(ctx, server);
         historyPanel = new HistoryPanel(ctx, server);

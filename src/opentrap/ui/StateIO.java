@@ -128,6 +128,24 @@ public final class StateIO {
         t.start();
     }
 
+    /**
+     * A restart (a scale or theme change replaces this JVM) writes the session
+     * to its project file first, exactly as exiting does; without this,
+     * everything since the last autosave was lost on the way past. A temporary
+     * session with no project file has nothing to write.
+     */
+    public static void saveBeforeRestart(SuiteContext ctx) {
+        File project = ctx.projectFile();
+        if (project == null) return;
+        try {
+            save(ctx, project);
+        } catch (Exception e) {
+            Debug.error("could not save the project before restarting", e);
+            ctx.alert("suite", "could not save the project before restarting: "
+                    + e.getMessage() + "; unsaved work will be lost");
+        }
+    }
+
     public static void autosave(SuiteContext ctx) { autosave(ctx, null); }
 
     /** Write the session to {@code file} with the options its settings ask for. */
@@ -249,7 +267,13 @@ public final class StateIO {
                 for (opentrap.core.ToolModule t : ctx.tools()) {
                     java.io.Serializable s = toolStates.get(t.name());
                     if (s != null) {
-                        try { t.restoreState(s); } catch (Exception ignore) {}
+                        try { t.restoreState(s); }
+                        catch (Exception ex) {
+                            // Name the tool: a panel that comes up empty after a
+                            // project opens is otherwise mystifying.
+                            Debug.error("tool '" + t.name()
+                                    + "' failed to restore its saved state", ex);
+                        }
                     }
                 }
             }

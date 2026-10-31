@@ -45,7 +45,18 @@ public class CertificateAuthority {
     private PrivateKey caKey;
     private KeyPair leafKeyPair;
 
+    /**
+     * Leaf contexts by host, kept bounded: a long session through many hosts
+     * (every third-party domain on every page) would otherwise mint and retain
+     * one RSA-backed context per hostname for the whole session. Order is
+     * insertion order, for eviction; the hot path is the lock-free
+     * {@code cache.get} below, and an evicted host is simply re-minted on its
+     * next connection.
+     */
+    private static final int MAX_CACHED_CONTEXTS = 512;
     private final Map<String, SSLContext> cache = new ConcurrentHashMap<>();
+    /** Hosts in insertion order; guarded by {@code this} alongside minting. */
+    private final java.util.ArrayDeque<String> cacheOrder = new java.util.ArrayDeque<>();
 
     static {
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
@@ -150,6 +161,13 @@ public class CertificateAuthority {
             sc.init(kmf.getKeyManagers(), null, new SecureRandom());
             f = sc;
             cache.put(host, f);
+            // Bounded, oldest first: keep the cache from growing one context
+            // per hostname ever visited.
+            cacheOrder.addLast(host);
+            while (cacheOrder.size() > MAX_CACHED_CONTEXTS) {
+                String evict = cacheOrder.pollFirst();
+                if (evict != null) cache.remove(evict);
+            }
             return f;
         }
     }

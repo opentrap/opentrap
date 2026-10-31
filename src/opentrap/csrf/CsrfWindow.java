@@ -56,6 +56,10 @@ public class CsrfWindow extends JFrame {
         setLayout(new BorderLayout());
         add(north, BorderLayout.NORTH);
         add(split, BorderLayout.CENTER);
+        // Dispose on close: a hidden-but-undisposed frame is retained by AWT
+        // for the rest of the session, dragging its whole component tree and
+        // the request copy in the editor with it.
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setSize(820, 560);
         setLocationRelativeTo(ctx.frame());
         generate();
@@ -92,6 +96,7 @@ public class CsrfWindow extends JFrame {
     private void openInBrowser() {
         try {
             java.io.File f = java.io.File.createTempFile("opentrap-csrf", ".html");
+            f.deleteOnExit();   // the browser keeps the file open; clean up at exit
             try (java.io.PrintWriter w = new java.io.PrintWriter(f, java.nio.charset.StandardCharsets.UTF_8)) { w.print(output.getText()); }
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(f.toURI());

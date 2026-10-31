@@ -84,6 +84,9 @@ public class NewScanWizard extends JDialog {
 
     public NewScanWizard(SuiteContext ctx, Frame owner) {
         super(owner, "New scan", true);
+        // Cancel and Scan both dispose; make the window-manager close do the
+        // same rather than only hiding this heavy five-step dialog.
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
         // Seed the Custom controls from a thorough, Balanced-like starting point,
         // and keep the AJAX budget inputs in step with the AJAX checkbox.
@@ -583,6 +586,7 @@ public class NewScanWizard extends JDialog {
         JComponent split = customConfigView();
         final boolean[] confirmed = {false};
         final JDialog dlg = new JDialog(this, "Custom scan configuration", true);
+        dlg.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         JButton cancel = Ui.button("Cancel");
         JButton ok = Ui.button("OK");
         cancel.addActionListener(e -> dlg.dispose());

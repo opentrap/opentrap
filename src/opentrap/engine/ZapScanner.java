@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import opentrap.core.Bytes;
+import opentrap.core.Debug;
 import opentrap.core.HttpMessage;
 import opentrap.core.HttpService;
 import opentrap.core.Issue;
@@ -534,7 +535,12 @@ public final class ZapScanner {
                 imported.addAndGet(batch.size());
             }
             if (added > 0 && task != null) task.addRequests(added);
-        } catch (Exception ignore) { }
+        } catch (Exception e) {
+            // The scan itself already finished; this only imports the engine's
+            // history into the Logger, so a failure degrades the log, not the
+            // scan. Trace it so the history is not quietly incomplete.
+            Debug.log("engine history import failed: " + e);
+        }
     }
 
     /**

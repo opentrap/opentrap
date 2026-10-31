@@ -491,7 +491,13 @@ public final class Cdp {
                                 }
                                 String hex = s.substring(i, i + 4);
                                 i += 4;
-                                sb.append((char) Integer.parseInt(hex, 16));
+                                try {
+                                    sb.append((char) Integer.parseInt(hex, 16));
+                                } catch (NumberFormatException nfe) {
+                                    // A unicode escape that is not hex is a
+                                    // parse error like any other, not a crash.
+                                    throw new RuntimeException("bad unicode escape: " + hex);
+                                }
                             }
                             default -> throw new RuntimeException("bad escape char: " + e);
                         }
@@ -542,7 +548,13 @@ public final class Cdp {
                 if (num.isEmpty()) {
                     throw new RuntimeException("invalid number at " + start);
                 }
-                return new JsonValue(Kind.NUMBER, Double.parseDouble(num), num);
+                try {
+                    return new JsonValue(Kind.NUMBER, Double.parseDouble(num), num);
+                } catch (NumberFormatException nfe) {
+                    // A number-shaped run the JVM rejects (an exponent cut
+                    // short, a bare sign) is a parse error like any other.
+                    throw new RuntimeException("invalid number at " + start + ": " + num);
+                }
             }
 
             char peek() {

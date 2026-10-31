@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import opentrap.core.Debug;
 import opentrap.spider.Cdp.JsonValue;
 
 /**
@@ -367,7 +368,8 @@ public final class ZapApi {
     public void setAllAttackStrength(String strength) throws Exception {
         for (JsonValue s : activeScanners()) {
             String id = str(s, "id");
-            if (id != null) try { setActiveStrength(id, strength); } catch (Exception ignore) { }
+            if (id != null) try { setActiveStrength(id, strength); }
+            catch (Exception e) { Debug.log("strength for active rule " + id + ": " + e); }
         }
     }
 
@@ -375,7 +377,8 @@ public final class ZapApi {
     public void setAllAlertThreshold(String threshold) throws Exception {
         for (JsonValue s : activeScanners()) {
             String id = str(s, "id");
-            if (id != null) try { setActiveThreshold(id, threshold); } catch (Exception ignore) { }
+            if (id != null) try { setActiveThreshold(id, threshold); }
+            catch (Exception e) { Debug.log("threshold for active rule " + id + ": " + e); }
         }
     }
 

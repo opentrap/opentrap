@@ -814,6 +814,7 @@ public class MessageEditor extends JPanel {
     private void openResponseInBrowser() {
         try {
             java.io.File f = java.io.File.createTempFile("opentrap-resp", ".html");
+            f.deleteOnExit();   // the browser keeps the file open; clean up at exit
             try (java.io.PrintWriter w = new java.io.PrintWriter(f, java.nio.charset.StandardCharsets.ISO_8859_1)) {
                 w.print(message.bodyText());
             }

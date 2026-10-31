@@ -178,7 +178,13 @@ public class ProxyServer {
                 Socket client = ss.accept();
                 pool.execute(() -> {
                     try { new Connection(cfg, client).run(); }
-                    catch (Throwable t) { /* per-connection isolation */ }
+                    // Per-connection isolation: one broken exchange must not
+                    // affect the listener. Anything reaching here is a bug or
+                    // resource exhaustion, so it is logged, never swallowed.
+                    catch (Throwable t) {
+                        Debug.error("proxy connection handling failed for "
+                                + client.getRemoteSocketAddress(), t);
+                    }
                 });
             } catch (IOException e) {
                 if (ss.isClosed()) return;
@@ -217,7 +223,12 @@ public class ProxyServer {
                     return;
                 }
                 handlePlain(first, in, out, false, null);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                // A protocol-level failure ends this exchange; the client sees a
+                // dropped connection. Routine client-side garbage (truncated
+                // requests, bogus headers) lands here too, so trace it at debug
+                // level rather than reporting every malformed request.
+                Debug.log("proxy exchange failed: " + e);
             } finally {
                 try { client.close(); } catch (IOException ignored) {}
             }
@@ -599,11 +610,16 @@ public class ProxyServer {
         return buf.toByteArray();
     }
 
-    /** Read a request body framed by Content-Length or chunked encoding. */
+    /** Read a request body framed by Content-Length or chunked encoding.
+     *  A size claimed in the framing is never trusted for allocation: the
+     *  body is streamed through a small buffer, so a bogus Content-Length or
+     *  chunk header from a client costs nothing beyond the bytes that
+     *  actually arrive. */
     private static byte[] readBody(InputStream in, HttpMessage head) throws IOException {
         String te = head.header("Transfer-Encoding");
         if (te != null && te.toLowerCase(Locale.ROOT).contains("chunked")) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
             while (true) {
                 ByteArrayOutputStream line = new ByteArrayOutputStream();
                 int c;
@@ -613,16 +629,16 @@ public class ProxyServer {
                 if (semi >= 0) sz = sz.substring(0, semi);
                 int n;
                 try { n = Integer.parseInt(sz.trim(), 16); } catch (Exception e) { break; }
+                if (n < 0) break;
                 out.write(Bytes.bytes(Integer.toHexString(n) + "\r\n"));
                 if (n == 0) { out.write(Bytes.bytes("\r\n")); break; }
-                byte[] chunk = new byte[n];
-                int got = 0;
-                while (got < n) {
-                    int k = in.read(chunk, got, n - got);
+                int remaining = n;
+                while (remaining > 0) {
+                    int k = in.read(buf, 0, Math.min(buf.length, remaining));
                     if (k < 0) break;
-                    got += k;
+                    out.write(buf, 0, k);
+                    remaining -= k;
                 }
-                out.write(chunk, 0, got);
                 out.write(Bytes.bytes("\r\n"));
                 in.read(); in.read();
             }
@@ -633,13 +649,15 @@ public class ProxyServer {
         int n;
         try { n = Integer.parseInt(cl.trim()); } catch (Exception e) { return new byte[0]; }
         if (n <= 0) return new byte[0];
-        byte[] body = new byte[n];
-        int got = 0;
-        while (got < n) {
-            int k = in.read(body, got, n - got);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int remaining = n;
+        while (remaining > 0) {
+            int k = in.read(buf, 0, Math.min(buf.length, remaining));
             if (k < 0) break;
-            got += k;
+            out.write(buf, 0, k);
+            remaining -= k;
         }
-        return Bytes.slice(body, 0, got);
+        return out.toByteArray();
     }
 }

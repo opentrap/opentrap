@@ -41,6 +41,8 @@ public final class FilterDialog extends JDialog {
      */
     public FilterDialog(Window owner, String title, HistoryFilter filter, boolean siteMap, Runnable onApply) {
         super(owner, title, ModalityType.APPLICATION_MODAL);
+        // Dispose on the window-manager close too, not only the buttons.
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         this.f = filter;
         this.opened = filter.copy();
         this.onApply = onApply;

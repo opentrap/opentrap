@@ -160,6 +160,7 @@ public class WebSocketsPanel extends JPanel implements WsInterceptor {
             SwingUtilities.invokeLater(() -> showHeld(f));
             return decision.take();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             return WsInterceptor.Decision.forward();
         } finally {
             held = null;

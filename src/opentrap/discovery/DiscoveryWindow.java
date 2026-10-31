@@ -76,6 +76,9 @@ public class DiscoveryWindow extends JFrame {
 
         setLayout(new BorderLayout());
         add(split, BorderLayout.CENTER);
+        // Dispose on close so the window and its engine are released; the
+        // stop() below still runs first, as windowClosing precedes disposal.
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setSize(900, 560);
         setLocationRelativeTo(ctx.frame());
         addWindowListener(new java.awt.event.WindowAdapter() {

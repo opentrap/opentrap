@@ -234,38 +234,49 @@ public class RepeaterTool implements ToolModule {
             cancel.setEnabled(true);
 
             worker = new Thread(() -> {
-                HttpClient.Options opt = new HttpClient.Options();
-                opt.updateContentLength = updateContentLength;
-                opt.followRedirects = followRedirects;
-                opt.unpackGzip = true;
-                opt.session = ctx.sessions();
-                opt.sessionTool = "repeater";
-                opt.mode = (HttpMode) modeCombo.getSelectedItem();
-                long t0 = System.currentTimeMillis();
-                HttpClient.Result r = new HttpClient().send(svc, req, opt);
-                long ms = System.currentTimeMillis() - t0;
-                SwingUtilities.invokeLater(() -> {
-                    go.setEnabled(true);
-                    cancel.setEnabled(false);
-                    if (!r.ok()) {
-                        status.setText(r.error);
-                        return;
-                    }
-                    respEditor.setMessage(svc, r.response, req);
-                    int redirs = r.redirectsFollowed;
-                    String statusText = "done" + (redirs > 0 ? " (followed " + redirs + " redirect"
-                            + (redirs == 1 ? "" : "s") + ")" : "") + "  " + ms + " ms";
-                    status.setText(statusText);
-                    lengthLabel.setText("length: " + r.response.length());
-                    pushHistory(new Snapshot(svc, req.raw().clone(), r.response, statusText, r.response.length()));
+                try {
+                    HttpClient.Options opt = new HttpClient.Options();
+                    opt.updateContentLength = updateContentLength;
+                    opt.followRedirects = followRedirects;
+                    opt.unpackGzip = true;
+                    opt.session = ctx.sessions();
+                    opt.sessionTool = "repeater";
+                    opt.mode = (HttpMode) modeCombo.getSelectedItem();
+                    long t0 = System.currentTimeMillis();
+                    HttpClient.Result r = new HttpClient().send(svc, req, opt);
+                    long ms = System.currentTimeMillis() - t0;
+                    SwingUtilities.invokeLater(() -> {
+                        go.setEnabled(true);
+                        cancel.setEnabled(false);
+                        if (!r.ok()) {
+                            status.setText(r.error);
+                            return;
+                        }
+                        respEditor.setMessage(svc, r.response, req);
+                        int redirs = r.redirectsFollowed;
+                        String statusText = "done" + (redirs > 0 ? " (followed " + redirs + " redirect"
+                                + (redirs == 1 ? "" : "s") + ")" : "") + "  " + ms + " ms";
+                        status.setText(statusText);
+                        lengthLabel.setText("length: " + r.response.length());
+                        pushHistory(new Snapshot(svc, req.raw().clone(), r.response, statusText, r.response.length()));
 
-                    LogEntry entry = new LogEntry("repeater", svc, req);
-                    entry.setResponse(r.response);
-                    entry.setRemoteIp(r.remoteIp);
-                    entry.setDurationMillis(ms);
-                    ctx.store().add(entry);
-                    ctx.siteMapChanged(entry);
-                });
+                        LogEntry entry = new LogEntry("repeater", svc, req);
+                        entry.setResponse(r.response);
+                        entry.setRemoteIp(r.remoteIp);
+                        entry.setDurationMillis(ms);
+                        ctx.store().add(entry);
+                        ctx.siteMapChanged(entry);
+                    });
+                } catch (Exception e) {
+                    // Without this the Go button stays disabled and the tab
+                    // reads "waiting" forever; nothing else would report it.
+                    Debug.error("repeater request failed", e);
+                    SwingUtilities.invokeLater(() -> {
+                        go.setEnabled(true);
+                        cancel.setEnabled(false);
+                        status.setText("failed: " + e.getMessage());
+                    });
+                }
             }, "repeater-send");
             worker.setDaemon(true);
             worker.start();

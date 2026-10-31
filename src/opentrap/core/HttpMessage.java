@@ -325,19 +325,32 @@ public class HttpMessage implements Serializable {
     private void parseJsonParams(String s, int base, List<Param> out) {
         try {
             int[] p = {0};
-            jsonValue(s, p, base, "", out);
-        } catch (Exception ignored) {}
+            jsonValue(s, p, base, "", out, 0);
+        } catch (Exception | StackOverflowError ignored) {
+            // Advisory parsing: a body that is not JSON yields no parameters.
+        }
     }
+
+    /**
+     * JSON nesting is bounded before the recursive walk so a hostile body of
+     * deeply nested brackets cannot overflow the stack. The parameters panel
+     * runs this walk on the Swing event thread, where an overflow would kill
+     * the interface mid-paint; the belt-and-braces catch above contains
+     * anything the bound somehow misses. Real request bodies sit far below
+     * this depth.
+     */
+    private static final int MAX_JSON_DEPTH = 200;
 
     private static boolean jsonWs(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
     private static void jsonSkipWs(String s, int[] p) { while (p[0] < s.length() && jsonWs(s.charAt(p[0]))) p[0]++; }
 
-    private void jsonValue(String s, int[] p, int base, String name, List<Param> out) {
+    private void jsonValue(String s, int[] p, int base, String name, List<Param> out, int depth) {
+        if (depth > MAX_JSON_DEPTH) return;
         jsonSkipWs(s, p);
         if (p[0] >= s.length()) return;
         char c = s.charAt(p[0]);
-        if (c == '{') { jsonObject(s, p, base, out); }
-        else if (c == '[') { jsonArray(s, p, base, name, out); }
+        if (c == '{') { jsonObject(s, p, base, out, depth); }
+        else if (c == '[') { jsonArray(s, p, base, name, out, depth); }
         else if (c == '"') {
             int[] span = new int[2];
             String v = jsonString(s, p, span);
@@ -354,7 +367,7 @@ public class HttpMessage implements Serializable {
         }
     }
 
-    private void jsonObject(String s, int[] p, int base, List<Param> out) {
+    private void jsonObject(String s, int[] p, int base, List<Param> out, int depth) {
         p[0]++; // consume '{'
         while (p[0] < s.length()) {
             jsonSkipWs(s, p);
@@ -364,7 +377,7 @@ public class HttpMessage implements Serializable {
             String key = jsonString(s, p, span);
             jsonSkipWs(s, p);
             if (p[0] < s.length() && s.charAt(p[0]) == ':') p[0]++;
-            jsonValue(s, p, base, key, out);
+            jsonValue(s, p, base, key, out, depth + 1);
             jsonSkipWs(s, p);
             if (p[0] < s.length() && s.charAt(p[0]) == ',') { p[0]++; continue; }
             if (p[0] < s.length() && s.charAt(p[0]) == '}') { p[0]++; return; }
@@ -372,12 +385,12 @@ public class HttpMessage implements Serializable {
         }
     }
 
-    private void jsonArray(String s, int[] p, int base, String name, List<Param> out) {
+    private void jsonArray(String s, int[] p, int base, String name, List<Param> out, int depth) {
         p[0]++; // consume '['
         while (p[0] < s.length()) {
             jsonSkipWs(s, p);
             if (p[0] < s.length() && s.charAt(p[0]) == ']') { p[0]++; return; }
-            jsonValue(s, p, base, name, out);
+            jsonValue(s, p, base, name, out, depth + 1);
             jsonSkipWs(s, p);
             if (p[0] < s.length() && s.charAt(p[0]) == ',') { p[0]++; continue; }
             if (p[0] < s.length() && s.charAt(p[0]) == ']') { p[0]++; return; }

@@ -150,6 +150,7 @@ public final class Unbuilt {
     public void showDialog(Component near) {
         Window owner = near == null ? null : SwingUtilities.getWindowAncestor(near);
         final JDialog d = new JDialog(owner, "Not yet implemented", Dialog.ModalityType.APPLICATION_MODAL);
+        d.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         JPanel content = content();
         content.setBorder(Ui.pad(20, 24, 18, 24));
 

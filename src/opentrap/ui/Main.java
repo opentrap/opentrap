@@ -51,6 +51,11 @@ public class Main {
 
         launchArgs = args;
 
+        // Capture uncaught exceptions on every thread even without --debug, so
+        // a failure in a worker thread is labelled and traced rather than a
+        // bare stack dump. With --debug it also lands in the log file.
+        Debug.installUncaughtHandler();
+
         for (String a : args) {
             if ("--debug".equals(a)) { Debug.enable(); break; }
         }

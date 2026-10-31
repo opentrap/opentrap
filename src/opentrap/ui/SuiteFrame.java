@@ -257,18 +257,20 @@ public class SuiteFrame extends JFrame {
 
         JMenu view = new JMenu("View");
         view.setFont(Ui.PLAIN);
+        // Changing scale relaunches the JVM; the session is written to its
+        // project file on the way past, exactly as on exit.
         JMenuItem bigger = new JMenuItem("increase text size");
         bigger.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_EQUALS,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-        bigger.addActionListener(e -> UiScale.changeTo(currentScale() + 0.25, Main.launchArgs));
+        bigger.addActionListener(e -> relaunchScaled(currentScale() + 0.25));
         JMenuItem smaller = new JMenuItem("decrease text size");
         smaller.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_MINUS,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-        smaller.addActionListener(e -> UiScale.changeTo(currentScale() - 0.25, Main.launchArgs));
+        smaller.addActionListener(e -> relaunchScaled(currentScale() - 0.25));
         JMenuItem reset = new JMenuItem("reset text size");
         reset.setAccelerator(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_0,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-        reset.addActionListener(e -> UiScale.changeTo(1.0, Main.launchArgs));
+        reset.addActionListener(e -> relaunchScaled(1.0));
         bigger.setFont(Ui.PLAIN); smaller.setFont(Ui.PLAIN); reset.setFont(Ui.PLAIN);
         view.add(bigger); view.add(smaller); view.add(reset);
         view.addSeparator();
@@ -276,7 +278,7 @@ public class SuiteFrame extends JFrame {
             final double ff = f;
             JMenuItem mi = new JMenuItem((int) (f * 100) + "%");
             mi.setFont(Ui.PLAIN);
-            mi.addActionListener(e -> UiScale.changeTo(ff, Main.launchArgs));
+            mi.addActionListener(e -> relaunchScaled(ff));
             view.add(mi);
         }
         menuBar.add(view);
@@ -513,6 +515,12 @@ public class SuiteFrame extends JFrame {
         return UiScale.desired();
     }
 
+    /** Apply a new scale: save the project first, then relaunch to apply it. */
+    private void relaunchScaled(double scale) {
+        StateIO.saveBeforeRestart(ctx);
+        UiScale.changeTo(scale, Main.launchArgs);
+    }
+
     /** Kept for call-site compatibility; the JVM now handles scaling. */
     public void refitAfterScale() {
         if (getExtendedState() == Frame.MAXIMIZED_BOTH) { validate(); repaint(); return; }
@@ -546,7 +554,13 @@ public class SuiteFrame extends JFrame {
                 }
             }
             for (ToolModule m : modules) {
-                try { m.shutdown(); } catch (Exception ignored) {}
+                try { m.shutdown(); }
+                catch (Exception e) {
+                    // Exit continues regardless, but a tool that failed to shut
+                    // down (a listener still bound, a socket left open) is
+                    // worth a trace rather than silence.
+                    Debug.error("tool '" + m.name() + "' failed to shut down", e);
+                }
             }
             dispose();
             System.exit(0);

@@ -1,6 +1,7 @@
 package opentrap.sequencer;
 
 import opentrap.core.Bytes;
+import opentrap.core.Debug;
 import opentrap.core.HttpClient;
 import opentrap.core.HttpMessage;
 import opentrap.core.HttpService;
@@ -512,7 +513,8 @@ public class SequencerTool implements ToolModule {
                 liveErrors.incrementAndGet();
             }
             if (throttle > 0) {
-                try { Thread.sleep(throttle); } catch (InterruptedException e) { break; }
+                try { Thread.sleep(throttle); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
             }
         }
     }
@@ -611,17 +613,23 @@ public class SequencerTool implements ToolModule {
         private void recompute() {
             final List<String> snapshot = new ArrayList<>(tokens);
             new Thread(() -> {
-                String summary = buildSummary(snapshot);
-                String chars = buildCharReport(snapshot);
-                String bits = buildBitReport(snapshot);
-                SwingUtilities.invokeLater(() -> {
-                    summaryArea.setText(summary);
-                    summaryArea.setCaretPosition(0);
-                    charArea.setText(chars);
-                    charArea.setCaretPosition(0);
-                    bitArea.setText(bits);
-                    bitArea.setCaretPosition(0);
-                });
+                try {
+                    String summary = buildSummary(snapshot);
+                    String chars = buildCharReport(snapshot);
+                    String bits = buildBitReport(snapshot);
+                    SwingUtilities.invokeLater(() -> {
+                        summaryArea.setText(summary);
+                        summaryArea.setCaretPosition(0);
+                        charArea.setText(chars);
+                        charArea.setCaretPosition(0);
+                        bitArea.setText(bits);
+                        bitArea.setCaretPosition(0);
+                    });
+                } catch (Exception e) {
+                    Debug.error("token analysis failed", e);
+                    SwingUtilities.invokeLater(() ->
+                            summaryArea.setText("analysis failed: " + e.getMessage()));
+                }
             }, "sequencer-analysis").start();
         }
 

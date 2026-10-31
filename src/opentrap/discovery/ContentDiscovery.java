@@ -44,12 +44,21 @@ public final class ContentDiscovery {
         AtomicInteger done = new AtomicInteger(0);
         for (String path : paths) {
             pool.submit(() -> {
-                if (stopped || Thread.currentThread().isInterrupted()) return;
-                if (throttleMs > 0) { try { Thread.sleep(throttleMs); } catch (InterruptedException e) { return; } }
-                probe(base, path, l);
-                int d = done.incrementAndGet();
-                l.progress(d, total);
-                if (d == total) l.finished();
+                try {
+                    if (stopped || Thread.currentThread().isInterrupted()) return;
+                    if (throttleMs > 0) { try { Thread.sleep(throttleMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; } }
+                    probe(base, path, l);
+                } catch (Exception e) {
+                    // The Future is discarded, so without this the failure is
+                    // invisible and the run never reports itself finished.
+                    Debug.log("discovery probe " + path + ": " + e);
+                } finally {
+                    // Counted on every path, including the stopped one, so the
+                    // window's progress and finished state always resolve.
+                    int d = done.incrementAndGet();
+                    l.progress(d, total);
+                    if (d == total) l.finished();
+                }
             });
         }
         if (total == 0) l.finished();
