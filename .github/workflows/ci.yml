@@ -1,0 +1,35 @@
+# Compile and run the test suite on every push and pull request.
+#
+# The suite is plain javac plus a hand-rolled harness (no Maven or Gradle), so
+# the job is exactly the two scripts every contributor runs locally. The
+# compiled-in jars under lib/ are vendored in the repository and the tests
+# need neither the scan engine nor the browser, so nothing is fetched. The
+# JDK comes from the runner: the portable jdk/ matters for the AppImage's
+# glibc compatibility, not for compiling and testing.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Test
+        run: ./test.sh
