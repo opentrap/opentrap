@@ -2,6 +2,7 @@ package opentrap.core;
 
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
+import opentrap.testkit.SmallStack;
 
 import java.util.List;
 
@@ -53,6 +54,25 @@ public final class ParameterParsingTest {
                     "{\"ids\":[\"one\",\"two\"]}");
             present(m, Param.Type.JSON, "ids", "one");
             present(m, Param.Type.JSON, "ids", "two");
+        });
+
+        Harness.test("hostile nesting depth cannot overflow the parse", () -> {
+            // The recursive JSON walk used to recurse once per nesting level
+            // with no bound, so a proxied body of nested brackets could
+            // overflow the stack the inspector parses on. The walk is now
+            // depth-bounded; a small stack proves no overflow escapes.
+            String deep = "[[".repeat(50_000) + "1" + "]]".repeat(50_000);
+            HttpMessage m = req(
+                    "POST /api HTTP/1.1\nHost: t.example\nContent-Type: application/json",
+                    deep);
+            Throwable escaped = SmallStack.probe(m::parameters);
+            Expect.isTrue(escaped == null, "nothing escaped the bounded walk: " + escaped);
+            // The bound also truncates gracefully: shallow content before the
+            // cutoff is still reported.
+            HttpMessage shallow = req(
+                    "POST /api HTTP/1.1\nHost: t.example\nContent-Type: application/json",
+                    "{\"user\":\"admin\",\"deep\":" + "[[".repeat(50_000) + "1" + "]]".repeat(50_000) + "}");
+            present(shallow, Param.Type.JSON, "user", "admin");
         });
 
         Harness.test("JSON is detected by shape when the content type is absent", () -> {

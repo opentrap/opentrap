@@ -281,6 +281,12 @@ public final class SettingsDialog {
             show.accept(path);
         }
 
+        // Release the hosted panes when the dialog goes, so a tool's pane can be
+        // hosted again next time (and shown by the tool meanwhile if it wants).
+        // DISPOSE_ON_CLOSE makes this run for the window-manager close too, not
+        // only the Close button: without it a dialog closed with the X is only
+        // hidden and is retained, with every pane it hosted, until exit.
+        d.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         d.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override public void windowClosed(java.awt.event.WindowEvent e) { right.removeAll(); }
         });

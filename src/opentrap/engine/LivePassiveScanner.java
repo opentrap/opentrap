@@ -1,5 +1,6 @@
 package opentrap.engine;
 
+import opentrap.core.Debug;
 import opentrap.core.HttpService;
 import opentrap.core.Issue;
 import opentrap.core.SuiteContext;
@@ -48,6 +49,16 @@ public final class LivePassiveScanner {
     public synchronized void setEnabled(boolean on) {
         enabled = on;
         if (on && zapProxy == null) startEngine();
+        // Disabling stops the poller: without this it kept polling all engine
+        // alerts every 3 s for the rest of the session, whether live scanning
+        // was on or not.
+        if (!on) stopPoller();
+    }
+
+    private void stopPoller() {
+        Thread p = poller;
+        poller = null;
+        if (p != null) p.interrupt();
     }
 
     private void startEngine() {
@@ -81,8 +92,8 @@ public final class LivePassiveScanner {
     private synchronized void startPoller() {
         if (poller != null) return;
         poller = new Thread(() -> {
-            while (true) {
-                try { Thread.sleep(3000); } catch (InterruptedException e) { return; }
+            while (enabled) {
+                try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
                 ZapEngine ze = engine;
                 if (ze == null || ze.api() == null) continue;
                 try {
@@ -96,7 +107,13 @@ public final class LivePassiveScanner {
                         Issue is = ZapScanner.mapAlert(ze.api(), a, evidence);
                         if (is != null) { is.setSource(SOURCE); ctx.addIssue(is); }
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    // A dead or restarting engine must not kill the poller, but
+                    // the failure is traced rather than dropped: with the loop
+                    // running every 3 s, a permanently failing poll is the only
+                    // sign the live audit quietly stopped finding anything.
+                    Debug.log("live passive scan poll failed: " + e);
+                }
             }
         }, "live-passive-poll");
         poller.setDaemon(true);

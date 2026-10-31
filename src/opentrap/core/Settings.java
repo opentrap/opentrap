@@ -81,6 +81,12 @@ public class Settings implements Serializable {
     /** Be told the key whenever a value is set, on the thread that set it. */
     public void addListener(Consumer<String> l) { listeners().add(l); }
 
+    /** Stop being told. A listener registered by a short-lived component must
+     *  be removed when that component goes, or Settings retains it forever. */
+    public void removeListener(Consumer<String> l) {
+        if (listeners != null) listeners.remove(l);
+    }
+
     private List<Consumer<String>> listeners() {
         if (listeners == null) listeners = new CopyOnWriteArrayList<>();
         return listeners;

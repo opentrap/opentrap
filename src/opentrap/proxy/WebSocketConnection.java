@@ -1,5 +1,6 @@
 package opentrap.proxy;
 
+import opentrap.core.Debug;
 import opentrap.core.SuiteContext;
 import opentrap.core.WebSocketMessage;
 import opentrap.core.WebSocketMessage.Direction;
@@ -59,14 +60,27 @@ public final class WebSocketConnection {
     public void run(InputStream clientIn, InputStream serverIn) {
         LIVE.add(this);
         liveChanged();
-        Thread s2c = new Thread(() -> pump(serverIn, Direction.S2C), "ws-s2c-" + id);
+        Thread s2c = new Thread(() -> {
+            try { pump(serverIn, Direction.S2C); }
+            catch (RuntimeException e) {
+                // Normally the IOException path in pump() ends a relay; a
+                // runtime failure would otherwise vanish and look like a
+                // silently dead direction.
+                Debug.error("websocket s2c relay failed for " + service, e);
+            }
+        }, "ws-s2c-" + id);
         s2c.setDaemon(true);
         s2c.start();
-        pump(clientIn, Direction.C2S); // this thread handles client-to-server
-        open = false;
-        try { s2c.join(1000); } catch (InterruptedException ignored) {}
-        LIVE.remove(this);
-        liveChanged();
+        try {
+            pump(clientIn, Direction.C2S); // this thread handles client-to-server
+        } finally {
+            // Every exit path lands here: a runtime failure in the pump must
+            // not leave a stale "live" entry in the WebSockets panel.
+            open = false;
+            try { s2c.join(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            LIVE.remove(this);
+            liveChanged();
+        }
     }
 
     private void pump(InputStream in, Direction dir) {

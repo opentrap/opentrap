@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import opentrap.core.Debug;
+
 /**
  * Lifecycle for the bundled OWASP ZAP scan engine.
  *
@@ -74,6 +76,8 @@ public final class ZapEngine {
     private Process proc;
     private java.io.OutputStream lifeline;   // write end of the watchdog's stdin pipe
     private ZapApi api;
+    private Path home;              // the engine's scratch directory, ours to clean up
+    private boolean hookInstalled;  // one shutdown hook per engine, not per start
 
     /**
      * How far into the engine's message history the suite has read, shared by
@@ -173,7 +177,7 @@ public final class ZapEngine {
         int port = freePort();
         imported.set(0);   // a fresh engine process starts with an empty history
         apiKey = Long.toHexString(new java.security.SecureRandom().nextLong());
-        Path home = Files.createTempDirectory("opentrap-zap-");
+        Path home = this.home = Files.createTempDirectory("opentrap-zap-");
 
         List<String> cmd = new ArrayList<>(List.of(
                 javaBin(), "-jar", jar, "-daemon",
@@ -225,7 +229,10 @@ public final class ZapEngine {
         base = "http://127.0.0.1:" + port;
         api = new ZapApi(base, apiKey);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
+        if (!hookInstalled) {
+            Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown, "zap-engine-shutdown"));
+            hookInstalled = true;
+        }
 
         long deadline = System.currentTimeMillis() + 120_000;
         while (System.currentTimeMillis() < deadline) {
@@ -299,17 +306,19 @@ public final class ZapEngine {
 
     public synchronized void shutdown() {
         // Ask ZAP to stop the AJAX spider first, then shut down cleanly, so it
-        // releases the headless browsers it drives.
+        // releases the headless browsers it drives. Every step is best-effort:
+        // the watchdog and the forced kill below are the real guarantees, and a
+        // failed polite step is traced, not propagated.
         try {
             if (api != null) {
-                try { api.ajaxSpiderStop(); } catch (Exception ignore) { }
+                try { api.ajaxSpiderStop(); } catch (Exception e) { Debug.log("ajax spider stop: " + e); }
                 api.shutdown();
             }
-        } catch (Exception ignore) { }
+        } catch (Exception e) { Debug.log("engine shutdown call: " + e); }
         // Snap the lifeline: this alone makes the watchdog kill the engine tree,
         // and it is the safety net if the in-process kill below is ever skipped.
         if (lifeline != null) {
-            try { lifeline.close(); } catch (Exception ignore) { }
+            try { lifeline.close(); } catch (Exception e) { Debug.log("lifeline close: " + e); }
             lifeline = null;
         }
         if (proc != null) {
@@ -323,13 +332,31 @@ public final class ZapEngine {
             try { tree = proc.descendants().collect(java.util.stream.Collectors.toList()); }
             catch (Exception e) { tree = java.util.List.of(); }
             proc.destroy();
-            for (ProcessHandle h : tree) { try { h.destroy(); } catch (Exception ignore) { } }
+            for (ProcessHandle h : tree) { try { h.destroy(); } catch (Exception e) { Debug.log("descendant destroy: " + e); } }
             try {
                 if (!proc.waitFor(8, java.util.concurrent.TimeUnit.SECONDS)) proc.destroyForcibly();
             } catch (InterruptedException ignore) { proc.destroyForcibly(); }
             for (ProcessHandle h : tree) {
-                try { if (h.isAlive()) h.destroyForcibly(); } catch (Exception ignore) { }
+                try { if (h.isAlive()) h.destroyForcibly(); } catch (Exception e) { Debug.log("descendant force-destroy: " + e); }
             }
+        }
+        // The engine's scratch home is a temp directory we created; remove it
+        // once the process is gone so a machine does not accumulate one ZAP
+        // home (session data, HSQLDB, logs) per engine start.
+        Path h = home;
+        home = null;
+        if (h != null) deleteTree(h);
+    }
+
+    /** Best-effort recursive delete, for the engine's temp home. */
+    private static void deleteTree(Path root) {
+        try (java.util.stream.Stream<Path> walk = Files.walk(root)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try { Files.delete(p); }
+                catch (Exception e) { Debug.log("engine home cleanup, could not delete " + p + ": " + e); }
+            });
+        } catch (Exception e) {
+            Debug.log("engine home cleanup: " + e);
         }
     }
 

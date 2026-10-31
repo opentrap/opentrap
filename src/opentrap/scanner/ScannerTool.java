@@ -1,5 +1,6 @@
 package opentrap.scanner;
 
+import opentrap.core.Debug;
 import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
 import opentrap.engine.ZapApi;
@@ -190,9 +191,12 @@ public class ScannerTool implements ToolModule {
         if (api == null) return;
         List<Rule> visible = visibleRules();
         new Thread(() -> {
+            int failed = 0;
             for (Rule r : visible) {
-                try { api.setPassiveEnabled(String.valueOf(r.id), on); r.enabled = on; } catch (Exception ignore) {}
+                try { api.setPassiveEnabled(String.valueOf(r.id), on); r.enabled = on; }
+                catch (Exception e) { failed++; Debug.log("passive rule " + r.id + " enable: " + e); }
             }
+            reportApplyFailures("enabling or disabling passive rules", failed, visible.size());
             SwingUtilities.invokeLater(() -> { model.fireTableDataChanged(); refreshSummary(); });
         }, "pscan-bulk").start();
     }
@@ -201,11 +205,34 @@ public class ScannerTool implements ToolModule {
         if (api == null) return;
         List<Rule> visible = visibleRules();
         new Thread(() -> {
+            int failed = 0;
             for (Rule r : visible) {
-                try { api.setPassiveThreshold(String.valueOf(r.id), t); r.threshold = t; } catch (Exception ignore) {}
+                try { api.setPassiveThreshold(String.valueOf(r.id), t); r.threshold = t; }
+                catch (Exception e) { failed++; Debug.log("passive rule " + r.id + " threshold: " + e); }
             }
+            reportApplyFailures("setting passive rule thresholds", failed, visible.size());
             SwingUtilities.invokeLater(() -> model.fireTableDataChanged());
         }, "pscan-bulk").start();
+    }
+
+    /**
+     * The table shows what the engine accepted. When part of a change could
+     * not be applied, say so once rather than leaving the mismatch between
+     * the screen and the engine unexplained.
+     */
+    private void reportApplyFailures(String what, int failed, int total) {
+        if (failed > 0 && ctx != null) {
+            ctx.alert("scanner", "could not apply " + what + " to " + failed
+                    + " of " + total + " rules; the engine may differ from the table");
+        }
+    }
+
+    /** A single rule edit the engine refused; the table may now show a state
+     *  the engine never took, so the failure is surfaced, not swallowed. */
+    private void ruleApplyFailed(String rule, String what, Exception e) {
+        Debug.log(rule + " " + what + ": " + e);
+        if (ctx != null) ctx.alert("scanner", "the engine did not accept the "
+                + what + " for " + rule + "; it may differ from the table");
     }
 
     private List<Rule> visibleRules() {
@@ -295,15 +322,19 @@ public class ScannerTool implements ToolModule {
             if (c == 0 && v instanceof Boolean on) {
                 m.enabled = on;
                 final int id = m.id;
-                new Thread(() -> { try { api.setPassiveEnabled(String.valueOf(id), on); } catch (Exception ignore) {} },
-                        "pscan-set").start();
+                new Thread(() -> {
+                    try { api.setPassiveEnabled(String.valueOf(id), on); }
+                    catch (Exception e) { ruleApplyFailed("passive rule " + id, "enable", e); }
+                }, "pscan-set").start();
                 fireTableRowsUpdated(r, r);
                 refreshSummary();
             } else if (c == 4 && v instanceof String t) {
                 m.threshold = t;
                 final int id = m.id;
-                new Thread(() -> { try { api.setPassiveThreshold(String.valueOf(id), t); } catch (Exception ignore) {} },
-                        "pscan-set").start();
+                new Thread(() -> {
+                    try { api.setPassiveThreshold(String.valueOf(id), t); }
+                    catch (Exception e) { ruleApplyFailed("passive rule " + id, "threshold", e); }
+                }, "pscan-set").start();
                 fireTableRowsUpdated(r, r);
             }
         }

@@ -1,5 +1,6 @@
 package opentrap.scanner;
 
+import opentrap.core.Debug;
 import opentrap.core.SuiteContext;
 import opentrap.engine.ZapApi;
 import opentrap.engine.ZapEngine;
@@ -29,9 +30,11 @@ public class ActiveScanPanel extends JPanel {
     private final JLabel summary = Ui.label("");
     private ZapApi api;
     private boolean loadStarted;
+    private final SuiteContext ctx;
 
     public ActiveScanPanel(SuiteContext ctx) {
         super(new BorderLayout());
+        this.ctx = ctx;
         table = new JTable(model);
         Ui.styleTable(table);
         JComboBox<String> strengthEd = new JComboBox<>(STRENGTHS);
@@ -108,9 +111,14 @@ public class ActiveScanPanel extends JPanel {
         if (api == null) return;
         List<Rule> all = model.rules;
         new Thread(() -> {
+            int failed = 0;
             for (Rule r : all) {
-                try { api.setActiveEnabled(r.id, on); r.enabled = on; } catch (Exception ignore) {}
+                try { api.setActiveEnabled(r.id, on); r.enabled = on; }
+                catch (Exception e) { failed++; Debug.log("active rule " + r.id + " enable: " + e); }
             }
+            if (failed > 0) ctx.alert("scanner", "could not enable or disable "
+                    + failed + " of " + all.size()
+                    + " active rules; the engine may differ from the table");
             SwingUtilities.invokeLater(() -> { model.fireTableDataChanged(); refreshSummary(); });
         }, "ascan-bulk").start();
     }
@@ -162,7 +170,17 @@ public class ActiveScanPanel extends JPanel {
         }
         private void run(ThrowingRunnable action) {
             if (api == null) return;
-            new Thread(() -> { try { action.run(); } catch (Exception ignore) {} }, "ascan-set").start();
+            new Thread(() -> {
+                try { action.run(); }
+                catch (Exception e) {
+                    // The table already shows the edit; if the engine refused
+                    // it, say so rather than leaving the screen asserting a
+                    // state the engine never took.
+                    Debug.log("active rule setting: " + e);
+                    ctx.alert("scanner", "the engine did not accept a rule "
+                            + "setting; it may differ from the table");
+                }
+            }, "ascan-set").start();
         }
     }
 

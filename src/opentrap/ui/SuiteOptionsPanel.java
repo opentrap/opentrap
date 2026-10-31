@@ -1,5 +1,6 @@
 package opentrap.ui;
 
+import opentrap.core.Debug;
 import opentrap.core.SuiteContext;
 
 import javax.swing.*;
@@ -35,8 +36,11 @@ public class SuiteOptionsPanel extends JPanel {
         scaleCombo.setSelectedItem(cur + "%");
         scaleCombo.addActionListener(e -> {
             String v = String.valueOf(scaleCombo.getSelectedItem()).replace("%", "");
-            try { UiScale.changeTo(Double.parseDouble(v) / 100.0, Main.launchArgs); }
-            catch (Exception ignored) {}
+            try {
+                StateIO.saveBeforeRestart(ctx);
+                UiScale.changeTo(Double.parseDouble(v) / 100.0, Main.launchArgs);
+            }
+            catch (Exception ex) { Debug.log("scale change: " + ex); }
         });
         JTextArea scaleNote = Ui.note(
             "Scales the whole interface using real HiDPI rendering, so fonts, columns and "
@@ -53,6 +57,7 @@ public class SuiteOptionsPanel extends JPanel {
             boolean wantDark = "dark".equals(themeCombo.getSelectedItem());
             if (wantDark == Theme.dark) return;
             ctx.settings().set("ui.theme", wantDark ? "dark" : "light");
+            StateIO.saveBeforeRestart(ctx);
             if (UiScale.relaunchWith(UiScale.desired(), Main.launchArgs)) System.exit(0);
         });
         JTextArea themeNote = Ui.note("Switches between the light and dark palette. "

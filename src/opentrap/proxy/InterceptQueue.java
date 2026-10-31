@@ -101,7 +101,8 @@ public class InterceptQueue {
         long end = System.currentTimeMillis() + millis;
         while (System.currentTimeMillis() < end) {
             if (current == null && queue.isEmpty()) return true;
-            try { TimeUnit.MILLISECONDS.sleep(20); } catch (InterruptedException e) { return false; }
+            try { TimeUnit.MILLISECONDS.sleep(20); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
         }
         return false;
     }

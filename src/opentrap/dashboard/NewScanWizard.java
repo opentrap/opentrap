@@ -56,6 +56,9 @@ public class NewScanWizard extends JDialog {
 
     public NewScanWizard(SuiteContext ctx, Frame owner) {
         super(owner, "New scan", true);
+        // Cancel and Scan both dispose; make the window-manager close do the
+        // same rather than only hiding this heavy five-step dialog.
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 
         content.add(buildScanType(), "Scan type");
         content.add(buildScanDetails(ctx), "Scan details");

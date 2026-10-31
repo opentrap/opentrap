@@ -104,7 +104,11 @@ public class HttpClient {
     private static Socket connect(HttpService svc, int ct, int rt, UpstreamProxy override) throws Exception {
         if (override != null) {
             try { return connectVia(svc, ct, rt, override); }
-            catch (Exception e) { return connectVia(svc, ct, rt, null); } // fail-safe: go direct
+            catch (Exception e) {
+                Debug.log("upstream proxy " + override.host + ":" + override.port
+                        + " failed (" + e + "); falling back to a direct connection");
+                return connectVia(svc, ct, rt, null); // fail-safe: go direct
+            }
         }
         return connectVia(svc, ct, rt, proxyProvider == null ? null : proxyProvider.proxyFor(svc));
     }
@@ -170,13 +174,23 @@ public class HttpClient {
         for (int attempt = 0; attempt <= 1; attempt++) {
             HttpMessage start = request.copy();
             if (opt.session != null) {
-                try { opt.session.beforeSend(opt.sessionTool, svc, start); } catch (Exception ignored) {}
+                try { opt.session.beforeSend(opt.sessionTool, svc, start); }
+                catch (Exception e) {
+                    // A broken session rule must not be silent: the request goes
+                    // out without the cookies or macro the user believes are
+                    // applied, which silently changes what a test exercises.
+                    Debug.error("session rule " + opt.sessionTool
+                            + " beforeSend failed; sending the request without session handling", e);
+                }
             }
             r = sendFollowingRedirects(svc, start, opt);
             if (opt.session == null || !r.ok()) break;
             boolean retry;
             try { retry = opt.session.afterResponse(opt.sessionTool, r.finalService, r.finalRequest, r.response); }
-            catch (Exception e) { retry = false; }
+            catch (Exception e) {
+                Debug.error("session rule " + opt.sessionTool + " afterResponse failed; not retrying", e);
+                retry = false;
+            }
             if (!retry || attempt >= 1) break;
         }
         return r;
@@ -294,6 +308,9 @@ public class HttpClient {
         if (noBody) return headBytes;
 
         ByteArrayOutputStream body = new ByteArrayOutputStream();
+        // One scratch buffer for every body framing below; sizes claimed in
+        // framing headers are never trusted for allocation.
+        byte[] buf = new byte[8192];
         String te = probe.header("Transfer-Encoding");
         String cl = probe.header("Content-Length");
 
@@ -306,17 +323,20 @@ public class HttpClient {
                 if (semi >= 0) sz = sz.substring(0, semi);
                 int n;
                 try { n = Integer.parseInt(sz.trim(), 16); } catch (Exception e) { break; }
+                if (n < 0) break;
                 if (n == 0) { readLine(in); break; }
-                byte[] buf = new byte[n];
-                int got = 0;
-                while (got < n) {
-                    int k = in.read(buf, got, n - got);
-                    if (k < 0) break;
-                    got += k;
+                // Never allocate from the server's chunk-size claim; stream the
+                // bytes that actually arrive through a small buffer.
+                int remaining = n;
+                boolean complete = true;
+                while (remaining > 0) {
+                    int k = in.read(buf, 0, Math.min(buf.length, remaining));
+                    if (k < 0) { complete = false; break; }
+                    body.write(buf, 0, k);
+                    remaining -= k;
                 }
-                body.write(buf, 0, got);
                 readLine(in);
-                if (got < n) break;
+                if (!complete) break;
             }
             byte[] merged = Bytes.concat(headBytes, body.toByteArray());
             HttpMessage m = new HttpMessage(merged);
@@ -329,7 +349,6 @@ public class HttpClient {
             int n;
             try { n = Integer.parseInt(cl.trim()); } catch (Exception e) { n = -1; }
             if (n >= 0) {
-                byte[] buf = new byte[8192];
                 int remaining = n;
                 while (remaining > 0) {
                     int k = in.read(buf, 0, Math.min(buf.length, remaining));
@@ -341,7 +360,6 @@ public class HttpClient {
             }
         }
 
-        byte[] buf = new byte[8192];
         try {
             int k;
             while ((k = in.read(buf)) > 0) body.write(buf, 0, k);
@@ -382,7 +400,11 @@ public class HttpClient {
             m.removeHeader("Content-Encoding");
             m.setBody(out.toByteArray());
             m.setHeader("Content-Length", String.valueOf(out.size()));
-        } catch (Exception ignored) {
+        } catch (Exception | LinkageError e) {
+            // A body that will not decode stays as received; trace it rather
+            // than dropping the failure silently. LinkageError covers a
+            // missing decoder jar, which must not kill the calling thread.
+            Debug.log("could not decode " + enc + " body: " + e);
         }
     }
 }

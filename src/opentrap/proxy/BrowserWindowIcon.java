@@ -1,5 +1,7 @@
 package opentrap.proxy;
 
+import opentrap.core.Debug;
+
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -111,8 +113,12 @@ final class BrowserWindowIcon {
                     if (rc != 0 && ++idle > 3) return;   // no Python or no X library: give up quietly
                     Thread.sleep(out.equals("0") ? 1500 : 500);
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     return;
                 } catch (Exception e) {
+                    // One failed probe (a busy machine, a missing tool) stops
+                    // the icon mirror for this session; leave a trace of why.
+                    Debug.error("browser window icon watcher failed; icon mirroring stopped", e);
                     return;
                 }
             }

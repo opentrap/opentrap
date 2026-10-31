@@ -295,11 +295,16 @@ public class SessionPanel extends JPanel {
         runStatus.setText("running...");
         final Macro macro = m;
         Thread t = new Thread(() -> {
-            Map<String, String> vals = sm.runMacro(macro);
-            SwingUtilities.invokeLater(() -> {
-                runStatus.setText(vals.isEmpty() ? "done (no extractions)" : "done, extracted " + vals);
-                cookieModel.refresh();
-            });
+            try {
+                Map<String, String> vals = sm.runMacro(macro);
+                SwingUtilities.invokeLater(() -> {
+                    runStatus.setText(vals.isEmpty() ? "done (no extractions)" : "done, extracted " + vals);
+                    cookieModel.refresh();
+                });
+            } catch (Exception e) {
+                Debug.error("macro '" + macro.name + "' failed", e);
+                SwingUtilities.invokeLater(() -> runStatus.setText("failed: " + e.getMessage()));
+            }
         }, "session-macro-run");
         t.setDaemon(true);
         t.start();

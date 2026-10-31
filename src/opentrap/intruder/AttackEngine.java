@@ -79,10 +79,19 @@ public class AttackEngine {
 
         for (Combo combo : combos) {
             pool.submit(() -> {
-                if (stopped || Thread.currentThread().isInterrupted()) return;
-                int number = counter.incrementAndGet();
-                runOne(number, combo);
-                if (done.incrementAndGet() == total) finish();
+                try {
+                    if (stopped || Thread.currentThread().isInterrupted()) return;
+                    int number = counter.incrementAndGet();
+                    runOne(number, combo);
+                } catch (Exception e) {
+                    // The Future is discarded, so without this the failure is
+                    // invisible and the done counter below never completes.
+                    Debug.log("intruder request: " + e);
+                } finally {
+                    // Counted on every path: an exception or an early stop must
+                    // not leave the window stuck short of "finished".
+                    if (done.incrementAndGet() == total) finish();
+                }
             });
         }
         if (total == 0) finish();
@@ -100,10 +109,10 @@ public class AttackEngine {
     private void runOne(int number, Combo combo) {
         // Honour pause (and throttle) before issuing the request.
         while (paused && !stopped && !Thread.currentThread().isInterrupted()) {
-            try { Thread.sleep(100); } catch (InterruptedException e) { return; }
+            try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
         }
         if (stopped) return;
-        if (throttleMs > 0) { try { Thread.sleep(throttleMs); } catch (InterruptedException e) { return; } }
+        if (throttleMs > 0) { try { Thread.sleep(throttleMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; } }
 
         String substituted = substitute(markedText, combo.values());
         HttpMessage req = new HttpMessage(Bytes.bytes(substituted));

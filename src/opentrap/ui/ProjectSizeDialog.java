@@ -114,6 +114,7 @@ public final class ProjectSizeDialog {
         root.add(buttons, BorderLayout.SOUTH);
 
         JDialog d = new JDialog(owner, "Project size", Dialog.ModalityType.APPLICATION_MODAL);
+        d.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         d.setContentPane(root);
         close.addActionListener(e -> d.dispose());
         d.pack();

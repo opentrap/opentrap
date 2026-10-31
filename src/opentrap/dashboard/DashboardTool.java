@@ -1314,6 +1314,10 @@ public class DashboardTool implements ToolModule {
         t.cancel();
         if (t == liveAudit && passiveScanner != null) passiveScanner.setEnabled(false);
         rerun.remove(t);
+        // The task's config and its already-saved marker go with it; leaving
+        // them held every task (deleted included) for the whole session.
+        taskConfigs.remove(t);
+        savedOnFinish.remove(t);
         if (selected == t) selected = null;
         if (ctx != null) ctx.removeTask(t);
     }
