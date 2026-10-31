@@ -40,6 +40,8 @@ public class ProxyServer {
     public volatile boolean interceptRequests = true;
     public volatile boolean interceptResponses = false;
     public volatile boolean interceptingEnabled = false;
+    /** Tidy a request's trailing new lines when it is forwarded after editing. */
+    public volatile boolean fixRequestNewlines = false;
     public volatile boolean updateContentLengthRequests = true;
     public volatile boolean updateContentLengthResponses = true;
     public volatile boolean unpackGzip = true;
@@ -156,6 +158,24 @@ public class ProxyServer {
 
     /** What the proxy is listening on right now, e.g. "listening on 127.0.0.1:8080". */
     public String listeningSummary() { return summary(listeners); }
+
+    /**
+     * Give an edited request exactly one blank line between its headers and its
+     * body, and no stray new lines after it. Hand-editing a request in the
+     * intercept editor is where these creep in, and a server is entitled to
+     * reject the result.
+     */
+    static byte[] tidyTrailingNewlines(byte[] raw) {
+        String s = new String(raw, java.nio.charset.StandardCharsets.ISO_8859_1);
+        int sep = s.indexOf("\r\n\r\n");
+        if (sep < 0) return raw;
+        String head = s.substring(0, sep);
+        String body = s.substring(sep + 4);
+        // Trailing new lines belong to the body only when it has content.
+        while (body.endsWith("\r\n")) body = body.substring(0, body.length() - 2);
+        while (body.endsWith("\n") || body.endsWith("\r")) body = body.substring(0, body.length() - 1);
+        return (head + "\r\n\r\n" + body).getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+    }
 
     /**
      * Describe the running listeners in {@code list}: every address and port, or
@@ -339,6 +359,7 @@ public class ProxyServer {
                 if (p.editedBytes() != null) {
                     request.setRaw(p.editedBytes());
                     wasModified = true;
+                    if (fixRequestNewlines) request.setRaw(tidyTrailingNewlines(request.raw()));
                     if (updateContentLengthRequests) request.updateContentLength();
                 }
                 intercept.completed(p);

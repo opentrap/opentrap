@@ -84,6 +84,24 @@ public final class ProxyDefaultsTest {
             Expect.isTrue(all.indexOf("127.0.0.1") >= 0, "loopback is in the list");
         });
 
+        Harness.test("tidying new lines leaves one blank line before the body", () -> {
+            byte[] messy = ("POST /x HTTP/1.1\r\nHost: h\r\n\r\na=1\r\n\r\n\r\n")
+                    .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            String tidy = new String(ProxyServer.tidyTrailingNewlines(messy),
+                    java.nio.charset.StandardCharsets.ISO_8859_1);
+            Expect.equal(tidy, "POST /x HTTP/1.1\r\nHost: h\r\n\r\na=1", "trailing new lines removed");
+
+            byte[] noBody = ("GET / HTTP/1.1\r\nHost: h\r\n\r\n")
+                    .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            Expect.equal(new String(ProxyServer.tidyTrailingNewlines(noBody),
+                            java.nio.charset.StandardCharsets.ISO_8859_1),
+                    "GET / HTTP/1.1\r\nHost: h\r\n\r\n", "a body-less request keeps its separator");
+
+            byte[] headersOnly = "not a message".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+            Expect.equal(ProxyServer.tidyTrailingNewlines(headersOnly).length, headersOnly.length,
+                    "something with no header separator is left alone");
+        });
+
         Harness.test("the status line says plainly when nothing is listening", () -> {
             ProxyListener l = new ProxyListener();
             l.running = false;

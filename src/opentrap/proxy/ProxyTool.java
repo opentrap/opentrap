@@ -597,11 +597,37 @@ public class ProxyTool implements ToolModule {
 
             page.section("Proxy listeners", new ListenersPanel(ctx, server));
 
-            JCheckBox interceptReq = Ui.check("intercept client requests", server.interceptRequests);
-            JCheckBox interceptResp = Ui.check("intercept server responses", server.interceptResponses);
+            // The two chains, each with its own switch, as the reference
+            // separates them. The chain itself is evaluated by ProxyRule.
+            JCheckBox interceptReq = Ui.check("Intercept requests based on the following rules:",
+                    server.interceptRequests);
             interceptReq.addActionListener(e -> server.interceptRequests = interceptReq.isSelected());
+            JCheckBox fixNewlines = Ui.check(
+                    "Automatically fix missing or superfluous new lines at end of request",
+                    server.fixRequestNewlines);
+            fixNewlines.addActionListener(e -> server.fixRequestNewlines = fixNewlines.isSelected());
+            JCheckBox clRequest = Ui.check(
+                    "Automatically update Content-Length header when the request is edited",
+                    server.updateContentLengthRequests);
+            clRequest.addActionListener(e -> server.updateContentLengthRequests = clRequest.isSelected());
+            page.section("Request interception rules",
+                    Ui.note("Use these settings to control which requests are stalled for viewing "
+                          + "and editing in the Intercept tab."),
+                    new InterceptRulesPanel(server, false, interceptReq),
+                    fixNewlines, clRequest);
+
+            JCheckBox interceptResp = Ui.check("Intercept responses based on the following rules:",
+                    server.interceptResponses);
             interceptResp.addActionListener(e -> server.interceptResponses = interceptResp.isSelected());
-            page.section("intercept", interceptReq, interceptResp);
+            JCheckBox clResponse = Ui.check(
+                    "Automatically update Content-Length header when the response is edited",
+                    server.updateContentLengthResponses);
+            clResponse.addActionListener(e -> server.updateContentLengthResponses = clResponse.isSelected());
+            page.section("Response interception rules",
+                    Ui.note("Use these settings to control which responses are stalled for viewing "
+                          + "and editing in the Intercept tab."),
+                    new InterceptRulesPanel(server, true, interceptResp),
+                    clResponse);
 
             JCheckBox unhide = Ui.check("unhide hidden form fields", false);
             JCheckBox enable = Ui.check("enable disabled form fields", false);

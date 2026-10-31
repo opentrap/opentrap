@@ -247,6 +247,7 @@ public class SuiteFrame extends JFrame {
                     JTabbedPane inner = new JTabbedPane();
                     inner.setFont(Ui.PLAIN);
                     for (ToolModule.Tab t : st) inner.addTab(capitalise(t.title()), t.component());
+                    SettingsDialog.wireLaunchers(inner);
                     return inner;
                 });
                 continue;
@@ -259,6 +260,9 @@ public class SuiteFrame extends JFrame {
                 inner.setFont(Ui.PLAIN);
                 inner.setFocusable(false);
                 for (ToolModule.Tab t : mt) inner.addTab(t.title(), t.component());
+                // A settings sub-tab opens the Settings window rather than
+                // showing a page with a button on it.
+                SettingsDialog.wireLaunchers(inner);
                 comp = inner;
             }
             tabs.addTab(m.name(), comp);

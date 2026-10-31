@@ -473,28 +473,59 @@ public final class SettingsDialog {
      * A small page for a tool's own settings tab: it says where the settings
      * live and opens the dialog there, so each setting has exactly one home.
      */
+    /**
+     * A sub-tab that is really a button: choosing it opens the Settings window
+     * at {@code category} rather than showing a page with a button on it, which
+     * is what the reference does. The component itself is never seen; the tab
+     * strip snaps back to where it was.
+     *
+     * <p>The heading and note are kept for the brief moment the pane is shown
+     * if a tabbed pane is not wired, and as the accessible description.
+     */
     public static JComponent launcher(SuiteContext ctx, String category, String heading, String note) {
-        JPanel column = new JPanel();
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        column.setOpaque(false);
-        JLabel h = Ui.heading(heading);
-        h.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JTextArea n = Ui.note(note);
-        n.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JButton open = Ui.primaryButton("Open settings", "open Settings at " + category);
-        open.setAlignmentX(Component.LEFT_ALIGNMENT);
-        open.addActionListener(e -> {
-            Window w = ctx.frame() instanceof Window win ? win : null;
-            open(w, ctx, category);
-        });
-        column.add(h);
-        column.add(Box.createVerticalStrut(6));
-        column.add(n);
-        column.add(Box.createVerticalStrut(12));
-        column.add(open);
         JPanel page = new JPanel(new BorderLayout());
         page.setBorder(Ui.pad(16, 16, 16, 16));
-        page.add(column, BorderLayout.NORTH);
+        page.putClientProperty(LAUNCH_CATEGORY, category);
+        page.putClientProperty(LAUNCH_CONTEXT, ctx);
+        page.getAccessibleContext().setAccessibleDescription(heading + ". " + note);
         return page;
+    }
+
+    private static final String LAUNCH_CATEGORY = "opentrap.settingsLauncher.category";
+    private static final String LAUNCH_CONTEXT  = "opentrap.settingsLauncher.context";
+
+    /**
+     * Make any launcher tabs in {@code tabs} behave as buttons: choosing one
+     * opens Settings at its page and leaves the strip on the tab that was
+     * showing before.
+     */
+    public static void wireLaunchers(JTabbedPane tabs) {
+        for (int i = 0; i < tabs.getTabCount(); i++) {
+            if (categoryOf(tabs.getComponentAt(i)) != null) {
+                tabs.setIconAt(i, Glyphs.gear(14, Theme.ICON));
+            }
+        }
+        final int[] previous = { tabs.getSelectedIndex() };
+        tabs.addChangeListener(e -> {
+            int i = tabs.getSelectedIndex();
+            if (i < 0) return;
+            Component c = tabs.getComponentAt(i);
+            String category = categoryOf(c);
+            if (category == null) { previous[0] = i; return; }
+            int back = previous[0] >= 0 && previous[0] != i && previous[0] < tabs.getTabCount()
+                    ? previous[0] : 0;
+            SuiteContext ctx = (SuiteContext) ((JComponent) c).getClientProperty(LAUNCH_CONTEXT);
+            // Put the strip back first, so the tab never reads as selected
+            // while the window is open, then open it.
+            SwingUtilities.invokeLater(() -> {
+                tabs.setSelectedIndex(back);
+                Window w = ctx != null && ctx.frame() instanceof Window win ? win : null;
+                open(w, ctx, category);
+            });
+        });
+    }
+
+    private static String categoryOf(Component c) {
+        return c instanceof JComponent jc ? (String) jc.getClientProperty(LAUNCH_CATEGORY) : null;
     }
 }
