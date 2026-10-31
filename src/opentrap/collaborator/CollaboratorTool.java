@@ -42,6 +42,16 @@ public class CollaboratorTool implements ToolModule {
 
     @Override public String name() { return "collaborator"; }
 
+    /**
+     * The unique label of a payload hostname, without the server location. The
+     * nonce is the first label; the rest names the Collaborator server.
+     */
+    static String uniquePrefix(String host) {
+        if (host == null) return "";
+        int dot = host.indexOf('.');
+        return dot < 0 ? host : host.substring(0, dot);
+    }
+
     @Override public boolean alwaysTabbed() { return false; }
 
     @Override public void init(SuiteContext ctx) {
@@ -130,6 +140,11 @@ public class CollaboratorTool implements ToolModule {
         payloadField.setEditable(false);
         payloadField.setFont(Ui.MONO);
 
+        final JTextField count = Ui.field("1", 4);
+        count.setToolTipText("how many payloads Copy to clipboard generates");
+        final JCheckBox includeLocation = Ui.check("Include Collaborator server location", true);
+        includeLocation.setToolTipText("copy the full hostname rather than only the unique prefix");
+
         copy.addActionListener(e -> {
             if (!collab.isRunning()) {
                 String err = collab.start();
@@ -142,17 +157,33 @@ public class CollaboratorTool implements ToolModule {
                 }
                 auto.setSelected(true);
             }
-            String h = collab.payloadHost();
-            if (h == null) {
+            int n;
+            try { n = Integer.parseInt(count.getText().trim()); }
+            catch (NumberFormatException nfe) { n = 1; }
+            n = Math.max(1, Math.min(100, n));
+
+            // Each call mints a fresh nonce, so asking for several gives several
+            // distinct payloads rather than the same one repeated.
+            java.util.List<String> minted = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                String h = collab.payloadHost();
+                if (h == null) break;
+                minted.add(includeLocation.isSelected() ? h : uniquePrefix(h));
+            }
+            if (minted.isEmpty()) {
                 JOptionPane.showMessageDialog(ctx.frame(), "Could not generate a payload.",
                         "Collaborator", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            payloadField.setText(h);
+            String joined = String.join("\n", minted);
+            payloadField.setText(minted.size() == 1 ? minted.get(0)
+                    : minted.get(0) + "   (+" + (minted.size() - 1) + " more on the clipboard)");
             payloadField.setCaretPosition(0);
             Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(h), null);
-            ctx.alert("collaborator", "copied collaborator payload " + h);
+                    .setContents(new StringSelection(joined), null);
+            ctx.alert("collaborator", minted.size() == 1
+                    ? "copied collaborator payload " + minted.get(0)
+                    : "copied " + minted.size() + " collaborator payloads");
             refreshStatus();
         });
         pollNow.addActionListener(e -> {
@@ -176,10 +207,6 @@ public class CollaboratorTool implements ToolModule {
             refreshStatus();
         });
 
-        JTextField count = Ui.field("1", 4);
-        count.setToolTipText("how many payloads Copy to clipboard generates");
-        JCheckBox includeLocation = Ui.check("Include Collaborator server location", true);
-        includeLocation.setToolTipText("copy the full hostname rather than only the unique prefix");
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
         bar.setOpaque(false);
         bar.add(Ui.label("Payloads to generate:"));
@@ -276,13 +303,9 @@ public class CollaboratorTool implements ToolModule {
         return root;
     }
 
-    /** A small on/off chip for the protocol filter, on by default. */
+    /** A small on/off chip for the protocol filter, off by default. */
     private static JToggleButton filterToggle(String text) {
-        JToggleButton t = new JToggleButton(text, false);
-        t.setFont(Ui.BOLD);
-        t.setFocusable(false);
-        t.setMargin(new Insets(1, 8, 1, 8));
-        return t;
+        return Ui.chip(text);
     }
 
     private static JComponent proseTab(String content) {

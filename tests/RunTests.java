@@ -39,6 +39,8 @@ public final class RunTests {
         new opentrap.ui.ThemePaletteTest().run();
         new opentrap.ui.TabbedPaneListenerTest().run();
         new opentrap.ui.IssueBadgeTest().run();
+        new opentrap.core.MessageCharsetTest().run();
+        new opentrap.collaborator.CollaboratorPayloadTest().run();
         new opentrap.ui.ProjectTasksTest().run();
         new opentrap.ui.ProjectSlimTest().run();
 

@@ -767,6 +767,45 @@ public final class Ui {
         return p;
     }
 
+    /**
+     * A filter chip: a fully rounded pill that toggles on and off, as the
+     * Collaborator's HTTP / DNS / SMTP filters are drawn. Off it is the page
+     * colour inside a grey outline with bold dark text, measured from the
+     * reference frames; on it takes the control colour, like every other
+     * switched-on control. The accent is not used here, because it belongs to
+     * the one button that starts an action and this toolbar already has one.
+     */
+    public static JToggleButton chip(String text) {
+        JToggleButton t = new JToggleButton(text, false) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int w = getWidth(), h = getHeight(), arc = h;      // a full pill
+                if (isSelected()) {
+                    g2.setColor(Theme.CONTROL);
+                    g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                } else {
+                    g2.setColor(Theme.BG);
+                    g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                    g2.setColor(Theme.BORDER);
+                    g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
+                }
+                g2.setColor(isSelected() ? Color.WHITE : Theme.TAB_TEXT);
+                g2.setFont(getFont());
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(getText(), (w - fm.stringWidth(getText())) / 2f,
+                        (h + fm.getAscent() - fm.getDescent()) / 2f);
+                g2.dispose();
+            }
+        };
+        t.setFont(BOLD);
+        t.setFocusable(false);
+        t.setContentAreaFilled(false);
+        t.setBorder(BorderFactory.createEmptyBorder(4, 14, 4, 14));
+        t.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return t;
+    }
+
     /** A round "?" that explains the panel it sits on. */
     public static JButton helpButton(String title, String body) {
         JButton b = Glyphs.button(Glyphs.help(18, Theme.ICON), title, null);

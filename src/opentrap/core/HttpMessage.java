@@ -231,6 +231,25 @@ public class HttpMessage implements Serializable {
         return (i < 0 ? ct : ct.substring(0, i)).trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * The charset named in the Content-Type header, or "" when none is given.
+     * Only the name is returned; whether the bytes are actually valid in it is
+     * the caller's business.
+     */
+    public String charsetName() {
+        String ct = header("Content-Type");
+        if (ct == null) return "";
+        for (String part : ct.split(";")) {
+            String p = part.trim();
+            if (p.regionMatches(true, 0, "charset=", 0, 8)) {
+                String v = p.substring(8).trim();
+                if (v.length() >= 2 && v.startsWith("\"") && v.endsWith("\"")) v = v.substring(1, v.length() - 1);
+                return v;
+            }
+        }
+        return "";
+    }
+
     /** Coarse MIME grouping used by the history and site map filters. */
     public String mimeType() {
         String ct = contentType();

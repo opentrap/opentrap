@@ -87,14 +87,20 @@ public class MessageEditor extends JPanel {
     private final JTabbedPane views = new JTabbedPane() {
         @Override public void updateUI() { setUI(new ReserveTabUI()); }
     };
-    // A pretty pane that does not word-wrap: very long unbreakable lines (a
-    // base64 VIEWSTATE, a JWT) otherwise render as overlapping, garbled glyphs.
-    // Instead such lines extend and the pane scrolls horizontally.
+    /** Whether the views wrap long lines; driven by the toolbar's wrap toggle. */
+    private boolean wrapLines = true;
+
+    /**
+     * The pretty pane wraps only when the toggle says so.
+     *
+     * <p>This used to decide for itself by asking the UI for its preferred
+     * width, but Swing calls getScrollableTracksViewportWidth during layout, so
+     * that query ran inside the very layout it was trying to measure. The
+     * answer flipped mid-pass and the pane drew a long line's rows on top of
+     * one another. A plain flag cannot do that.
+     */
     private final JTextPane prettyPane = new JTextPane() {
-        @Override public boolean getScrollableTracksViewportWidth() {
-            Component parent = getParent();
-            return parent == null || getUI().getPreferredSize(this).width <= parent.getSize().width;
-        }
+        @Override public boolean getScrollableTracksViewportWidth() { return wrapLines; }
     };
     private final JTextArea rawArea = new JTextArea();
     private final HexView hexView;
@@ -227,8 +233,11 @@ public class MessageEditor extends JPanel {
         wrapToggle.setBackground(Theme.CONTROL);
         wrapToggle.addActionListener(e -> {
             boolean on = wrapToggle.isSelected();
+            wrapLines = on;
             rawArea.setLineWrap(on);
             wrapToggle.setBackground(on ? Theme.CONTROL : Theme.BG);
+            prettyPane.revalidate();
+            prettyPane.repaint();
         });
         rawArea.setLineWrap(true);
         rawArea.setWrapStyleWord(false);
@@ -473,6 +482,39 @@ public class MessageEditor extends JPanel {
     public HttpService service()  { return service; }
     public byte[] bytes()         { return message.raw(); }
 
+    /**
+     * The charset the message's text is shown in.
+     *
+     * <p>Bytes are held exactly as they arrived, so the default is ISO-8859-1,
+     * where every byte is one character and anything round-trips untouched.
+     * When a message declares a charset and its bytes really are valid in it,
+     * that one is used instead: otherwise a UTF-8 body reads as mojibake, with
+     * "sönmez" shown as "sÃ¶nmez". A declared charset the bytes do not satisfy
+     * is ignored rather than trusted, because decoding it would replace the bad
+     * sequences and an edit would then write those replacements back.
+     */
+    private java.nio.charset.Charset charsetOf(HttpMessage m) {
+        if (m == null) return java.nio.charset.StandardCharsets.ISO_8859_1;
+        String declared = m.charsetName();
+        if (declared == null || declared.isEmpty()) return java.nio.charset.StandardCharsets.ISO_8859_1;
+        try {
+            java.nio.charset.Charset cs = java.nio.charset.Charset.forName(declared);
+            if (cs.equals(java.nio.charset.StandardCharsets.ISO_8859_1)) return cs;
+            cs.newDecoder()
+              .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+              .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+              .decode(java.nio.ByteBuffer.wrap(m.raw()));
+            return cs;
+        } catch (Exception notValidInThatCharset) {
+            return java.nio.charset.StandardCharsets.ISO_8859_1;
+        }
+    }
+
+    /** The message as text, in whatever charset it declares. */
+    private String textOf(HttpMessage m) {
+        return m == null ? "" : new String(m.raw(), charsetOf(m));
+    }
+
     public void highlight(String term) {
         searchField.setText(term == null ? "" : term);
         if (term == null || term.isEmpty()) return;
@@ -492,7 +534,7 @@ public class MessageEditor extends JPanel {
 
     private void loadActiveFromMessage() {
         updating = true;
-        String text = Bytes.str(message.raw());
+        String text = textOf(message);
         prettyPane.setText(text);
         applySyntax();
         rawArea.setText(text);
@@ -503,7 +545,7 @@ public class MessageEditor extends JPanel {
 
     private void onEdit() {
         if (updating) return;
-        message.setRaw(Bytes.bytes(activeText().getText()));
+        message.setRaw(activeText().getText().getBytes(charsetOf(message)));
         // Re-colour after the current document notification completes, to avoid
         // "mutate in notification" from changing attributes mid-edit.
         if (activeText() == prettyPane) SwingUtilities.invokeLater(this::reSyntax);
@@ -519,7 +561,7 @@ public class MessageEditor extends JPanel {
 
     private void onViewChanged() {
         updating = true;
-        String text = Bytes.str(message.raw());
+        String text = textOf(message);
         JTextComponent a = activeText();
         if (a.getText().equals(text)) { updating = false; }
         else { a.setText(text); a.setCaretPosition(0); updating = false; }
