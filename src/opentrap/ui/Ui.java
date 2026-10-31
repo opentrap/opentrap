@@ -61,6 +61,46 @@ public final class Ui {
         table.getColumnModel().getColumn(col).setCellRenderer(r);
     }
 
+    /**
+     * The issue badge: a filled disc coloured by severity carrying a white
+     * glyph, "?" for a tentative finding, "i" for an informational one and "!"
+     * otherwise. Every issue list uses this, so a finding looks the same
+     * wherever it is listed.
+     */
+    public static Icon issueBadge(opentrap.core.Issue.Severity sev, opentrap.core.Issue.Confidence conf) {
+        final Color col = severityColor(sev);
+        final String glyph = conf == opentrap.core.Issue.Confidence.TENTATIVE ? "?"
+                : (sev == opentrap.core.Issue.Severity.INFORMATION ? "i" : "!");
+        return new Icon() {
+            @Override public int getIconWidth()  { return 15; }
+            @Override public int getIconHeight() { return 15; }
+            @Override public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(col);
+                g2.fillOval(x + 1, y + 1, 13, 13);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Dialog", Font.BOLD, 11));
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(glyph, x + 1 + (13 - fm.stringWidth(glyph)) / 2f,
+                        y + 1 + (13 + fm.getAscent() - fm.getDescent()) / 2f);
+                g2.dispose();
+            }
+        };
+    }
+
+    /** The badge from the words a table model holds, rather than the enums. */
+    public static Icon issueBadge(String severity, String confidence) {
+        opentrap.core.Issue.Severity sev = switch (severity == null ? "" : severity) {
+            case "High" -> opentrap.core.Issue.Severity.HIGH;
+            case "Medium" -> opentrap.core.Issue.Severity.MEDIUM;
+            case "Low" -> opentrap.core.Issue.Severity.LOW;
+            default -> opentrap.core.Issue.Severity.INFORMATION;
+        };
+        return issueBadge(sev, "Tentative".equalsIgnoreCase(confidence)
+                ? opentrap.core.Issue.Confidence.TENTATIVE : opentrap.core.Issue.Confidence.CERTAIN);
+    }
+
     /** A small filled circle coloured by severity, for the issue-type column. */
     public static javax.swing.Icon severityDot(String severity) {
         Color c = switch (severity == null ? "" : severity) {
@@ -86,6 +126,14 @@ public final class Ui {
      * survives sorting).
      */
     public static void severityIconColumn(JTable table, int textCol, int sevCol) {
+        severityIconColumn(table, textCol, sevCol, -1);
+    }
+
+    /**
+     * As above, also reading the confidence from {@code confCol} so a tentative
+     * finding gets the "?" badge. Pass -1 when the model has no confidence.
+     */
+    public static void severityIconColumn(JTable table, int textCol, int sevCol, int confCol) {
         table.getColumnModel().getColumn(textCol).setCellRenderer(
             new javax.swing.table.DefaultTableCellRenderer() {
                 @Override public Component getTableCellRendererComponent(JTable t, Object v,
@@ -93,8 +141,9 @@ public final class Ui {
                     super.getTableCellRendererComponent(t, v, sel, focus, row, column);
                     int mr = t.convertRowIndexToModel(row);
                     Object sev = t.getModel().getValueAt(mr, sevCol);
-                    setIcon(severityDot(String.valueOf(sev)));
-                    setIconTextGap(6);
+                    Object conf = confCol >= 0 ? t.getModel().getValueAt(mr, confCol) : null;
+                    setIcon(issueBadge(String.valueOf(sev), conf == null ? null : String.valueOf(conf)));
+                    setIconTextGap(7);
                     return this;
                 }
             });

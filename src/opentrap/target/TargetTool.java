@@ -344,19 +344,20 @@ public class TargetTool implements ToolModule {
         issuesTree.setShowsRootHandles(true);
         issuesTree.setFont(Ui.PLAIN);
         issuesTree.setRowHeight(18);
-        // Colour each node's icon by severity (red High, purple Medium, blue Low,
-        // grey Info), matching the dashboard badges, so severity reads at a glance.
+        // The same issue badge the lists use, so one finding looks the same
+        // whether it is read from the tree or from a table.
         issuesTree.setCellRenderer(new DefaultTreeCellRenderer() {
             @Override public Component getTreeCellRendererComponent(JTree t, Object value,
                     boolean sel, boolean exp, boolean leaf, int row, boolean focus) {
                 super.getTreeCellRendererComponent(t, value, sel, exp, leaf, row, focus);
                 Issue.Severity sev = null;
+                Issue.Confidence conf = Issue.Confidence.CERTAIN;
                 if (value instanceof DefaultMutableTreeNode n) {
                     Object o = n.getUserObject();
                     if (o instanceof IssueType it) sev = it.severity();
-                    else if (o instanceof Issue i) sev = i.severity();
+                    else if (o instanceof Issue i) { sev = i.severity(); conf = i.confidence(); }
                 }
-                setIcon(sev == null ? null : Ui.severityDot(sev));
+                setIcon(sev == null ? null : Ui.issueBadge(sev, conf));
                 return this;
             }
         });

@@ -46,7 +46,7 @@ public final class IssuesPanel extends JPanel {
         Ui.styleTable(table);
         Ui.distributeWidths(table, 140, 90, 260, 200, 200, 80, 80);
         Ui.severityColumn(table, 5);
-        Ui.severityIconColumn(table, 2, 5);
+        Ui.severityIconColumn(table, 2, 5, 6);
         advisory.setEditable(false);
         advisory.setEditorKit(Theme.htmlKit());
         table.getSelectionModel().addListSelectionListener(e -> {

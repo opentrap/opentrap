@@ -754,32 +754,9 @@ public class DashboardTool implements ToolModule {
             });
     }
 
-    /**
-     * A filled severity disc with a white glyph, matching the reference: "?" for
-     * a tentative (unconfirmed) finding, "i" for informational, "!" otherwise.
-     * The disc is coloured by severity.
-     */
+    /** The shared issue badge; every issue list in the suite uses the same mark. */
     private static javax.swing.Icon issueGlyphIcon(Issue.Severity sev, Issue.Confidence conf) {
-        final Color col = Ui.severityColor(sev);
-        final String glyph = conf == Issue.Confidence.TENTATIVE ? "?"
-                : (sev == Issue.Severity.INFORMATION ? "i" : "!");
-        return new javax.swing.Icon() {
-            @Override public int getIconWidth()  { return 15; }
-            @Override public int getIconHeight() { return 15; }
-            @Override public void paintIcon(Component c, Graphics g, int x, int y) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(col);
-                g2.fillOval(x + 1, y + 1, 13, 13);
-                g2.setColor(Color.WHITE);
-                g2.setFont(new Font("Dialog", Font.BOLD, 11));
-                FontMetrics fm = g2.getFontMetrics();
-                int tx = x + 1 + (13 - fm.stringWidth(glyph)) / 2;
-                int ty = y + 1 + (13 + fm.getAscent() - fm.getDescent()) / 2;
-                g2.drawString(glyph, tx, ty);
-                g2.dispose();
-            }
-        };
+        return Ui.issueBadge(sev, conf);
     }
 
     /** A small pennant/flag glyph shown to the left of the task title. */
@@ -856,7 +833,7 @@ public class DashboardTool implements ToolModule {
         Ui.styleTable(issuesTable);
         Ui.distributeWidths(issuesTable, 95, 70, 190, 140, 130, 110, 80, 80, 110);
         Ui.severityColumn(issuesTable, 6);           // Severity column
-        Ui.severityIconColumn(issuesTable, 2, 6);    // severity dot before the issue type
+        Ui.severityIconColumn(issuesTable, 2, 6, 7);  // the issue badge before the issue type
         issuesTable.getSelectionModel().addListSelectionListener(this::onIssueRowSelected);
 
         issueDetail = new JEditorPane();
