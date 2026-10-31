@@ -41,6 +41,7 @@ public final class RunTests {
         new opentrap.ui.IssueBadgeTest().run();
         new opentrap.ui.FieldUniformityTest().run();
         new opentrap.ui.SettingsPagesTest().run();
+        new opentrap.dashboard.ScanWizardTest().run();
         new opentrap.core.MessageCharsetTest().run();
         new opentrap.collaborator.CollaboratorPayloadTest().run();
         new opentrap.proxy.CertificateModeTest().run();

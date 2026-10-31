@@ -359,12 +359,20 @@ public final class ScanConfigPanel extends JPanel {
         return p;
     }
 
-    private static JTextField asField(JSpinner s) {
-        // OptionsPage.fieldRow takes a text field; wrap the spinner's editor so it lines up.
+    /**
+     * Size a spinner to sit on a field row.
+     *
+     * <p>This used to reach inside the spinner and hand back its editor's text
+     * field. Adding that field to a row took it out of the editor, because a
+     * component has one parent, and the editor was left with no children. The
+     * next setValue on the spinner then threw, which is what stopped the New
+     * scan wizard opening at all. The spinner goes on the row whole.
+     */
+    private static JSpinner asField(JSpinner s) {
         JTextField f = ((JSpinner.DefaultEditor) s.getEditor()).getTextField();
         f.setColumns(5);
         f.setFont(Ui.PLAIN);
-        return f;
+        return s;
     }
 
     // ---- presets ----

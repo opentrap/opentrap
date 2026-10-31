@@ -103,7 +103,7 @@ public class OptionsPage extends JPanel {
     }
 
     /** A labelled numeric or text field row; the label sits in the shared column. */
-    public static JPanel fieldRow(String label, JTextField field, String suffix) {
+    public static JPanel fieldRow(String label, JComponent field, String suffix) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
         p.setOpaque(false);
         p.add(formLabel(label));
