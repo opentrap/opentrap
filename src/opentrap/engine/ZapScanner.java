@@ -196,6 +196,13 @@ public final class ZapScanner {
 
             Map<String, Issue.Severity> seen = new HashMap<>();
             int doneSeeds = 0;
+            // Throttled proof-of-life for the event log. The active-scan
+            // percentage can sit at 0 for a while as the engine builds its
+            // attack queue, so - like the crawl's "Discovered N locations" - the
+            // audit reports what it has done so far whenever the numbers move, at
+            // most about once every 15s, so a flat bar never reads as hung.
+            long lastProgressLog = 0;
+            int lastLoggedReq = -1, lastLoggedFind = -1;
             for (Seed seed : seeds) {
                 if (auditTask.cancelled()) break;
                 // The audit is bound to the scope context: only what the crawl
@@ -233,6 +240,15 @@ public final class ZapScanner {
                     auditTask.setItemsDone(Math.min(100, (doneSeeds * 100 + Math.max(0, st)) / seeds.size()));
                     pullAlerts(seed.service().url(), auditTask, seen);
                     drain("audit", false, auditTask);
+                    long nowMs = System.currentTimeMillis();
+                    int req = auditTask.requests(), finds = seen.size();
+                    if (nowMs - lastProgressLog >= 15000 && (req != lastLoggedReq || finds != lastLoggedFind)) {
+                        auditTask.log("Auditing " + seed.service().host() + ": "
+                                + req + " request(s), " + finds + " finding(s) so far");
+                        lastProgressLog = nowMs;
+                        lastLoggedReq = req;
+                        lastLoggedFind = finds;
+                    }
                     ctx.taskChanged(auditTask);
                     if (st >= 100) break;
                     Thread.sleep(2000);

@@ -113,11 +113,11 @@ public class DashboardTool implements ToolModule {
     private final JLabel cfgScope  = Ui.label("");
     private final JLabel cfgConfig = Ui.label("");
 
-    // Task progress: the six metrics we can source from the ZAP engine, shown
-    // in two columns matching the reference layout.
+    // Task progress: the metrics we can source honestly from the ZAP engine,
+    // shown in two columns matching the reference layout. Pending items and
+    // network errors are not reported by the engine we poll, so they are left
+    // out rather than shown as a fixed zero.
     private final JLabel progTotalItems   = Ui.label("");
-    private final JLabel progItemsPending = Ui.label("0");
-    private final JLabel progErrors       = Ui.label("0");
     private JPanel cfgCapturingRow;
     private ToggleSwitch cfgCapturing;
     private JComponent cfgLink;
@@ -719,9 +719,8 @@ public class DashboardTool implements ToolModule {
         JPanel g = new JPanel(new GridBagLayout());
         g.setOpaque(false);
         addKv2(g, 0, "Total audit items:", progTotalItems, "Requests:", progRequests);
-        addKv2(g, 1, "Audit items pending:", progItemsPending, "Network errors:", progErrors);
-        addKv2(g, 2, "Audit items in progress:", progItemsActive, "", new JLabel(""));
-        addKv2(g, 3, "Audit items completed:", progItemsDone, "", new JLabel(""));
+        addKv2(g, 1, "Audit items in progress:", progItemsActive, "", new JLabel(""));
+        addKv2(g, 2, "Audit items completed:", progItemsDone, "", new JLabel(""));
         return g;
     }
 
@@ -2138,11 +2137,9 @@ public class DashboardTool implements ToolModule {
         // A live audit's items are the distinct locations it has audited so far.
         int liveItems = liveLocations.size();
         progTotalItems.setText(Integer.toString(passive ? liveItems : ruleTotal));
-        progItemsPending.setText("0");
         progItemsActive.setText(Integer.toString(passive ? 0 : active));
         progItemsDone.setText(Integer.toString(passive ? liveItems : completed));
         progRequests.setText(Integer.toString(t.requests()));
-        progErrors.setText("0");
 
         summaryTaskLog.setText(String.join("\n", t.logLines()));
         summaryTaskLog.setCaretPosition(summaryTaskLog.getDocument().getLength());
