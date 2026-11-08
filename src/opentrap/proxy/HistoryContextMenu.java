@@ -14,12 +14,21 @@ public class HistoryContextMenu {
 
     private final SuiteContext ctx;
     private final JTable table;
-    private final HistoryModel model;
+    private final java.util.function.IntFunction<LogEntry> resolver;
+    private final java.util.function.Consumer<LogEntry> remover;   // null: no delete action
 
     public HistoryContextMenu(SuiteContext ctx, JTable table, HistoryModel model) {
+        this(ctx, table, model::at, model::remove);
+    }
+
+    /** For any table of entries: a row-to-entry resolver, and a remover (or null). */
+    public HistoryContextMenu(SuiteContext ctx, JTable table,
+                              java.util.function.IntFunction<LogEntry> resolver,
+                              java.util.function.Consumer<LogEntry> remover) {
         this.ctx = ctx;
         this.table = table;
-        this.model = model;
+        this.resolver = resolver;
+        this.remover = remover;
     }
 
     public void install() {
@@ -38,7 +47,7 @@ public class HistoryContextMenu {
     private List<LogEntry> selected() {
         List<LogEntry> out = new ArrayList<>();
         for (int r : table.getSelectedRows()) {
-            LogEntry e = model.at(table.convertRowIndexToModel(r));
+            LogEntry e = resolver.apply(table.convertRowIndexToModel(r));
             if (e != null) out.add(e);
         }
         return out;
@@ -94,9 +103,11 @@ public class HistoryContextMenu {
             menu.addSeparator();
         }
 
-        add(menu, single ? "delete item" : "delete selected items", () -> {
-            for (LogEntry e : sel) model.remove(e);
-        });
+        if (remover != null) {
+            add(menu, single ? "delete item" : "delete selected items", () -> {
+                for (LogEntry e : sel) remover.accept(e);
+            });
+        }
         add(menu, single ? "copy URL" : "copy selected URLs", () -> {
             StringBuilder sb = new StringBuilder();
             for (LogEntry e : sel) sb.append(e.url()).append('\n');

@@ -326,6 +326,9 @@ public class DashboardTool implements ToolModule {
         lightHeader(scanLogTable);
         scanLogTable.setRowSorter(new javax.swing.table.TableRowSorter<>(scanLogModel));
         Ui.newestFirst(scanLogTable, 0);
+        // The same right-click menu the proxy history has: send to Repeater,
+        // Intruder, add to scope, copy URL. No delete: the scan owns this log.
+        new opentrap.proxy.HistoryContextMenu(ctx, scanLogTable, scanLogModel::at, null).install();
         scanReq  = new MessageEditor(ctx, MessageEditor.REQUEST, false);
         scanResp = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
         scanLogTable.getSelectionModel().addListSelectionListener(e -> showScanSelected());
