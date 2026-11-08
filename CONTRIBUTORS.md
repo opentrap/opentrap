@@ -23,3 +23,4 @@ will be added.
 A clear bug report is a contribution: these people found and reported problems that were then fixed.
 
 - PotatoGamo - reported the poor contrast of the dark theme (#26), which led to the dark theme being rebuilt
+- dmlino (Diogo Lino) - reported that large captures slowed the project down (#37), which led to the disk-backed single-file project store
