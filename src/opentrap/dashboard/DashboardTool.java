@@ -132,6 +132,19 @@ public class DashboardTool implements ToolModule {
     private MessageEditor issueRequest;
     private MessageEditor issueResponse;
 
+    // Every request/response viewer the dashboard builds. Some are created in the
+    // constructor, before the context exists, so their right-click menu (send to
+    // Repeater, Intruder, ...) would have no sinks; init() hands the context to
+    // all of them at once, so every viewer behaves the same wherever it appears.
+    private final java.util.List<MessageEditor> editors = new java.util.ArrayList<>();
+
+    /** Build a viewer and register it so init() can give it the context. */
+    private MessageEditor newEditor(int kind) {
+        MessageEditor m = new MessageEditor(ctx, kind, false);
+        editors.add(m);
+        return m;
+    }
+
     private final JTextArea eventLog = new JTextArea();
 
     public DashboardTool() {
@@ -151,11 +164,11 @@ public class DashboardTool implements ToolModule {
 
     @Override public void init(SuiteContext ctx) {
         this.ctx = ctx;
-        // The scan viewers are built in the constructor, before the context
-        // exists, so hand it to them now; otherwise their right-click menu (send
-        // to Repeater, Intruder, ...) has no sinks and does nothing.
-        if (scanReq != null)  scanReq.setContext(ctx);
-        if (scanResp != null) scanResp.setContext(ctx);
+        // The viewers built in the constructor have no context yet, so their
+        // right-click menu (send to Repeater, Intruder, ...) has no sinks and
+        // does nothing. Hand the context to every registered viewer now, so an
+        // audit-item, scan or logger request reads the same as any other.
+        for (MessageEditor m : editors) m.setContext(ctx);
         // Let a right-click in the site map or history start a scan through us.
         ctx.setScanLauncher((url, audit) ->
                 startSpiderFor(url, audit, opentrap.engine.ScanConfig.preset("Balanced"), 10));
@@ -190,8 +203,8 @@ public class DashboardTool implements ToolModule {
             }
         });
 
-        issueRequest  = new MessageEditor(ctx, MessageEditor.REQUEST, false);
-        issueResponse = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
+        issueRequest  = newEditor(MessageEditor.REQUEST);
+        issueResponse = newEditor(MessageEditor.RESPONSE);
         issueSplit.setTopComponent(issueRequest);
         issueSplit.setBottomComponent(issueResponse);
 
@@ -401,8 +414,8 @@ public class DashboardTool implements ToolModule {
         // The same right-click menu the proxy history has: send to Repeater,
         // Intruder, add to scope, copy URL. No delete: the scan owns this log.
         new opentrap.proxy.HistoryContextMenu(ctx, scanLogTable, scanLogModel::at, null).install();
-        scanReq  = new MessageEditor(ctx, MessageEditor.REQUEST, false);
-        scanResp = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
+        scanReq  = newEditor(MessageEditor.REQUEST);
+        scanResp = newEditor(MessageEditor.RESPONSE);
         scanLogTable.getSelectionModel().addListSelectionListener(e -> showScanSelected());
         JScrollPane logScroll = new JScrollPane(scanLogTable);
         logScroll.setBorder(BorderFactory.createLineBorder(Ui.GRID));
@@ -1350,7 +1363,7 @@ public class DashboardTool implements ToolModule {
         Ui.distributeWidths(auditItemsTable, 40, 150, 260, 90, 90, 110, 110, 60, 70, 60, 90, 120, 120, 120, 120);
         lightHeader(auditItemsTable);
         for (int c : new int[]{4, 5, 6}) auditItemsTable.getColumnModel().getColumn(c).setCellRenderer(new PhaseRenderer());
-        auditBaseRequest = new MessageEditor(ctx, MessageEditor.REQUEST, false);
+        auditBaseRequest = newEditor(MessageEditor.REQUEST);
         auditItemsTable.getSelectionModel().addListSelectionListener(e -> {
             int r = auditItemsTable.getSelectedRow();
             if (r < 0) return;
@@ -1506,8 +1519,8 @@ public class DashboardTool implements ToolModule {
         lightHeader(table);
         table.setRowSorter(new javax.swing.table.TableRowSorter<>(scanLogModel));
         Ui.newestFirst(table, 0);
-        MessageEditor req = new MessageEditor(ctx, MessageEditor.REQUEST, false);
-        MessageEditor resp = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
+        MessageEditor req = newEditor(MessageEditor.REQUEST);
+        MessageEditor resp = newEditor(MessageEditor.RESPONSE);
         table.getSelectionModel().addListSelectionListener(e -> {
             int row = table.getSelectedRow();
             if (row < 0) return;
