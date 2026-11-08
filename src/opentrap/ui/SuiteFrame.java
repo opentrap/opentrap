@@ -131,13 +131,17 @@ public class SuiteFrame extends JFrame {
         west.setOpaque(false);
         west.add(eventLogLabel);
         west.add(issuesLabel);
-        west.add(statusLabel);
         p.add(west, BorderLayout.WEST);
 
-        JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        // The right-hand side carries the project/save detail and the memory
+        // readout together: the project saved note and disk size, the numeric
+        // memory in use, then the help glyph and the live meter.
+        JPanel east = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         east.setOpaque(false);
         JLabel info = new JLabel(Glyphs.help(16, Theme.MUTED));
         info.setToolTipText("Memory in use by OpenTRAP");
+        east.add(statusLabel);
+        east.add(memoryLabel);
         east.add(info);
         east.add(memoryMeter);
         p.add(east, BorderLayout.EAST);
