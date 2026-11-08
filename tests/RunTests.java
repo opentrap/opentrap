@@ -46,6 +46,7 @@ public final class RunTests {
         new opentrap.ui.IssueBurstTest().run();
         new opentrap.dashboard.ScanWizardTest().run();
         new opentrap.core.MessageCharsetTest().run();
+        new opentrap.core.IssueAttributionTest().run();
         new opentrap.collaborator.CollaboratorPayloadTest().run();
         new opentrap.proxy.CertificateModeTest().run();
         new opentrap.proxy.CertificateAuthorityIsolationTest().run();

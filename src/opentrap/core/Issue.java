@@ -86,6 +86,14 @@ public final class Issue implements java.io.Serializable {
     // Lazily built so a project saved before this field existed still loads.
     private java.util.List<String> locations;
 
+    // Every scan that found this issue, as task source labels ("Live audit",
+    // "Scan 3"). The global issue set is de-duplicated, so a finding re-raised by
+    // a later scan would otherwise be dropped and that scan's view would show
+    // nothing of its own; instead each finding records every scan that raised it,
+    // and a task's view shows the issues it found. Lazily built so a project
+    // saved before this field existed still loads.
+    private java.util.Set<String> foundBy;
+
     public Issue(String title, Severity severity, Confidence confidence,
                  HttpService service, String path, String param,
                  String detail, String background, String remediation,
@@ -147,7 +155,10 @@ public final class Issue implements java.io.Serializable {
     public Dedupe dedupeScope()      { return dedupe; }
     public long time()               { return time; }
     public String source()           { return source; }
-    public void setSource(String s)  { this.source = s == null ? "" : s; }
+    public void setSource(String s)  {
+        this.source = s == null ? "" : s;
+        if (!this.source.isEmpty()) addFoundBy(this.source);
+    }
     public String comment()          { return comment; }
     public void setComment(String c) { this.comment = c == null ? "" : c; }
 
@@ -184,6 +195,32 @@ public final class Issue implements java.io.Serializable {
         if (locations.contains(label)) return false;
         locations.add(label);
         return true;
+    }
+
+    private void ensureFoundBy() {
+        if (foundBy == null) {
+            foundBy = new java.util.LinkedHashSet<>();
+            if (source != null && !source.isEmpty()) foundBy.add(source);
+        }
+    }
+
+    /** The scans that found this issue ("Live audit", "Scan 3"), in the order seen. */
+    public synchronized java.util.Set<String> foundBy() {
+        ensureFoundBy();
+        return new java.util.LinkedHashSet<>(foundBy);
+    }
+
+    /** Record another scan as a finder of this issue; returns true when newly recorded. */
+    public synchronized boolean addFoundBy(String s) {
+        if (s == null || s.isEmpty()) return false;
+        ensureFoundBy();
+        return foundBy.add(s);
+    }
+
+    /** True when the named scan found this issue. */
+    public synchronized boolean foundBy(String s) {
+        ensureFoundBy();
+        return foundBy.contains(s);
     }
 
     /**

@@ -2170,7 +2170,7 @@ public class DashboardTool implements ToolModule {
         if (t != null && t.type() != ScanTask.Type.LIVE_PASSIVE) {
             String source = "Scan " + t.number;
             rows = new ArrayList<>();
-            for (Issue i : allIssues) if (source.equals(i.source())) rows.add(i);
+            for (Issue i : allIssues) if (i.foundBy(source)) rows.add(i);
         }
         summaryModel.setIssues(rows);
         issuesModel.setIssues(rows);

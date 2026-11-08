@@ -241,7 +241,11 @@ public final class ZapScanner {
                     pullAlerts(seed.service().url(), auditTask, seen);
                     drain("audit", false, auditTask);
                     long nowMs = System.currentTimeMillis();
-                    int req = auditTask.requests(), finds = seen.size();
+                    int req = auditTask.requests();
+                    // De-duplicated findings this task raised, not the raw alert count.
+                    String asrc = "Scan " + auditTask.number;
+                    int finds = 0;
+                    for (Issue is : ctx.issues()) if (is.foundBy(asrc)) finds++;
                     if (nowMs - lastProgressLog >= 15000 && (req != lastLoggedReq || finds != lastLoggedFind)) {
                         auditTask.log("Auditing " + seed.service().host() + ": "
                                 + req + " request(s), " + finds + " finding(s) so far");
@@ -367,7 +371,6 @@ public final class ZapScanner {
      */
     private void pullAlerts(String baseurl, ScanTask task, Map<String, Issue.Severity> seen) throws Exception {
         String source = "Scan " + task.number;
-        boolean reattributed = false;
         // One evidence cache for this listing: findings on the same message
         // share its request/response pair instead of copying it per alert.
         java.util.Map<String, Evidence> evidence = new java.util.HashMap<>();
@@ -378,21 +381,18 @@ public final class ZapScanner {
             if (is == null) continue;
             seen.put(id, is.severity());
             is.setSource(source);
-            if (!ctx.addIssue(is)) {
-                // The live passive poller reads every engine alert, including the
-                // ones this audit raises, and usually gets there first. A finding
-                // the audit made belongs to the audit, so take it over.
-                Issue held = ctx.existingIssue(is);
-                if (held != null && LivePassiveScanner.SOURCE.equals(held.source())) {
-                    held.setSource(source);
-                    reattributed = true;
-                }
-            }
+            // addIssue de-duplicates and records this task as a finder, so the
+            // live passive poller getting to a finding first no longer hides it
+            // from the audit's own view, and a re-run audit shows it too.
+            ctx.addIssue(is);
         }
-        if (reattributed) ctx.issuesChanged();
+        // The card counts are this task's de-duplicated findings by severity, not
+        // the raw alert count: a site-wide finding seen on many URLs is one issue,
+        // so counting raw alerts over-stated the total many times over.
         int h = 0, m = 0, l = 0, i = 0;
-        for (Issue.Severity sev : seen.values()) {
-            switch (sev) {
+        for (Issue is : ctx.issues()) {
+            if (!is.foundBy(source)) continue;
+            switch (is.severity()) {
                 case HIGH -> h++;
                 case MEDIUM -> m++;
                 case LOW -> l++;

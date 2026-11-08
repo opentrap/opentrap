@@ -212,7 +212,12 @@ public class SuiteContext {
         if (i == null) return false;
         Issue existing = issueByKey.putIfAbsent(i.dedupeKey(), i);
         if (existing != null) {
-            if (existing.addLocation(i.path(), i.param())) {
+            // Same finding seen again: record this scan as a finder and the new
+            // location, so each task's view shows the issues it found even though
+            // the issue itself is stored once.
+            boolean changed = existing.addLocation(i.path(), i.param());
+            changed |= existing.addFoundBy(i.source());
+            if (changed) {
                 touch();
                 for (IssueListener l : issueListeners) l.issueUpdated(existing);
             }
