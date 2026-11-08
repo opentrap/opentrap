@@ -778,7 +778,8 @@ public class TargetTool implements ToolModule {
             addEngagementSubmenu(menu, le, true);
             menu.addSeparator();
             if (le.response() != null) {
-                addItem(menu, "open response in browser", () -> opentrap.ui.MessageActions.openResponseInBrowser(le.response()));
+                addItem(menu, "open response in browser", () -> opentrap.ui.MessageActions.openResponseInBrowser(
+                        ctx.frame(), ctx, le.service(), le.request(), le.response()));
             }
             addItem(menu, "copy URL", () -> opentrap.ui.MessageActions.clip(le.url()));
             if (le.request() != null) {

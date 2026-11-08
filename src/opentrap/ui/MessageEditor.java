@@ -1292,15 +1292,9 @@ public class MessageEditor extends JPanel {
     }
 
     private void openResponseInBrowser() {
-        try {
-            java.io.File f = java.io.File.createTempFile("opentrap-resp", ".html");
-            f.deleteOnExit();   // the browser keeps the file open; clean up at exit
-            try (java.io.PrintWriter w = new java.io.PrintWriter(f, java.nio.charset.StandardCharsets.ISO_8859_1)) {
-                w.print(message.bodyText());
-            }
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE))
-                Desktop.getDesktop().browse(f.toURI());
-        } catch (Exception ignored) {}
+        MessageActions.openResponseInBrowser(this, ctx, service,
+                relatedRequest != null ? relatedRequest : (message.isRequest() ? message : null),
+                message.isRequest() ? null : message);
     }
 
     private String asCurl() {

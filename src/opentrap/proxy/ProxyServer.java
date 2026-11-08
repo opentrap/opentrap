@@ -69,6 +69,43 @@ public class ProxyServer {
 
     private Observer observer;
 
+    // Responses staged for "show in browser". A captured response is parked
+    // under a random token; opening the sentinel http://opentrap/show/<token>
+    // through the proxy redirects the browser to the genuine URL and arms a
+    // one-shot so the very next hit on that URL is answered with the stored
+    // bytes instead of the live server. The address bar then shows the real
+    // URL while the page is exactly what was captured, and sub-resources load
+    // live, which is how the response is meant to be viewed.
+    private static final class Staged {
+        final String url;        // the genuine absolute URL, or null to serve inline
+        final byte[] bytes;      // the full captured response (status line, headers, body)
+        Staged(String url, byte[] bytes) { this.url = url; this.bytes = bytes; }
+    }
+    // Bounded so a long session of "open in browser" clicks cannot pin an
+    // unbounded amount of captured response bytes in memory; the oldest staged
+    // response falls off once the cap is reached.
+    private static final int MAX_STAGED = 16;
+    private final Map<String, Staged> showByToken = Collections.synchronizedMap(
+            new LinkedHashMap<>(32, 0.75f, false) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, Staged> e) {
+                    return size() > MAX_STAGED;
+                }
+            });
+    private final Map<String, byte[]> pendingShowByUrl = new ConcurrentHashMap<>();
+
+    /**
+     * Park a captured response for viewing in a proxied browser and return the
+     * sentinel URL to open. When {@code realUrl} is non-null the sentinel
+     * redirects to it and the stored response is served for that one hit, so
+     * the browser shows the genuine address; when null the bytes are served at
+     * the sentinel itself.
+     */
+    public String stageShow(String realUrl, byte[] responseBytes) {
+        String token = UUID.randomUUID().toString().replace("-", "");
+        showByToken.put(token, new Staged(realUrl, responseBytes));
+        return "http://opentrap/show/" + token;
+    }
+
     public ProxyServer(SuiteContext ctx, Path caDir) throws Exception {
         this.ctx = ctx;
         this.ca = new CertificateAuthority(caDir);
@@ -354,9 +391,22 @@ public class ProxyServer {
                         cfg.redirectPort > 0 ? cfg.redirectPort : svc.port(), svc.secure());
             }
 
-            // Serve our own CA so the user can install it without a side channel.
+            // Serve our own CA so the user can install it without a side
+            // channel, and the "show in browser" sentinel.
             if (isLocalRequest(request, svc)) {
-                serveCertificate(out, request.path());
+                String p = request.path();
+                if (p.startsWith("/show/")) serveShow(out, p);
+                else serveCertificate(out, p);
+                return false;
+            }
+
+            // A response staged for viewing: answer this one hit from the store
+            // (consuming the one-shot) so the browser renders exactly what was
+            // captured while showing the genuine URL.
+            byte[] staged = pendingShowByUrl.remove(svc.url() + request.requestTarget());
+            if (staged != null) {
+                out.write(staged);
+                out.flush();
                 return false;
             }
 
@@ -471,6 +521,34 @@ public class ProxyServer {
             String h = svc.host();
             return h.equals("opentrap") || h.equals("opentrap.proxy")
                 || ((h.equals("localhost") || h.equals("127.0.0.1")) && svc.port() == cfg.port);
+        }
+
+        private void serveShow(OutputStream out, String path) throws Exception {
+            String token = path.substring("/show/".length());
+            int slash = token.indexOf('/');
+            if (slash >= 0) token = token.substring(0, slash);
+            Staged s = showByToken.get(token);
+            if (s == null) {
+                byte[] b = Bytes.bytes("<html><body><h2>OpenTRAP</h2>"
+                        + "<p>This response is no longer staged for viewing.</p></body></html>");
+                out.write(Bytes.bytes("HTTP/1.1 404 Not Found\r\nContent-Type: text/html; charset=utf-8\r\n"
+                        + "Content-Length: " + b.length + "\r\nConnection: close\r\n\r\n"));
+                out.write(b);
+                out.flush();
+                return;
+            }
+            if (s.url == null) {
+                // No genuine URL to show; serve the captured bytes directly.
+                out.write(s.bytes);
+                out.flush();
+                return;
+            }
+            // Arm the one-shot and send the browser to the genuine URL.
+            pendingShowByUrl.put(s.url, s.bytes);
+            String head = "HTTP/1.1 302 Found\r\nLocation: " + s.url
+                    + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            out.write(Bytes.bytes(head));
+            out.flush();
         }
 
         private void serveCertificate(OutputStream out, String path) throws Exception {

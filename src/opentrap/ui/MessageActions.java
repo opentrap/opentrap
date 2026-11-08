@@ -4,15 +4,29 @@ import opentrap.core.HttpMessage;
 import opentrap.core.HttpService;
 import opentrap.core.LogEntry;
 import opentrap.core.SuiteContext;
+import opentrap.core.ToolModule;
+import opentrap.proxy.ProxyListener;
+import opentrap.proxy.ProxyServer;
+import opentrap.proxy.ProxyTool;
 
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Desktop;
+import java.awt.FlowLayout;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.datatransfer.StringSelection;
-import java.io.File;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -45,18 +59,98 @@ public final class MessageActions {
         return b.toString();
     }
 
-    /** Write the response body to a temporary file and open it in the system browser. */
-    public static void openResponseInBrowser(HttpMessage response) {
-        try {
-            File f = File.createTempFile("opentrap-resp", ".html");
-            f.deleteOnExit();
-            try (PrintWriter w = new PrintWriter(f, StandardCharsets.ISO_8859_1)) {
-                w.print(response.bodyText());
-            }
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                Desktop.getDesktop().browse(f.toURI());
-            }
-        } catch (Exception ignored) {}
+    private static final String SHOW_COPY_ONLY = "proxy.showInBrowser.copyOnly";
+
+    /** The proxy server, if one is registered, else null. */
+    private static ProxyServer proxyServer(SuiteContext ctx) {
+        if (ctx == null) return null;
+        for (ToolModule t : ctx.tools()) if (t instanceof ProxyTool pt) return pt.server();
+        return null;
+    }
+
+    /** The port of a running proxy listener, or -1. */
+    private static int runningPort(ProxyServer server) {
+        if (server == null) return -1;
+        for (ProxyListener l : server.listeners()) if (l.running) return l.port;
+        return -1;
+    }
+
+    /**
+     * Show a captured response in a proxied browser the way the reference tools
+     * do: the stored bytes are parked behind a sentinel URL on the proxy, which
+     * redirects the browser to the genuine address and serves the response for
+     * that hit. The browser therefore shows the real URL while rendering exactly
+     * what was captured, and the view is confined to a browser that is proxied
+     * through OpenTRAP. The user is given the sentinel URL to paste into the
+     * OpenTRAP browser, because the response can only be shown through the proxy.
+     */
+    public static void openResponseInBrowser(Component parent, SuiteContext ctx,
+                                             HttpService svc, HttpMessage request, HttpMessage response) {
+        if (response == null) return;
+        ProxyServer server = proxyServer(ctx);
+        if (runningPort(server) < 0) {
+            JOptionPane.showMessageDialog(parent,
+                    "Start a proxy listener first, then open the OpenTRAP browser; a response\n"
+                    + "can only be shown through the proxy so the real URL and page are preserved.",
+                    "Open response in browser", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String realUrl = (svc == null || request == null) ? null
+                : svc.url() + request.requestTarget();
+        String sentinel = server.stageShow(realUrl, response.raw());
+
+        if (ctx.settings().getBool(SHOW_COPY_ONLY, false)) {
+            clip(sentinel);
+            ctx.alert("Open response in browser",
+                    "URL copied; paste it into the OpenTRAP browser.");
+            return;
+        }
+        showSentinelDialog(parent, ctx, sentinel);
+    }
+
+    /** The reference-style "paste this URL into your proxied browser" dialog. */
+    private static void showSentinelDialog(Component parent, SuiteContext ctx, String sentinel) {
+        Window owner = parent == null ? null : SwingUtilities.getWindowAncestor(parent);
+        JDialog d = new JDialog(owner, "Show response in browser", JDialog.ModalityType.MODELESS);
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBorder(BorderFactory.createEmptyBorder(14, 16, 12, 16));
+
+        JLabel msg = new JLabel("<html>To show this response in your browser, copy the URL below and"
+                + " paste it into a browser that is proxied through OpenTRAP (the OpenTRAP browser,"
+                + " opened from the Proxy tab).</html>");
+        msg.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(msg);
+        body.add(Box.createVerticalStrut(10));
+
+        JTextField url = new JTextField(sentinel);
+        url.setEditable(false);
+        url.setCaretPosition(0);
+        url.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(url);
+        body.add(Box.createVerticalStrut(8));
+
+        JCheckBox copyOnly = new JCheckBox("In future, just copy the URL and don't show this dialog");
+        copyOnly.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(copyOnly);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
+        JButton copy = new JButton("Copy");
+        JButton close = new JButton("Close");
+        copy.addActionListener(e -> { clip(sentinel); url.selectAll(); url.requestFocusInWindow(); });
+        close.addActionListener(e -> {
+            if (copyOnly.isSelected()) ctx.settings().setBool(SHOW_COPY_ONLY, true);
+            d.dispose();
+        });
+        buttons.add(copy);
+        buttons.add(close);
+
+        d.add(body, BorderLayout.CENTER);
+        d.add(buttons, BorderLayout.SOUTH);
+        d.getRootPane().setDefaultButton(copy);
+        d.pack();
+        d.setLocationRelativeTo(parent);
+        d.setVisible(true);
     }
 
     private static final Pattern LINK = Pattern.compile(

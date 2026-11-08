@@ -136,7 +136,9 @@ public class HistoryContextMenu {
         menu.add(record);
 
         // Browser.
-        if (first.response() != null) addK(menu, "Open response in browser", null, () -> openInBrowser(first));
+        if (first.response() != null) addK(menu, "Open response in browser", null,
+                () -> opentrap.ui.MessageActions.openResponseInBrowser(
+                        table, ctx, first.service(), first.request(), first.response()));
         JMenu inBrowser = sub("Request in browser");
         addK(inBrowser, "In original session", null, () -> openInBrowser(first));
         addK(inBrowser, "In current browser session", null, () -> openInBrowser(first));
