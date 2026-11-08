@@ -909,16 +909,4 @@ public class MessageEditor extends JPanel {
     private static String capitalise(String s) {
         return s == null || s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
-
-    /** Names the engagement-tool sinks that belong in the Engagement tools submenu. */
-    private static final class Engagement {
-        static boolean isEngagement(String t) { return t.equals("CSRF PoC") || t.equals("content discovery"); }
-        static String label(String t) {
-            return switch (t) {
-                case "CSRF PoC" -> "Generate CSRF PoC";
-                case "content discovery" -> "Discover content";
-                default -> t;
-            };
-        }
-    }
 }

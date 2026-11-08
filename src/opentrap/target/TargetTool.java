@@ -660,20 +660,65 @@ public class TargetTool implements ToolModule {
                 ctx.scopeChanged();
             });
         }
-        // Per-request actions (send to Repeater, CSRF PoC, ...) only belong on a
-        // node that is itself one request: a host or a folder is not a request, so
-        // offering them there would act on an arbitrary child. Those actions live
-        // on the item table to the right, which lists the individual requests.
-        if (node.entry != null) {
+        LogEntry le = node.entry;
+        if (le != null) {
+            // This node is one request: the standard send-to tools flat, then the
+            // engagement tools in their own submenu, as the reference lays them out.
             menu.addSeparator();
-            final LogEntry le = node.entry;
             for (String tool : ctx.sinkNames()) {
-                addItem(menu, "send to " + tool, () -> ctx.sendTo(tool, le.service(),
-                        le.request() == null ? null : le.request().copy(),
-                        le.response() == null ? null : le.response().copy(), null));
+                if (opentrap.ui.Engagement.isEngagement(tool)) continue;
+                final String to = tool; final LogEntry e = le;
+                addItem(menu, "send to " + to, () -> ctx.sendTo(to, e.service(),
+                        e.request() == null ? null : e.request().copy(),
+                        e.response() == null ? null : e.response().copy(), null));
+            }
+            addEngagementSubmenu(menu, le, true);
+        } else {
+            // A host or folder is not one request, so it offers only the path-level
+            // engagement tools (content discovery, not a per-request CSRF PoC) and a
+            // way to copy the URLs it contains, mirroring the reference host menu.
+            java.util.List<LogEntry> ents = node.entries();
+            LogEntry rep = ents.isEmpty() ? null : ents.get(0);
+            if (rep != null) addEngagementSubmenu(menu, rep, false);
+            if (!ents.isEmpty()) {
+                menu.addSeparator();
+                addItem(menu, "copy URLs in this host", () -> {
+                    StringBuilder sb = new StringBuilder();
+                    for (LogEntry e : ents) sb.append(e.url()).append('\n');
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+                            .setContents(new java.awt.datatransfer.StringSelection(sb.toString().trim()), null);
+                });
             }
         }
         return menu;
+    }
+
+    /**
+     * The engagement-tools submenu. {@code includeRequestTools} false drops the
+     * tools that need a single specific request (a CSRF PoC), leaving the ones
+     * that work from a path (content discovery), for a host or folder node.
+     */
+    private void addEngagementSubmenu(JPopupMenu menu, LogEntry le, boolean includeRequestTools) {
+        if (le == null || le.request() == null) return;
+        java.util.List<String> eng = new java.util.ArrayList<>();
+        for (String tool : ctx.sinkNames()) {
+            if (!opentrap.ui.Engagement.isEngagement(tool)) continue;
+            if (!includeRequestTools && opentrap.ui.Engagement.needsRequest(tool)) continue;
+            eng.add(tool);
+        }
+        if (eng.isEmpty()) return;
+        JMenu sub = new JMenu("engagement tools");
+        sub.setFont(Ui.PLAIN);
+        for (String tool : eng) {
+            final String to = tool; final LogEntry e = le;
+            JMenuItem mi = new JMenuItem(opentrap.ui.Engagement.label(to));
+            mi.setFont(Ui.PLAIN);
+            mi.addActionListener(ev -> ctx.sendTo(to, e.service(),
+                    e.request() == null ? null : e.request().copy(),
+                    e.response() == null ? null : e.response().copy(), null));
+            sub.add(mi);
+        }
+        menu.add(sub);
     }
 
     private void addItem(JPopupMenu menu, String label, Runnable r) {

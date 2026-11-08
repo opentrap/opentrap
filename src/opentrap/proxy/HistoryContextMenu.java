@@ -81,24 +81,44 @@ public class HistoryContextMenu {
         menu.addSeparator();
 
         if (single) {
+            // Standard send-to tools, flat (as the reference lists them), then the
+            // engagement tools grouped in their own submenu rather than mixed in.
             for (String tool : ctx.sinkNames()) {
+                if (opentrap.ui.Engagement.isEngagement(tool)) continue;
+                final String t = tool;
                 if (ctx.sinkTakesSingleItem(tool)) {
                     // A table row has no focused pane to infer a choice from, so
                     // the two halves are offered separately. One click still
                     // loads one item.
                     if (first.request() != null) {
-                        add(menu, "send to " + tool + " (request)", () -> ctx.sendTo(tool,
+                        add(menu, "send to " + t + " (request)", () -> ctx.sendTo(t,
                                 first.service(), first.request().copy(), null, null));
                     }
                     if (first.response() != null) {
-                        add(menu, "send to " + tool + " (response)", () -> ctx.sendTo(tool,
+                        add(menu, "send to " + t + " (response)", () -> ctx.sendTo(t,
                                 first.service(), null, first.response().copy(), null));
                     }
                 } else {
-                    add(menu, "send to " + tool, () -> ctx.sendTo(tool, first.service(),
+                    add(menu, "send to " + t, () -> ctx.sendTo(t, first.service(),
                             first.request() == null ? null : first.request().copy(),
                             first.response() == null ? null : first.response().copy(), null));
                 }
+            }
+            java.util.List<String> eng = new ArrayList<>();
+            for (String tool : ctx.sinkNames()) if (opentrap.ui.Engagement.isEngagement(tool)) eng.add(tool);
+            if (!eng.isEmpty() && first.request() != null) {
+                JMenu sub = new JMenu("engagement tools");
+                sub.setFont(opentrap.ui.Ui.PLAIN);
+                for (String tool : eng) {
+                    final String t = tool;
+                    JMenuItem mi = new JMenuItem(opentrap.ui.Engagement.label(t));
+                    mi.setFont(opentrap.ui.Ui.PLAIN);
+                    mi.addActionListener(e -> ctx.sendTo(t, first.service(),
+                            first.request() == null ? null : first.request().copy(),
+                            first.response() == null ? null : first.response().copy(), null));
+                    sub.add(mi);
+                }
+                menu.add(sub);
             }
             menu.addSeparator();
         }
