@@ -811,9 +811,44 @@ public class MessageEditor extends JPanel {
             }
         }
         if (editable) {
-            JMenuItem convert = new JMenuItem("Convert selection");
+            menu.addSeparator();
+            String sel = activeText().getSelectedText();
+            JMenu convert = new JMenu("Convert selection");
             convert.setFont(Ui.PLAIN);
-            Unbuilt.EDITOR_CONVERT.attach(convert);   // not yet implemented
+            convert.setEnabled(sel != null && !sel.isEmpty());   // only with a selection, as the reference
+
+            JMenu url = sub("URL");
+            conv(url, "URL-decode", Convert::urlDecode);
+            conv(url, "URL-encode key characters", Convert::urlEncodeKey);
+            conv(url, "URL-encode key characters (Unicode)", Convert::urlEncodeKeyU);
+            conv(url, "URL-encode all characters", Convert::urlEncodeAll);
+            conv(url, "URL-encode all characters (Unicode)", Convert::urlEncodeAllU);
+            convert.add(url);
+
+            JMenu html = sub("HTML");
+            conv(html, "HTML-decode", Convert::htmlDecode);
+            conv(html, "HTML-encode key characters", Convert::htmlEncodeKey);
+            conv(html, "HTML-encode all characters (numeric entities)", Convert::htmlEncodeAll);
+            conv(html, "HTML-encode all characters (hex entities)", Convert::htmlEncodeHex);
+            convert.add(html);
+
+            JMenu b64 = sub("Base64");
+            conv(b64, "Base64-decode", Convert::base64Decode);
+            conv(b64, "Base64-encode", Convert::base64Encode);
+            convert.add(b64);
+
+            JMenu b64u = sub("Base64 URL");
+            conv(b64u, "Base64 URL-decode", Convert::base64UrlDecode);
+            conv(b64u, "Base64 URL-encode", Convert::base64UrlEncode);
+            convert.add(b64u);
+
+            JMenu str = sub("Construct string");
+            conv(str, "Create string in JavaScript", Convert::constructJs);
+            conv(str, "Create string in Microsoft SQL Server", Convert::constructMssql);
+            conv(str, "Create string in Oracle", Convert::constructOracle);
+            conv(str, "Create string in MySQL", Convert::constructMysql);
+            convert.add(str);
+
             menu.add(convert);
         }
 
@@ -899,6 +934,25 @@ public class MessageEditor extends JPanel {
         if (ks != null) mi.setAccelerator(ks);
         mi.addActionListener(l);
         menu.add(mi);
+    }
+
+    private JMenu sub(String label) {
+        JMenu m = new JMenu(label);
+        m.setFont(Ui.PLAIN);
+        return m;
+    }
+
+    /** A "Convert selection" item: transform the current selection in place. */
+    private void conv(JMenu parent, String label, java.util.function.Function<String, String> fn) {
+        JMenuItem mi = new JMenuItem(label);
+        mi.setFont(Ui.PLAIN);
+        mi.addActionListener(e -> {
+            JTextComponent t = activeText();
+            String s = t.getSelectedText();
+            if (s == null || s.isEmpty()) return;
+            try { t.replaceSelection(fn.apply(s)); } catch (Exception ex) { /* a bad decode leaves the text as it was */ }
+        });
+        parent.add(mi);
     }
 
     /** Switch between GET and POST, moving parameters between URL and body. */
