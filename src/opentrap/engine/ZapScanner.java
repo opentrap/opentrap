@@ -435,7 +435,14 @@ public final class ZapScanner {
                 .cwe(toInt(ZapApi.str(a, "cweid")))
                 .wasc(toInt(ZapApi.str(a, "wascid")))
                 .moduleId(toInt(ZapApi.str(a, "pluginId")))
-                .dedupe(Issue.Dedupe.PATH);
+                // An active-scan finding carries the payload the engine injected
+                // ("attack"); it is a real injection point, so keep one per path
+                // and parameter, each with its own proof. A passive finding has no
+                // such payload: it is a site-wide condition (a missing header, a
+                // cookie flag, a disclosed value), so keep one per host and gather
+                // the affected paths into it, the way the reference tools group a
+                // repeated finding rather than listing it once per URL.
+                .dedupe(nz(ZapApi.str(a, "attack")).isEmpty() ? Issue.Dedupe.SITE : Issue.Dedupe.PARAM);
 
         JsonValue tags = a.get("tags");
         if (tags != null && tags.isObject() && !tags.keys().isEmpty()) {

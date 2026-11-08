@@ -49,6 +49,11 @@ public final class Export {
             b.append("<p class=\"meta\">").append(Advisory.esc(i.host())).append(Advisory.esc(i.path()));
             if (i.param() != null && !i.param().isEmpty()) b.append(" &middot; parameter ").append(Advisory.esc(i.param()));
             b.append("</p>\n");
+            if (i.locationCount() > 1) {
+                b.append("<p><b>Affected locations (").append(i.locationCount()).append("):</b></p>\n<ul>\n");
+                for (String loc : i.locations()) b.append("<li>").append(Advisory.esc(i.host())).append(Advisory.esc(loc)).append("</li>\n");
+                b.append("</ul>\n");
+            }
             section(b, "Issue detail", i.detail());
             section(b, "Background", i.background());
             section(b, "Remediation", i.remediation());
@@ -82,6 +87,11 @@ public final class Export {
             el(b, "host", i.host());
             el(b, "path", i.path());
             el(b, "parameter", i.param());
+            if (i.locationCount() > 1) {
+                b.append("    <locations>\n");
+                for (String loc : i.locations()) el(b, "location", loc);
+                b.append("    </locations>\n");
+            }
             el(b, "cwe", i.cwe() > 0 ? String.valueOf(i.cwe()) : "");
             el(b, "detail", i.detail());
             el(b, "background", i.background());

@@ -55,12 +55,8 @@ public class TargetTool implements ToolModule {
             // rebuilding the whole tree for each one freezes the UI. Mark the
             // tree dirty and let the timer rebuild it at most once per tick, the
             // same way the site map coalesces a flood of traffic.
-            @Override public void issueAdded(Issue i) {
-                SwingUtilities.invokeLater(() -> {
-                    issuesDirty = true;
-                    if (!issuesTimer.isRunning()) issuesTimer.start();
-                });
-            }
+            @Override public void issueAdded(Issue i) { markIssuesDirty(); }
+            @Override public void issueUpdated(Issue i) { markIssuesDirty(); }
             @Override public void issuesReloaded() { SwingUtilities.invokeLater(TargetTool.this::refreshIssues); }
         });
         // "Show only in-scope items" depends on the scope, so a scope edit
@@ -141,6 +137,13 @@ public class TargetTool implements ToolModule {
         if (issuesDirty) { issuesDirty = false; refreshIssues(); }
         else ((javax.swing.Timer) e.getSource()).stop();
     });
+
+    private void markIssuesDirty() {
+        SwingUtilities.invokeLater(() -> {
+            issuesDirty = true;
+            if (!issuesTimer.isRunning()) issuesTimer.start();
+        });
+    }
 
     /**
      * Rebuild the site map and its tree from a restored history in one pass:
@@ -350,10 +353,11 @@ public class TargetTool implements ToolModule {
         }
         list.sort(java.util.Comparator.comparingInt(Issue::rank));
         for (Issue i : list) {
-            String locKey = i.host() + "\u0000" + i.path() + "\u0000"
-                    + (i.param() == null ? "" : i.param());
+            // One node per de-duplicated finding: a site-wide finding is one node
+            // for the host (its affected paths live inside it), an injection point
+            // is one node per path and parameter.
             grouped.computeIfAbsent(i.title(), k -> new java.util.LinkedHashMap<>())
-                   .putIfAbsent(locKey, i);
+                   .putIfAbsent(i.dedupeKey(), i);
         }
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) issuesTreeModel.getRoot();
         root.removeAllChildren();

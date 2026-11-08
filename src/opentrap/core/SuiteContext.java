@@ -39,6 +39,8 @@ public class SuiteContext {
 
     public interface IssueListener {
         void issueAdded(Issue i);
+        /** An existing finding gained another affected location (de-dup hit). */
+        default void issueUpdated(Issue i) {}
         /** All issues were replaced at once (a project was restored): refresh once. */
         default void issuesReloaded() {}
     }
@@ -175,9 +177,22 @@ public class SuiteContext {
 
     // ---- issues ----
 
-    /** Add a scanner issue, de-duplicated. Returns true if newly added. */
+    /**
+     * Add a scanner issue, de-duplicated. Returns true if newly added. When the
+     * same finding is seen again (a de-dup hit), its new location is recorded on
+     * the existing issue rather than dropped, so a site-wide finding keeps every
+     * affected path without being stored once per URL.
+     */
     public boolean addIssue(Issue i) {
-        if (i == null || issueByKey.putIfAbsent(i.dedupeKey(), i) != null) return false;
+        if (i == null) return false;
+        Issue existing = issueByKey.putIfAbsent(i.dedupeKey(), i);
+        if (existing != null) {
+            if (existing.addLocation(i.path(), i.param())) {
+                touch();
+                for (IssueListener l : issueListeners) l.issueUpdated(existing);
+            }
+            return false;
+        }
         synchronized (issues) { issues.add(i); }
         touch();
         for (IssueListener l : issueListeners) l.issueAdded(i);

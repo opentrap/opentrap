@@ -79,6 +79,13 @@ public final class Issue implements java.io.Serializable {
     private String source = "";    // which task found it (e.g. "Live audit", "Scan 3")
     private String comment = "";   // user-editable note
 
+    // Every location this finding was seen at, as "path [param]" labels. A
+    // site-wide finding (one SITE-deduped issue) accumulates the paths it was
+    // observed on here instead of being stored once per URL, so the report is not
+    // buried under hundreds of identical entries yet no affected path is lost.
+    // Lazily built so a project saved before this field existed still loads.
+    private java.util.List<String> locations;
+
     public Issue(String title, Severity severity, Confidence confidence,
                  HttpService service, String path, String param,
                  String detail, String background, String remediation,
@@ -146,6 +153,39 @@ public final class Issue implements java.io.Serializable {
 
     public String host() { return service == null ? "" : service.host(); }
 
+    private static String locLabel(String p, String prm) {
+        String path = p == null || p.isEmpty() ? "/" : p;
+        return (prm == null || prm.isEmpty()) ? path : path + " [" + prm + "]";
+    }
+
+    private void ensureLocations() {
+        if (locations == null) {
+            locations = new java.util.ArrayList<>();
+            locations.add(locLabel(path, param));
+        }
+    }
+
+    /** Every affected location ("path [param]"), the primary one first. */
+    public synchronized java.util.List<String> locations() {
+        ensureLocations();
+        return new java.util.ArrayList<>(locations);
+    }
+
+    /** How many distinct locations this finding has been seen at (at least one). */
+    public synchronized int locationCount() {
+        ensureLocations();
+        return locations.size();
+    }
+
+    /** Record another affected location; returns true when it was not already known. */
+    public synchronized boolean addLocation(String p, String prm) {
+        ensureLocations();
+        String label = locLabel(p, prm);
+        if (locations.contains(label)) return false;
+        locations.add(label);
+        return true;
+    }
+
     /**
      * Combined severity + confidence ordering, lower being more serious. This
      * reproduces the twelve-entry rank table: it is deliberately not the naive
@@ -191,10 +231,12 @@ public final class Issue implements java.io.Serializable {
         };
     }
 
-    /** Short location label used as a tree leaf caption. */
+    /** Short location label used as a tree leaf caption, with a count when it spans many. */
     @Override public String toString() {
         String loc = (service == null ? "" : service.url()) + path;
-        return param == null ? loc : loc + "  [" + param + "]";
+        String base = param == null ? loc : loc + "  [" + param + "]";
+        int n = locationCount();
+        return n > 1 ? base + "  (+" + (n - 1) + " more)" : base;
     }
 
     // ---- builder -----------------------------------------------------------

@@ -139,6 +139,7 @@ public class DashboardTool implements ToolModule {
         this.ctx = ctx;
         ctx.addIssueListener(new SuiteContext.IssueListener() {
             @Override public void issueAdded(Issue i) { issuesRefresh.request(); }
+            @Override public void issueUpdated(Issue i) { issuesRefresh.request(); }
             @Override public void issuesReloaded()    { issuesRefresh.request(); }
         });
         ctx.addTaskListener(t -> {
