@@ -156,6 +156,26 @@ public class SuiteContext {
         if (s != null) s.receive(svc, req, resp, caption);
     }
 
+    // ---- scan launcher ----
+    // Starting a scan lives in the dashboard; a right-click in the site map or
+    // history starts one through here without those tools depending on each other.
+
+    /** Starts a crawl (and, when {@code audit}, an audit) of a URL. */
+    public interface ScanLauncher { void launch(String url, boolean audit); }
+
+    private volatile ScanLauncher scanLauncher;
+
+    public void setScanLauncher(ScanLauncher l) { this.scanLauncher = l; }
+
+    /** True once a scan engine owner (the dashboard) has registered a launcher. */
+    public boolean canScan() { return scanLauncher != null; }
+
+    /** Start a scan of {@code url}; crawl and audit when {@code audit}, crawl only otherwise. */
+    public void launchScan(String url, boolean audit) {
+        ScanLauncher l = scanLauncher;
+        if (l != null && url != null && !url.isBlank()) l.launch(url, audit);
+    }
+
     // ---- history ----
 
     public LogEntry record(String tool, HttpService svc, HttpMessage req) {

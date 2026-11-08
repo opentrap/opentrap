@@ -774,11 +774,19 @@ public class MessageEditor extends JPanel {
             menu.addSeparator();
         }
 
+        if (service != null && ctx != null && ctx.canScan()) {
+            addItem(menu, "Actively scan this host", null, e -> ctx.launchScan(service.url(), true));
+            menu.addSeparator();
+        }
+
         if ((flags & REQUEST) != 0 && editable) {
             addItem(menu, "Change request method", null, e -> toggleMethod());
         }
         if ((flags & RESPONSE) != 0 && service != null && haveMessage) {
             addItem(menu, "Open response in browser", null, e -> openResponseInBrowser());
+            String base = service.url() + (relatedRequest != null ? relatedRequest.requestTarget()
+                    : message.isRequest() ? message.requestTarget() : "/");
+            addItem(menu, "Copy links in response", null, e -> clip(MessageActions.linksIn(message, base)));
         }
 
         addItem(menu, "Copy", KeyStroke.getKeyStroke(KeyEvent.VK_C, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), e -> {

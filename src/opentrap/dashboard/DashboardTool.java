@@ -142,6 +142,9 @@ public class DashboardTool implements ToolModule {
         // to Repeater, Intruder, ...) has no sinks and does nothing.
         if (scanReq != null)  scanReq.setContext(ctx);
         if (scanResp != null) scanResp.setContext(ctx);
+        // Let a right-click in the site map or history start a scan through us.
+        ctx.setScanLauncher((url, audit) ->
+                startSpiderFor(url, audit, opentrap.engine.ScanConfig.preset("Balanced"), 10));
         ctx.addIssueListener(new SuiteContext.IssueListener() {
             @Override public void issueAdded(Issue i) { issuesRefresh.request(); }
             @Override public void issueUpdated(Issue i) { issuesRefresh.request(); }

@@ -660,6 +660,15 @@ public class TargetTool implements ToolModule {
                 ctx.scopeChanged();
             });
         }
+        // Scan actions, as the reference lists after scope.
+        if (node.service != null && ctx.canScan()) {
+            menu.addSeparator();
+            final String url = node.isHost ? node.service.url() : node.service.url() + node.path;
+            addItem(menu, "actively scan this host", () -> ctx.launchScan(node.service.url(), true));
+            if (!node.isHost) addItem(menu, "actively scan this branch", () -> ctx.launchScan(url, true));
+            addItem(menu, "crawl this host", () -> ctx.launchScan(node.service.url(), false));
+        }
+
         LogEntry le = node.entry;
         if (le != null) {
             // This node is one request: the standard send-to tools flat, then the
@@ -673,24 +682,59 @@ public class TargetTool implements ToolModule {
                         e.response() == null ? null : e.response().copy(), null));
             }
             addEngagementSubmenu(menu, le, true);
+            menu.addSeparator();
+            if (le.response() != null) {
+                addItem(menu, "open response in browser", () -> opentrap.ui.MessageActions.openResponseInBrowser(le.response()));
+            }
+            addItem(menu, "copy URL", () -> opentrap.ui.MessageActions.clip(le.url()));
+            if (le.request() != null) {
+                addItem(menu, "copy as curl command (bash)",
+                        () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.curl(le.service(), le.request())));
+            }
+            if (le.response() != null) {
+                addItem(menu, "copy links in response",
+                        () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.linksIn(le.response(), le.url())));
+            }
         } else {
             // A host or folder is not one request, so it offers only the path-level
             // engagement tools (content discovery, not a per-request CSRF PoC) and a
-            // way to copy the URLs it contains, mirroring the reference host menu.
+            // way to copy the URLs and links it contains, mirroring the reference host menu.
             java.util.List<LogEntry> ents = node.entries();
             LogEntry rep = ents.isEmpty() ? null : ents.get(0);
             if (rep != null) addEngagementSubmenu(menu, rep, false);
+            menu.addSeparator();
+            addItem(menu, "expand branch", () -> expandBranch(node));
             if (!ents.isEmpty()) {
-                menu.addSeparator();
                 addItem(menu, "copy URLs in this host", () -> {
                     StringBuilder sb = new StringBuilder();
                     for (LogEntry e : ents) sb.append(e.url()).append('\n');
-                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
-                            .setContents(new java.awt.datatransfer.StringSelection(sb.toString().trim()), null);
+                    opentrap.ui.MessageActions.clip(sb.toString().trim());
+                });
+                addItem(menu, "copy links in this host", () -> {
+                    java.util.LinkedHashSet<String> links = new java.util.LinkedHashSet<>();
+                    for (LogEntry e : ents) if (e.response() != null) {
+                        String s = opentrap.ui.MessageActions.linksIn(e.response(), e.url());
+                        if (!s.isEmpty()) java.util.Collections.addAll(links, s.split("\n"));
+                    }
+                    opentrap.ui.MessageActions.clip(String.join("\n", links));
                 });
             }
         }
         return menu;
+    }
+
+    /** Expand the whole subtree under the node the context menu was raised on. */
+    private void expandBranch(SiteMap.Node node) {
+        javax.swing.tree.TreePath sel = tree.getSelectionPath();
+        if (sel != null) expandAll(sel);
+    }
+
+    private void expandAll(javax.swing.tree.TreePath path) {
+        javax.swing.tree.TreeNode n = (javax.swing.tree.TreeNode) path.getLastPathComponent();
+        for (int i = 0; i < n.getChildCount(); i++) {
+            expandAll(path.pathByAddingChild(n.getChildAt(i)));
+        }
+        tree.expandPath(path);
     }
 
     /**

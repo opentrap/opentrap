@@ -80,6 +80,13 @@ public class HistoryContextMenu {
         }
         menu.addSeparator();
 
+        // Scan actions, as the reference lists at the top of the menu.
+        if (single && first.service() != null && ctx.canScan()) {
+            add(menu, "actively scan this host", () -> ctx.launchScan(first.service().url(), true));
+            add(menu, "crawl this host", () -> ctx.launchScan(first.service().url(), false));
+            menu.addSeparator();
+        }
+
         if (single) {
             // Standard send-to tools, flat (as the reference lists them), then the
             // engagement tools grouped in their own submenu rather than mixed in.
@@ -128,12 +135,23 @@ public class HistoryContextMenu {
                 for (LogEntry e : sel) remover.accept(e);
             });
         }
+        if (single && first.response() != null) {
+            add(menu, "open response in browser", () -> opentrap.ui.MessageActions.openResponseInBrowser(first.response()));
+        }
+        menu.addSeparator();
         add(menu, single ? "copy URL" : "copy selected URLs", () -> {
             StringBuilder sb = new StringBuilder();
             for (LogEntry e : sel) sb.append(e.url()).append('\n');
-            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(sb.toString().trim()), null);
+            opentrap.ui.MessageActions.clip(sb.toString().trim());
         });
+        if (single && first.request() != null) {
+            add(menu, "copy as curl command (bash)",
+                    () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.curl(first.service(), first.request())));
+        }
+        if (single && first.response() != null) {
+            add(menu, "copy links in response",
+                    () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.linksIn(first.response(), first.url())));
+        }
         return menu;
     }
 
