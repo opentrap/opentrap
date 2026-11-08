@@ -47,7 +47,10 @@ public class MessageEditor extends JPanel {
 
     private final int flags;
     private final boolean editable;
-    private final SuiteContext ctx;
+    private SuiteContext ctx;   // not final: a viewer built before its tool's init() is given the context after
+
+    /** Supply the context to a viewer that was built before one was available, so its menu works. */
+    public void setContext(SuiteContext ctx) { this.ctx = ctx; }
 
     private HttpMessage message = new HttpMessage(new byte[0]);
     private HttpService service;
@@ -93,14 +96,17 @@ public class MessageEditor extends JPanel {
 
         prettyPane.setFont(Ui.MONO);
         prettyPane.setEditable(editable);
+        prettyPane.setBackground(Theme.BG);   // white, like the reference request/response editors
 
         rawArea.setFont(Ui.MONO);
         rawArea.setEditable(editable);
         rawArea.setLineWrap(true);
         rawArea.setWrapStyleWord(false);
         rawArea.setTabSize(4);
+        rawArea.setBackground(Theme.BG);
 
         renderPane.setEditable(false);
+        renderPane.setBackground(Theme.BG);
         renderPane.setEditorKit(Theme.htmlKit());   // page colours from the theme, not black on white
 
         views.setFont(Ui.PLAIN);

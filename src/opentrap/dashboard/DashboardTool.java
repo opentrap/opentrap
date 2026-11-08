@@ -137,6 +137,11 @@ public class DashboardTool implements ToolModule {
 
     @Override public void init(SuiteContext ctx) {
         this.ctx = ctx;
+        // The scan viewers are built in the constructor, before the context
+        // exists, so hand it to them now; otherwise their right-click menu (send
+        // to Repeater, Intruder, ...) has no sinks and does nothing.
+        if (scanReq != null)  scanReq.setContext(ctx);
+        if (scanResp != null) scanResp.setContext(ctx);
         ctx.addIssueListener(new SuiteContext.IssueListener() {
             @Override public void issueAdded(Issue i) { issuesRefresh.request(); }
             @Override public void issueUpdated(Issue i) { issuesRefresh.request(); }
