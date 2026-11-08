@@ -51,8 +51,17 @@ public class TargetTool implements ToolModule {
             }
         });
         ctx.addIssueListener(new SuiteContext.IssueListener() {
-            @Override public void issueAdded(Issue i) { SwingUtilities.invokeLater(TargetTool.this::refreshIssues); }
-            @Override public void issuesReloaded()    { SwingUtilities.invokeLater(TargetTool.this::refreshIssues); }
+            // Coalesce: an audit finds issues in bursts of thousands, and
+            // rebuilding the whole tree for each one freezes the UI. Mark the
+            // tree dirty and let the timer rebuild it at most once per tick, the
+            // same way the site map coalesces a flood of traffic.
+            @Override public void issueAdded(Issue i) {
+                SwingUtilities.invokeLater(() -> {
+                    issuesDirty = true;
+                    if (!issuesTimer.isRunning()) issuesTimer.start();
+                });
+            }
+            @Override public void issuesReloaded() { SwingUtilities.invokeLater(TargetTool.this::refreshIssues); }
         });
         // "Show only in-scope items" depends on the scope, so a scope edit
         // re-filters the tree and the table.
@@ -122,6 +131,15 @@ public class TargetTool implements ToolModule {
         while ((le = pendingEntries.poll()) != null) { siteMap.add(le); any = true; }
         if (any) syncTree();
         if (pendingEntries.isEmpty()) ((javax.swing.Timer) e.getSource()).stop();
+    });
+
+    /** Set when new issues have arrived since the issue tree was last rebuilt. */
+    private volatile boolean issuesDirty;
+
+    /** Rebuilds the issue tree once per burst, so a flood of findings cannot freeze the UI. */
+    private final javax.swing.Timer issuesTimer = new javax.swing.Timer(300, e -> {
+        if (issuesDirty) { issuesDirty = false; refreshIssues(); }
+        else ((javax.swing.Timer) e.getSource()).stop();
     });
 
     /**
