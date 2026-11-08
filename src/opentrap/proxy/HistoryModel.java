@@ -80,14 +80,14 @@ public class HistoryModel extends AbstractTableModel {
         return switch (col) {
             case 0 -> e.number();
             case 1 -> e.service().url();
-            case 2 -> e.request() == null ? "" : e.request().method();
+            case 2 -> e.method();
             case 3 -> e.pathAndQuery();
-            case 4 -> e.request() != null && e.request().hasParameters();
+            case 4 -> e.hasParameters();
             case 5 -> e.edited();
             case 6 -> e.status() == 0 ? "" : String.valueOf(e.status());
             case 7 -> e.responseLen() == 0 ? "" : String.valueOf(e.responseLen());
             case 8 -> e.mimeType();
-            case 9 -> e.request() == null ? "" : e.request().fileExtension();
+            case 9 -> e.fileExtension();
             case 10 -> e.title();
             case 11 -> e.service().secure();
             case 12 -> e.remoteIp();

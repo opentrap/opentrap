@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 
 /** Save and restore the project as a single zip, as the original did. */
 public final class StateIO {
@@ -44,7 +43,7 @@ public final class StateIO {
             if (r != JOptionPane.YES_OPTION) return;
         }
         try {
-            save(ctx, f);
+            saveOrBind(ctx, f, SaveOptions.fromSettings(ctx));
             ctx.setProjectFile(f);   // bind the session, so later saves reuse it
             ctx.alert("suite", "state saved to " + f.getName());
         } catch (Exception e) {
@@ -154,14 +153,32 @@ public final class StateIO {
     }
 
     /**
-     * Write the session to {@code file}. The file is written beside its final
-     * name and moved into place at the end, so a crash or a full disk part-way
-     * through never leaves a truncated project behind.
+     * Write the session to {@code file}. When the session is already recording
+     * into this file (a v7 project opened or created this run), saving is cheap:
+     * the history is already on disk per exchange, so only a fresh session-state
+     * snapshot is appended and flushed. Otherwise the project is written to a new
+     * single-file store beside its final name and atomic-moved into place, so a
+     * crash part-way through never leaves a truncated project behind.
      */
     public static void save(SuiteContext ctx, File file, SaveOptions options) throws IOException {
+        final SaveOptions o = options == null ? SaveOptions.fromSettings(ctx) : options;
         synchronized (SAVE_LOCK) {
+            ProjectStore live = ctx.store().diskStore();
+            if (live != null && sameFile(live.path().toFile(), file)) {
+                // Bound v7 project: the entries are already appended as they were
+                // recorded; a save is just the small mutable session state plus fsync.
+                live.append(ProjectStore.SNAPSHOT, sessionStateBytes(ctx, o));
+                live.sync();
+                return;
+            }
             File tmp = new File(file.getParentFile(), file.getName() + ".saving");
-            writeTo(ctx, tmp, options == null ? SaveOptions.fromSettings(ctx) : options);
+            ProjectStore target = new ProjectStore(tmp.toPath(), 32L * 1024 * 1024);
+            try {
+                writeAllTo(ctx, target, o);
+                target.sync();
+            } finally {
+                try { target.close(); } catch (IOException ignore) {}
+            }
             try {
                 java.nio.file.Files.move(tmp.toPath(), file.toPath(),
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING,
@@ -175,50 +192,202 @@ public final class StateIO {
         }
     }
 
-    /** The history as a write keeps it: filtered by scope and tool, bodies slimmed. */
-    static List<LogEntry> historyToSave(SuiteContext ctx, SaveOptions o) {
-        List<LogEntry> out = new ArrayList<>();
+    /**
+     * Save to {@code file}: a cheap snapshot when the session is already bound to
+     * it, otherwise write the project there and bind the session to it (a Save As
+     * onto a new file), so from then on its saves are cheap too.
+     */
+    public static void saveOrBind(SuiteContext ctx, File file, SaveOptions options) throws IOException {
+        ProjectStore live = ctx.store().diskStore();
+        if (live != null && sameFile(live.path().toFile(), file)) save(ctx, file, options);
+        else bindNew(ctx, file, options);
+    }
+
+    private static boolean sameFile(File a, File b) {
+        if (a == null || b == null) return false;
+        try { return a.getCanonicalFile().equals(b.getCanonicalFile()); }
+        catch (IOException e) { return a.getAbsoluteFile().equals(b.getAbsoluteFile()); }
+    }
+
+    /**
+     * Create a new single-file project at {@code file} and bind the session to
+     * it, so from now on every exchange is appended to this file as it is
+     * recorded and saving is a cheap snapshot flush. Any traffic recorded before
+     * the project was chosen is migrated into the new file.
+     */
+    public static void bindNew(SuiteContext ctx, File file, SaveOptions options) throws IOException {
+        final SaveOptions o = options == null ? SaveOptions.fromSettings(ctx) : options;
+        synchronized (SAVE_LOCK) {
+            file.delete();   // a new project starts empty even if the name was reused
+            ProjectStore store = new ProjectStore(file.toPath(), 32L * 1024 * 1024);
+            List<LogEntry> migrated = new ArrayList<>();
+            for (LogEntry e : ctx.store().all()) {
+                boolean drop = !o.keepAuditBodies && opentrap.core.ProjectOptions.AUDIT_TOOL.equals(e.tool());
+                LogEntry rec = e.writtenTo(store, drop, o.bodyCapBytes);
+                store.append(ProjectStore.ENTRY, rec.indexBytes());
+                migrated.add(rec);
+            }
+            store.append(ProjectStore.SNAPSHOT, sessionStateBytes(ctx, o));
+            store.sync();
+            ctx.store().useStore(store);
+            if (!migrated.isEmpty()) ctx.store().replaceAll(migrated);
+        }
+    }
+
+    /** The small mutable session state a snapshot record holds (everything but the history). */
+    static byte[] sessionStateBytes(SuiteContext ctx, SaveOptions o) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(baos);
+        oos.writeObject(ctx.scope());
+        oos.writeObject(ctx.settings().snapshot());
+        oos.writeObject(ctx.sessions().snapshot());
+        oos.writeObject(ctx.organizer().snapshot());
+        List<opentrap.core.Issue> issues = new ArrayList<>();
+        for (opentrap.core.Issue i : ctx.issues()) {
+            if (o.inScopeOnly && !ctx.scope().isInScope(i.service(), i.path())) continue;
+            issues.add(i);
+        }
+        oos.writeObject(issues);
+        java.util.LinkedHashMap<String, java.io.Serializable> toolStates = new java.util.LinkedHashMap<>();
+        for (opentrap.core.ToolModule t : ctx.tools()) {
+            java.io.Serializable s = t.saveState();
+            if (s != null) toolStates.put(t.name(), s);
+        }
+        oos.writeObject(toolStates);
+        oos.writeObject(o.includeTasks ? new ArrayList<>(ctx.taskSnapshots()) : new ArrayList<>());
+        oos.flush();
+        return baos.toByteArray();
+    }
+
+    /**
+     * Write every live entry (filtered by scope and tool, bodies slimmed) and a
+     * session-state snapshot into {@code target}. The live entries are copied,
+     * not moved, so the running session is never disturbed.
+     */
+    static void writeAllTo(SuiteContext ctx, ProjectStore target, SaveOptions o) throws IOException {
         for (LogEntry e : ctx.store().all()) {
             if (o.tools != null && !o.tools.contains(e.tool())) continue;
             if (o.inScopeOnly && !ctx.scope().isInScope(e)) continue;
             boolean drop = !o.keepAuditBodies && opentrap.core.ProjectOptions.AUDIT_TOOL.equals(e.tool());
-            out.add(e.slim(drop, o.bodyCapBytes));
+            LogEntry rec = e.writtenTo(target, drop, o.bodyCapBytes);
+            target.append(ProjectStore.ENTRY, rec.indexBytes());
         }
-        return out;
+        target.append(ProjectStore.SNAPSHOT, sessionStateBytes(ctx, o));
     }
 
-    private static void writeTo(SuiteContext ctx, File file, SaveOptions o) throws IOException {
-        try (ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(file)))) {
-            zos.putNextEntry(new ZipEntry("opentrap"));
-            ObjectOutputStream oos = new ObjectOutputStream(zos);
-            oos.writeInt(6);                            // format version
-            oos.writeObject(historyToSave(ctx, o));     // history (v6: audit bodies left out)
-            oos.writeObject(ctx.scope());               // scope
-            oos.writeObject(ctx.settings().snapshot()); // settings
-            oos.writeObject(ctx.sessions().snapshot()); // session jar, macros, rules (v2)
-            oos.writeObject(ctx.organizer().snapshot()); // organizer items (v3)
-            // v4: scanner issues, and each tool's own working state.
-            List<opentrap.core.Issue> issues = new ArrayList<>();
-            for (opentrap.core.Issue i : ctx.issues()) {
-                if (o.inScopeOnly && !ctx.scope().isInScope(i.service(), i.path())) continue;
-                issues.add(i);
+    /**
+     * Open a project, routing to the single-file store format or, for a file
+     * saved by an older build, the previous zip format.
+     */
+    public static int restore(SuiteContext ctx, File file) throws Exception {
+        if (ProjectStore.looksLikeStore(file)) return openV7(ctx, file);
+        int n = restoreV6(ctx, file);
+        // Migrate the old zip format to the single-file store in place and bind
+        // the session to it, so the project opens disk-backed from now on and its
+        // saves are the cheap incremental kind.
+        try { bindNew(ctx, file, SaveOptions.fromSettings(ctx)); }
+        catch (IOException e) { Debug.error("could not migrate project to the single-file format", e); }
+        return n;
+    }
+
+    /**
+     * Open a v7 single-file project: scan the record log to rebuild the history
+     * index (reading only the small index records, seeking over the bodies) and
+     * the latest session-state snapshot, then keep recording into the same file.
+     */
+    static int openV7(SuiteContext ctx, File file) throws Exception {
+        ProjectStore store = new ProjectStore(file.toPath(), 32L * 1024 * 1024);
+        java.util.LinkedHashMap<Integer, LogEntry> byNumber = new java.util.LinkedHashMap<>();
+        byte[][] snapshot = { null };
+        store.scan((type, offset, data) -> {
+            try {
+                if (type == ProjectStore.ENTRY) {
+                    LogEntry le = LogEntry.fromIndex(data, store);
+                    byNumber.put(le.number(), le);
+                } else if (type == ProjectStore.TOMBSTONE) {
+                    int n = ((data[0] & 0xFF) << 24) | ((data[1] & 0xFF) << 16)
+                            | ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
+                    byNumber.remove(n);
+                } else if (type == ProjectStore.SNAPSHOT) {
+                    snapshot[0] = data;
+                }
+            } catch (Exception ex) {
+                Debug.error("skipping a corrupt project record at " + offset, ex);
             }
-            oos.writeObject(issues);
-            java.util.LinkedHashMap<String, java.io.Serializable> toolStates = new java.util.LinkedHashMap<>();
+        });
+        List<LogEntry> entries = new ArrayList<>(byNumber.values());
+        ctx.store().useStore(store);   // keep recording into this same file
+        ctx.setRestoring(true);
+        try {
+            ctx.store().replaceAll(entries);
+            if (snapshot[0] != null) applySessionState(ctx, snapshot[0]);
+            int max = 0;
+            for (LogEntry le : entries) max = Math.max(max, le.number());
+            LogEntry.setCounter(max);
+            ctx.scopeChanged();
+            ctx.siteMapReloaded(entries);
+        } finally {
+            ctx.setRestoring(false);
+        }
+        // Reclaim dead space (superseded index records, tombstoned bodies, old
+        // snapshots) by rewriting the file compactly when it has grown well past
+        // the live data, so a long-churning project does not bloat without bound.
+        if (shouldCompact(file, entries)) {
+            try { bindNew(ctx, file, SaveOptions.fromSettings(ctx)); }
+            catch (IOException e) { Debug.error("compaction on open failed", e); }
+        }
+        return entries.size();
+    }
+
+    /** True when {@code file} holds enough dead space to be worth rewriting on open. */
+    private static boolean shouldCompact(File file, List<LogEntry> entries) {
+        long live = 0;
+        for (LogEntry e : entries) live += e.bytes();
+        long size = file.length();
+        // Only for files large enough to matter, and only when more than half is dead.
+        return size > 16L * 1024 * 1024 && size > live * 2 + 4L * 1024 * 1024;
+    }
+
+    /** Apply a session-state snapshot (everything but the history) to the context. */
+    @SuppressWarnings("unchecked")
+    static void applySessionState(SuiteContext ctx, byte[] block) throws Exception {
+        ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(block));
+        Scope scope = (Scope) ois.readObject();
+        java.util.Map<String, String> settings = (java.util.Map<String, String>) ois.readObject();
+        opentrap.session.SessionManager.State session = (opentrap.session.SessionManager.State) ois.readObject();
+        java.util.List<opentrap.organizer.OrganizerItem> organizer =
+                (java.util.List<opentrap.organizer.OrganizerItem>) ois.readObject();
+        java.util.List<opentrap.core.Issue> issues = (java.util.List<opentrap.core.Issue>) ois.readObject();
+        java.util.Map<String, java.io.Serializable> toolStates =
+                (java.util.Map<String, java.io.Serializable>) ois.readObject();
+        java.util.List<opentrap.core.ScanTask.Snapshot> tasks =
+                (java.util.List<opentrap.core.ScanTask.Snapshot>) ois.readObject();
+        if (scope != null) {
+            ctx.scope().include().clear();
+            ctx.scope().include().addAll(scope.include());
+            ctx.scope().exclude().clear();
+            ctx.scope().exclude().addAll(scope.exclude());
+        }
+        ctx.settings().restore(settings);
+        if (session != null) ctx.sessions().restore(session);
+        if (organizer != null) ctx.organizer().restore(organizer);
+        if (issues != null) ctx.restoreIssues(issues);
+        if (tasks != null) ctx.restoreTasks(tasks);
+        if (toolStates != null) {
             for (opentrap.core.ToolModule t : ctx.tools()) {
-                java.io.Serializable s = t.saveState();
-                if (s != null) toolStates.put(t.name(), s);
+                java.io.Serializable s = toolStates.get(t.name());
+                if (s != null) {
+                    try { t.restoreState(s); }
+                    catch (Exception ex) {
+                        Debug.error("tool '" + t.name() + "' failed to restore its saved state", ex);
+                    }
+                }
             }
-            oos.writeObject(toolStates);
-            // v5: the scans on the dashboard
-            oos.writeObject(o.includeTasks ? new ArrayList<>(ctx.taskSnapshots()) : new ArrayList<>());
-            oos.flush();
-            zos.closeEntry();
         }
     }
 
     @SuppressWarnings("unchecked")
-    public static int restore(SuiteContext ctx, File file) throws Exception {
+    static int restoreV6(SuiteContext ctx, File file) throws Exception {
         try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(new FileInputStream(file)))) {
             ZipEntry e = zis.getNextEntry();
             if (e == null) throw new IOException("Input file is not in correct format");

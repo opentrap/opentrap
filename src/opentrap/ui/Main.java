@@ -99,6 +99,9 @@ public class Main {
             // makes it appear reliably.
             Debug.log("creating SuiteContext and SuiteFrame");
             SuiteContext ctx = new SuiteContext();
+            // EXPERIMENTAL (issue #37 keystone): keep recorded traffic bodies on
+            // disk, not in the heap, so a long proxying session stays bounded.
+            ctx.store().useDiskStore(home.resolve("traffic"));
             SuiteFrame frame = new SuiteFrame(ctx, TITLE);
             Debug.log("registering tools");
             Bootstrap.registerTools(ctx, frame, home);
@@ -123,7 +126,17 @@ public class Main {
             frame.requestFocus();
             Debug.log("main window is visible");
 
-            // Now choose the project, in a dialog owned by the visible window.
+            // A project path on the command line (as a .otrap file association
+            // passes when one is double-clicked) opens or creates that project
+            // directly, skipping the startup dialog.
+            java.io.File argProject = projectArg(launchArgs);
+            if (argProject != null) {
+                Debug.log("opening project from the command line: " + argProject);
+                openProjectFromArg(ctx, frame, argProject);
+                return;
+            }
+
+            // Otherwise choose the project in a dialog owned by the visible window.
             Debug.log("showing startup project dialog");
             ProjectStartupDialog startup = new ProjectStartupDialog(frame, TITLE);
             startup.setVisible(true);
@@ -141,7 +154,9 @@ public class Main {
             switch (startup.mode()) {
                 case NEW -> {
                     try {
-                        StateIO.save(ctx, projectFile);
+                        // Create the single-file project and bind the session to it,
+                        // so every exchange streams to disk and saves stay cheap.
+                        StateIO.bindNew(ctx, projectFile, StateIO.SaveOptions.fromSettings(ctx));
                         ctx.setProjectFile(projectFile);
                         RecentProjects.record(startup.projectName(), projectFile);
                         ctx.alert("suite", "New project: " + projectFile.getName());
@@ -165,10 +180,44 @@ public class Main {
             }
           } catch (Throwable t) {
             Debug.error("startup failed while building the UI", t);
-            JOptionPane.showMessageDialog(null,
-                    "Failed to start: " + t, "error", JOptionPane.ERROR_MESSAGE);
-            System.exit(1);
+            handleStartupFailure(t);
           }
         });
+    }
+
+    /** The first non-flag argument that names a project file, or null. */
+    private static java.io.File projectArg(String[] args) {
+        for (String a : args) {
+            if (a == null || a.startsWith("--")) continue;
+            if (a.toLowerCase().endsWith(StateIO.EXT)) return new java.io.File(a);
+        }
+        return null;
+    }
+
+    /** Open an existing project file, or create one if it does not exist yet. */
+    private static void openProjectFromArg(SuiteContext ctx, SuiteFrame frame, java.io.File projectFile) {
+        String name = projectFile.getName();
+        if (projectFile.exists()) {
+            StateIO.restoreAsync(ctx, frame, projectFile, n -> {
+                ctx.setProjectFile(projectFile);
+                RecentProjects.record(name, projectFile);
+                ctx.alert("suite", "Opened project " + name + " (" + n + " items)");
+            });
+        } else {
+            try {
+                StateIO.bindNew(ctx, projectFile, StateIO.SaveOptions.fromSettings(ctx));
+                ctx.setProjectFile(projectFile);
+                RecentProjects.record(name, projectFile);
+                ctx.alert("suite", "New project: " + name);
+            } catch (Exception e) {
+                Debug.error("could not create the project from the command line", e);
+            }
+        }
+    }
+
+    private static void handleStartupFailure(Throwable t) {
+        JOptionPane.showMessageDialog(null,
+                "Failed to start: " + t, "error", JOptionPane.ERROR_MESSAGE);
+        System.exit(1);
     }
 }

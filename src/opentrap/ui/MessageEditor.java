@@ -32,6 +32,12 @@ public class MessageEditor extends JPanel {
 
     public interface ActionProvider { void contribute(JPopupMenu menu); }
 
+    // Above this many characters, the message is shown without syntax
+    // colouring or HTML rendering: both walk the whole body on the event
+    // thread, so a multi-megabyte response (common with mobile traffic) would
+    // freeze the interface. The plain, byte-exact text is still shown.
+    private static final int MAX_DECORATE_CHARS = 512 * 1024;
+
     // Syntax colours for request and response highlighting.
     private static final Color C_HEADER_NAME = Theme.CODE_NAME;
     private static final Color C_STARTLINE   = Theme.CODE_START;
@@ -354,6 +360,14 @@ public class MessageEditor extends JPanel {
         try {
             String body = message.bodyText();
             if (body == null) body = "";
+            // A huge body would make the sanitising regexes below run for a long
+            // time on the event thread; do not attempt to render it inline.
+            if (body.length() > MAX_DECORATE_CHARS) {
+                renderPane.setText("<html><body><i>Response too large to render inline "
+                        + "(" + (body.length() / 1024) + " KB). Use the Raw view.</i></body></html>");
+                renderPane.setCaretPosition(0);
+                return;
+            }
             body = body.replaceAll("(?is)<script.*?</script>", "")
                        .replaceAll("(?i)<link[^>]*>", "")
                        .replaceAll("(?i)src\\s*=\\s*\"https?://[^\"]*\"", "");
@@ -394,6 +408,10 @@ public class MessageEditor extends JPanel {
         SimpleAttributeSet plain = new SimpleAttributeSet();
         StyleConstants.setForeground(plain, Theme.TEXT);
         doc.setCharacterAttributes(0, text.length(), plain, true);
+
+        // A very large body is shown plain: colouring it walks every character
+        // on the event thread and would freeze the interface.
+        if (text.length() > MAX_DECORATE_CHARS) return;
 
         int bodyStart = text.indexOf("\r\n\r\n");
         int sep = 4;

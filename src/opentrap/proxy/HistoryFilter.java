@@ -87,9 +87,9 @@ public class HistoryFilter implements Serializable {
         }
 
         if (inScopeOnly && (scope == null || !scope.isInScope(e))) return false;
-        if (hideWithoutResponses && e.response() == null) return false;
+        if (hideWithoutResponses && !e.hasResponse()) return false;
         if (hideNotFound && e.status() == 404) return false;
-        if (parameterisedOnly && (e.request() == null || !e.request().hasParameters())) return false;
+        if (parameterisedOnly && !e.hasParameters()) return false;
         if (notesOnly && (e.notes() == null || e.notes().isBlank())) return false;
         if (highlightedOnly && (e.highlight() == null || e.highlight().isBlank())) return false;
 
@@ -99,7 +99,7 @@ public class HistoryFilter implements Serializable {
         if (sc >= 400 && sc < 500 && !show4xx) return false;
         if (sc >= 500 && sc < 600 && !show5xx) return false;
 
-        if (e.response() != null) {
+        if (e.hasResponse()) {
             String m = e.mimeType();
             if (m.equals("HTML") && !showHtml) return false;
             if (m.equals("script") && !showScript) return false;
@@ -111,7 +111,7 @@ public class HistoryFilter implements Serializable {
             if (m.equals("other binary") && !showOtherBinary) return false;
         }
 
-        String ext = e.request() == null ? "" : e.request().fileExtension();
+        String ext = e.fileExtension();
         if (extShowOnlyOn && !extShowOnly.isBlank() && !extListContains(extShowOnly, ext)) return false;
         if (extHideOn && !extHide.isBlank() && extListContains(extHide, ext)) return false;
 
