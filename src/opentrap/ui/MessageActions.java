@@ -13,7 +13,6 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -59,8 +58,6 @@ public final class MessageActions {
         return b.toString();
     }
 
-    private static final String SHOW_COPY_ONLY = "proxy.showInBrowser.copyOnly";
-
     /** The proxy server, if one is registered, else null. */
     private static ProxyServer proxyServer(SuiteContext ctx) {
         if (ctx == null) return null;
@@ -98,18 +95,11 @@ public final class MessageActions {
         String realUrl = (svc == null || request == null) ? null
                 : svc.url() + request.requestTarget();
         String sentinel = server.stageShow(realUrl, response.raw());
-
-        if (ctx.settings().getBool(SHOW_COPY_ONLY, false)) {
-            clip(sentinel);
-            ctx.alert("Open response in browser",
-                    "URL copied; paste it into the OpenTRAP browser.");
-            return;
-        }
-        showSentinelDialog(parent, ctx, sentinel);
+        showSentinelDialog(parent, sentinel);
     }
 
-    /** The reference-style "paste this URL into your proxied browser" dialog. */
-    private static void showSentinelDialog(Component parent, SuiteContext ctx, String sentinel) {
+    /** The "paste this URL into your proxied browser" dialog. Always shown. */
+    private static void showSentinelDialog(Component parent, String sentinel) {
         Window owner = parent == null ? null : SwingUtilities.getWindowAncestor(parent);
         JDialog d = new JDialog(owner, "Show response in browser", JDialog.ModalityType.MODELESS);
         JPanel body = new JPanel();
@@ -128,20 +118,13 @@ public final class MessageActions {
         url.setCaretPosition(0);
         url.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(url);
-        body.add(Box.createVerticalStrut(8));
-
-        JCheckBox copyOnly = new JCheckBox("In future, just copy the URL and don't show this dialog");
-        copyOnly.setAlignmentX(Component.LEFT_ALIGNMENT);
-        body.add(copyOnly);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         JButton copy = new JButton("Copy");
         JButton close = new JButton("Close");
-        Runnable remember = () -> { if (copyOnly.isSelected()) ctx.settings().setBool(SHOW_COPY_ONLY, true); };
-        // Copying hands over the URL, so the dialog has done its job: take the
-        // preference and close.
-        copy.addActionListener(e -> { clip(sentinel); remember.run(); d.dispose(); });
-        close.addActionListener(e -> { remember.run(); d.dispose(); });
+        // Copying hands over the URL, so the dialog has done its job: close it.
+        copy.addActionListener(e -> { clip(sentinel); d.dispose(); });
+        close.addActionListener(e -> d.dispose());
         buttons.add(copy);
         buttons.add(close);
 
