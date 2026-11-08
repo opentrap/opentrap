@@ -102,28 +102,8 @@ licence.
 <br><sub><b>Target</b><br>Site map with a padlock per host (open for http, closed for https), out-of-scope hosts greyed, and every issue found with the advisory, request and response beside it.</sub>
 </td>
 <td width="50%" valign="top">
-<a href="docs/images/proxy.png"><img src="docs/images/proxy.png" alt="Proxy tab with interception, and the built-in Chromium browser opened from it, routed through the proxy and showing the certificate authority page"></a>
-<br><sub><b>Proxy and built-in browser</b><br>One click opens Chromium already routed through the proxy and trusting its certificate authority, so TLS interception works with nothing to configure.</sub>
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-<a href="docs/images/collaborator.png"><img src="docs/images/collaborator.png" alt="Collaborator tab listing captured out-of-band DNS and HTTP interactions with the request to the collaborator shown"></a>
-<br><sub><b>Collaborator</b><br>Out-of-band DNS and HTTP interactions captured for blind vulnerabilities, with every callback request on record.</sub>
-</td>
-<td width="50%" valign="top">
-<a href="docs/images/intruder.png"><img src="docs/images/intruder.png" alt="Intruder tab with a sniper attack finished, and the attack window listing payloads, status, length and timing"></a>
-<br><sub><b>Intruder</b><br>Four attack types with payload sets and processing; the attack window shows status, length and timing per request.</sub>
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
 <a href="docs/images/logger.png"><img src="docs/images/logger.png" alt="Logger tab with a filterable table of every request made by the crawl, with request and response viewers below"></a>
 <br><sub><b>Logger</b><br>A complete, filterable record of every request OpenTRAP and the scan engine make, newest first and tagged by the tool that sent it.</sub>
-</td>
-<td width="50%" valign="top">
-<a href="docs/images/decoder.png"><img src="docs/images/decoder.png" alt="Decoder tab with a URL-encoded path-traversal string decoded to plain text"></a>
-<br><sub><b>Decoder</b><br>Chain URL, Base64, hex and hash transforms on any value, or let smart decode work it out for you.</sub>
 </td>
 </tr>
 </table>

@@ -36,7 +36,7 @@ title: OpenTRAP
   <h2>Everything in one window</h2>
   <p class="lead">A proxy-first workspace with the whole toolset one click away, built around a detection engine that holds up.</p>
   <div class="grid">
-    <a class="shot" href="images/proxy.png"><img src="images/proxy.png" alt="OpenTRAP Proxy tab with interception and the built-in Chromium browser routed through it"></a>
+    <a class="shot" href="images/target.png"><img src="images/target.png" alt="OpenTRAP Target tab: site map, request list and the issues found with a full advisory beside them"></a>
     <ul class="checks">
       <li><span class="ic">{% include check.html %}</span><span><b>A complete proxy-first suite</b>Intercept, HTTP history, repeater, intruder, sequencer, decoder, comparer, an out-of-band collaborator and a full traffic logger.</span></li>
       <li><span class="ic">{% include check.html %}</span><span><b>Scanning that holds up</b>Crawl and audit for real vulnerabilities on the proven OWASP ZAP engine, with findings in a clear issue view and the evidence highlighted.</span></li>
@@ -58,11 +58,7 @@ title: OpenTRAP
   </div>
   <div class="gallery">
     <a class="card" href="images/target.png"><img src="images/target.png" alt="Target tab: site map with a padlock per host, request list and issues with a full advisory"><div class="cap"><b>Target</b><span>Site map with a padlock per host and out-of-scope hosts greyed, every request in the middle, every issue on the right with its advisory, request and response beside it.</span></div></a>
-    <a class="card" href="images/proxy.png"><img src="images/proxy.png" alt="Proxy tab with interception and the built-in browser"><div class="cap"><b>Proxy &amp; built-in browser</b><span>One click opens a bundled Chromium, already routed through the proxy and trusting its certificate authority. No certificate to install.</span></div></a>
-    <a class="card" href="images/collaborator.png"><img src="images/collaborator.png" alt="Collaborator tab with captured out-of-band interactions"><div class="cap"><b>Collaborator</b><span>Generate a payload and watch the out-of-band DNS and HTTP callbacks arrive, each on record, so blind vulnerabilities are proven, not guessed.</span></div></a>
-    <a class="card" href="images/intruder.png"><img src="images/intruder.png" alt="Intruder tab with a finished sniper attack and its results window"><div class="cap"><b>Intruder</b><span>Mark positions, pick an attack type, drive a payload set through them. The attack window shows status, length and timing per request.</span></div></a>
     <a class="card" href="images/logger.png"><img src="images/logger.png" alt="Logger tab with a filterable table of every request"><div class="cap"><b>Logger</b><span>A complete, filterable record of every request OpenTRAP and the scan engine make, newest first and tagged by the tool that sent it. Nothing happens behind your back.</span></div></a>
-    <a class="card" href="images/decoder.png"><img src="images/decoder.png" alt="Decoder tab decoding a URL-encoded value"><div class="cap"><b>Decoder</b><span>URL, Base64, hex and hash transforms in either direction, or let smart decode work out the encoding for you.</span></div></a>
   </div>
 </div></section>
 
