@@ -232,6 +232,9 @@ public class TargetTool implements ToolModule {
         tree.addTreeSelectionListener(e -> showTreeSelection());
         itemsTable.getSelectionModel().addListSelectionListener(e -> showItem());
         installTreeMenu();
+        // The item table lists individual requests, so it gets the full per-request
+        // menu (send to Repeater, Intruder, CSRF PoC, add to scope, copy URL).
+        new opentrap.proxy.HistoryContextMenu(ctx, itemsTable, itemsModel::at, null).install();
 
         itemsFilter.scope = ctx.scope();
         JComponent contents = new JPanel(new BorderLayout());
@@ -657,12 +660,14 @@ public class TargetTool implements ToolModule {
                 ctx.scopeChanged();
             });
         }
-        java.util.List<LogEntry> ents = node.entries();
-        LogEntry e = node.entry != null ? node.entry : (ents.isEmpty() ? null : ents.get(0));
-        if (e != null) {
+        // Per-request actions (send to Repeater, CSRF PoC, ...) only belong on a
+        // node that is itself one request: a host or a folder is not a request, so
+        // offering them there would act on an arbitrary child. Those actions live
+        // on the item table to the right, which lists the individual requests.
+        if (node.entry != null) {
             menu.addSeparator();
+            final LogEntry le = node.entry;
             for (String tool : ctx.sinkNames()) {
-                final LogEntry le = e;
                 addItem(menu, "send to " + tool, () -> ctx.sendTo(tool, le.service(),
                         le.request() == null ? null : le.request().copy(),
                         le.response() == null ? null : le.response().copy(), null));
