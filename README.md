@@ -29,7 +29,7 @@ A free and open-source alternative to Burp Suite, built on the trusted OWASP ZAP
 
 </div>
 
-<p align="center"><b>One command to download and run the tool:</b></p>
+<p align="center"><b>One command to download and run it:</b></p>
 
 ```
 wget https://github.com/opentrap/opentrap/releases/latest/download/opentrap-x86_64.appimage && chmod +x opentrap-x86_64.appimage && ./opentrap-x86_64.appimage
@@ -45,7 +45,7 @@ wget https://github.com/opentrap/opentrap/releases/latest/download/opentrap-x86_
 
 ---
 
-## Proudly free and open source
+## Free and open source
 
 OpenTRAP is free and open source software, released under the GNU AGPL v3.0 with
 no licence gate on anything. We stand with the organisations that make free and
@@ -70,16 +70,13 @@ open source software possible - if OpenTRAP is useful to you, consider supportin
 The most capable intercepting proxies, such as Burp Suite, are commercial and
 closed, with their most useful features behind a paid licence. OWASP ZAP is a
 powerful open engine, but its interface is unfamiliar to the many testers who work
-proxy-first. OpenTRAP brings the two together: the familiar Burp-style workflow on
-top of the trusted OWASP ZAP detection engine, genuinely **open**, genuinely useful
-day to day, and immediately **familiar** to anyone who has worked with an
-intercepting proxy before.
+proxy-first. OpenTRAP brings the two together: a familiar Burp-style workflow on
+top of the trusted OWASP ZAP detection engine, open and familiar to anyone who has
+worked with an intercepting proxy before.
 
-OpenTRAP is that tool. A complete testing workspace with a clean, recognisable
-workflow, that any practitioner can run, inspect, and extend, with no licence gate
-on its core capabilities. It is built to be improved by the people who use it
-rather than steered by a single vendor's roadmap. If a security tester can describe
-a better way to work, OpenTRAP should be the tool that lets them build it.
+It is a complete testing workspace that anyone can run, inspect and extend, with no
+licence gate on its core capabilities, built to be improved by the people who use
+it rather than steered by a single vendor's roadmap.
 
 ## What it is
 
@@ -108,26 +105,24 @@ licence.
 </tr>
 </table>
 
-Full-size screenshots of every tool are on the
+More screenshots are on the
 [project site](https://opentrap.github.io/opentrap/#screenshots).
 
 ## Help build OpenTRAP
 
-**OpenTRAP is a community project, and this is an open call.** We want this to grow
-into something the whole web security community owns and improves. If you can fix a
-bug, patch a rough edge, sharpen the UI, add a tool, or bring anything useful at
-all, we want your contribution. You do not need permission to improve it: if you
-think you can make it better, you probably can.
+OpenTRAP is a community project and contributions are welcome. If you can fix a
+bug, patch a rough edge, sharpen the UI, add a feature or improve the docs, your
+contribution is wanted. You do not need permission to improve it.
 
-- Every change is reviewed, merged, and **fully credited** to its author.
-- One-line fixes are as welcome as whole new tools.
-- Bug reports and concrete ideas move the project forward too.
+- Every change is reviewed, merged and **credited** to its author.
+- One-line fixes are as welcome as whole new features.
+- Bug reports and concrete ideas help too.
 - Found a security problem in OpenTRAP itself? [SECURITY.md](SECURITY.md)
   explains how to report it privately.
 
-The fastest way to help it grow is to **star the repository and share it** (buttons
-at the top), and to send that first change. See [CONTRIBUTING.md](CONTRIBUTING.md)
-to get started, then open an issue or a pull request.
+If OpenTRAP is useful to you, star the repository and share it (buttons at the
+top). See [CONTRIBUTING.md](CONTRIBUTING.md) to get started, then open an issue or
+a pull request.
 
 ## Roadmap
 
@@ -163,7 +158,7 @@ exposing crawl depth, attack strength, the input points tested and more.
 ## Highlights
 
 - **Proxy-first by design** - intercept, replay and edit live traffic, with the whole toolset one click away.
-- **Detection that stands up** - crawl and audit with the proven OWASP ZAP engine, so the findings you report carry weight.
+- **Detection that stands up** - crawl and audit with the proven OWASP ZAP engine, so the findings hold up.
 - **Everything in one window** - repeater, intruder, sequencer, decoder, comparer, collaborator and a full logger.
 - **One self-contained file** - every release is a single Linux AppImage with its own runtime and the scan engine built in; download it and run it.
 - **Open and hackable** - AGPL v3.0: read it, change it, extend it, with no gate on its core capabilities.

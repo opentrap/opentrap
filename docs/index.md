@@ -20,7 +20,7 @@ title: OpenTRAP
 
 <section class="osband" id="software-freedom"><div class="wrap">
   <div class="os-head">
-    <h2>Proudly free and open source</h2>
+    <h2>Free and open source</h2>
     <p>OpenTRAP is free and open source software, released under the GNU AGPL v3.0 with no licence gate on anything. We stand with the organisations that make free and open source software possible - if OpenTRAP is useful to you, consider supporting them.</p>
   </div>
   <div class="os-logos">
@@ -45,7 +45,7 @@ title: OpenTRAP
       <li><span class="ic">{% include check.html %}</span><span><b>Scope that keeps the noise out</b>Add a host or path to scope from the site map and the proxy offers to stop recording everything else. Filters on the site map and the history hide out-of-scope, not-found and static content, and a scan crawls and attacks only what the scope covers.</span></li>
       <li><span class="ic">{% include check.html %}</span><span><b>Newest first, everywhere</b>Every history in the suite, from the proxy and the Logger to Intruder results and Collaborator interactions, lists the latest entry at the top.</span></li>
       <li><span class="ic">{% include check.html %}</span><span><b>One self-contained file</b>Every release is a single Linux AppImage with its own runtime and the scan engine built in. Download it, run it, scan.</span></li>
-      <li><span class="ic">{% include check.html %}</span><span><b>Genuinely open</b>Licensed under the GNU AGPL v3.0, so it stays open and hackable, with no licence gate on its core capabilities.</span></li>
+      <li><span class="ic">{% include check.html %}</span><span><b>Open and hackable</b>Licensed under the GNU AGPL v3.0, so it stays open, with no licence gate on its core capabilities.</span></li>
       <li><span class="ic">{% include check.html %}</span><span><b>Built in the open</b>A <a href="https://github.com/opentrap/opentrap/blob/main/ROADMAP.md">public roadmap</a> with a reference code for every unbuilt feature, mirrored inside the app, and every contribution merged with full credit. No AI features, by design.</span></li>
     </ul>
   </div>
@@ -54,7 +54,7 @@ title: OpenTRAP
 <section class="pad" id="screenshots"><div class="wrap">
   <div class="section-head">
     <h2>See it in action</h2>
-    <p>Every tool lives in one window. Click any screenshot for the full-size image.</p>
+    <p>A few views of the workspace. Click any screenshot for the full-size image.</p>
   </div>
   <div class="gallery">
     <a class="card" href="images/target.png"><img src="images/target.png" alt="Target tab: site map with a padlock per host, request list and issues with a full advisory"><div class="cap"><b>Target</b><span>Site map with a padlock per host and out-of-scope hosts greyed, every request in the middle, every issue on the right with its advisory, request and response beside it.</span></div></a>
