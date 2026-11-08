@@ -137,11 +137,11 @@ public final class MessageActions {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         JButton copy = new JButton("Copy");
         JButton close = new JButton("Close");
-        copy.addActionListener(e -> { clip(sentinel); url.selectAll(); url.requestFocusInWindow(); });
-        close.addActionListener(e -> {
-            if (copyOnly.isSelected()) ctx.settings().setBool(SHOW_COPY_ONLY, true);
-            d.dispose();
-        });
+        Runnable remember = () -> { if (copyOnly.isSelected()) ctx.settings().setBool(SHOW_COPY_ONLY, true); };
+        // Copying hands over the URL, so the dialog has done its job: take the
+        // preference and close.
+        copy.addActionListener(e -> { clip(sentinel); remember.run(); d.dispose(); });
+        close.addActionListener(e -> { remember.run(); d.dispose(); });
         buttons.add(copy);
         buttons.add(close);
 
