@@ -151,8 +151,17 @@ public class DashboardTool implements ToolModule {
 
     @Override public void init(SuiteContext ctx) {
         this.ctx = ctx;
+        // The scan viewers are built in the constructor, before the context
+        // exists, so hand it to them now; otherwise their right-click menu (send
+        // to Repeater, Intruder, ...) has no sinks and does nothing.
+        if (scanReq != null)  scanReq.setContext(ctx);
+        if (scanResp != null) scanResp.setContext(ctx);
+        // Let a right-click in the site map or history start a scan through us.
+        ctx.setScanLauncher((url, audit) ->
+                startSpiderFor(url, audit, opentrap.engine.ScanConfig.preset("Balanced"), 10));
         ctx.addIssueListener(new SuiteContext.IssueListener() {
             @Override public void issueAdded(Issue i) { issuesRefresh.request(); }
+            @Override public void issueUpdated(Issue i) { issuesRefresh.request(); }
             @Override public void issuesReloaded()    { issuesRefresh.request(); }
         });
         ctx.addTaskListener(t -> {
@@ -226,6 +235,8 @@ public class DashboardTool implements ToolModule {
         left.setBorder(Ui.pad(8, 8, 8, 8));
 
         // Header: bold "Tasks" + action buttons.
+        // The standalone Spider button is gone: a crawl-only run is now the
+        // "Crawl" option in the New scan wizard, so these two cover every task.
         JButton newScan = Ui.primaryButton("New scan", "crawl and audit a target");
         JButton newLiveTask = Ui.primaryButton("New live task", "start a live task");
         accentise(newScan);
@@ -387,6 +398,9 @@ public class DashboardTool implements ToolModule {
         lightHeader(scanLogTable);
         scanLogTable.setRowSorter(new javax.swing.table.TableRowSorter<>(scanLogModel));
         Ui.newestFirst(scanLogTable, 0);
+        // The same right-click menu the proxy history has: send to Repeater,
+        // Intruder, add to scope, copy URL. No delete: the scan owns this log.
+        new opentrap.proxy.HistoryContextMenu(ctx, scanLogTable, scanLogModel::at, null).install();
         scanReq  = new MessageEditor(ctx, MessageEditor.REQUEST, false);
         scanResp = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
         scanLogTable.getSelectionModel().addListSelectionListener(e -> showScanSelected());
@@ -865,17 +879,8 @@ public class DashboardTool implements ToolModule {
     }
 
     private void exportIssuesReport() {
-        List<Issue> all = ctx == null ? new ArrayList<>() : ctx.issues();
-        if (all.isEmpty()) {
-            JOptionPane.showMessageDialog(ctx == null ? null : ctx.frame(),
-                    "There are no findings to export yet.", "export report", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        Object[] options = {"HTML", "XML", "Cancel"};
-        int choice = JOptionPane.showOptionDialog(ctx.frame(), "Export the findings as:", "export report",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-        if (choice == 0) opentrap.report.Export.save(ctx.frame(), "opentrap-report.html", opentrap.report.Export.issuesHtml(all));
-        else if (choice == 1) opentrap.report.Export.save(ctx.frame(), "opentrap-report.xml", opentrap.report.Export.issuesXml(all));
+        opentrap.report.Export.reportDialog(ctx == null ? null : ctx.frame(),
+                ctx == null ? new ArrayList<>() : ctx.issues(), "opentrap-report");
     }
 
     private final javax.swing.table.DefaultTableModel eventModel = new javax.swing.table.DefaultTableModel(
@@ -2233,30 +2238,6 @@ public class DashboardTool implements ToolModule {
         }
         // One job for every URL listed: a single crawl task and audit task.
         startSpiderFor(w.targetUrls(), w.crawlAndAudit(), w.config(), w.threads(), w.isolated(), w.apiOnly() ? "API scan" : null);
-    }
-
-    private void startSpider() {
-        String def = "https://";
-        // Default to the first in-scope host if scope is set.
-        if (!ctx.scope().include().isEmpty()) {
-            opentrap.core.Scope.Rule first = ctx.scope().include().get(0);
-            if (first.isPrefix()) {
-                def = first.prefix.contains("://") ? first.prefix : "https://" + first.prefix + "/";
-            } else {
-                String host = opentrap.core.Scope.display(first.host);
-                if (!host.isBlank()) def = "https://" + host + "/";
-            }
-        }
-        String url = (String) JOptionPane.showInputDialog(ctx.frame(),
-                "URL to spider (the crawl stays within the target scope):", "Spider",
-                JOptionPane.PLAIN_MESSAGE, null, null, def);
-        if (url == null || url.trim().isEmpty()) return;
-        startSpiderFor(url.trim());
-    }
-
-    /** Crawl the given URL. The spider button calls this directly (crawl only). */
-    private void startSpiderFor(String url) {
-        startSpiderFor(url, false, opentrap.engine.ScanConfig.crawlDefault(), 10);
     }
 
     private void startSpiderFor(String url, boolean thenAudit) {

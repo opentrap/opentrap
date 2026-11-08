@@ -32,6 +32,12 @@ public class MessageEditor extends JPanel {
 
     public interface ActionProvider { void contribute(JPopupMenu menu); }
 
+    // Above this many characters, the message is shown without syntax
+    // colouring or HTML rendering: both walk the whole body on the event
+    // thread, so a multi-megabyte response (common with mobile traffic) would
+    // freeze the interface. The plain, byte-exact text is still shown.
+    private static final int MAX_DECORATE_CHARS = 512 * 1024;
+
     // Syntax colours for request and response highlighting.
     private static final Color C_HEADER_NAME = Theme.CODE_NAME;
     private static final Color C_STARTLINE   = Theme.CODE_START;
@@ -41,7 +47,10 @@ public class MessageEditor extends JPanel {
 
     private final int flags;
     private final boolean editable;
-    private final SuiteContext ctx;
+    private SuiteContext ctx;   // not final: a viewer built before its tool's init() is given the context after
+
+    /** Supply the context to a viewer that was built before one was available, so its menu works. */
+    public void setContext(SuiteContext ctx) { this.ctx = ctx; }
 
     private HttpMessage message = new HttpMessage(new byte[0]);
     private HttpService service;
@@ -174,14 +183,17 @@ public class MessageEditor extends JPanel {
         prettyPane.setEditorKit(new CharWrapKit());
         prettyPane.setFont(Ui.MONO);
         prettyPane.setEditable(editable);
+        prettyPane.setBackground(Theme.BG);   // white, like the reference request/response editors
 
         rawArea.setFont(Ui.MONO);
         rawArea.setEditable(editable);
         rawArea.setLineWrap(true);
         rawArea.setWrapStyleWord(false);
         rawArea.setTabSize(4);
+        rawArea.setBackground(Theme.BG);
 
         renderPane.setEditable(false);
+        renderPane.setBackground(Theme.BG);
         renderPane.setEditorKit(Theme.htmlKit());   // page colours from the theme, not black on white
 
         views.setFont(Ui.PLAIN);
@@ -622,6 +634,14 @@ public class MessageEditor extends JPanel {
         try {
             String body = message.bodyText();
             if (body == null) body = "";
+            // A huge body would make the sanitising regexes below run for a long
+            // time on the event thread; do not attempt to render it inline.
+            if (body.length() > MAX_DECORATE_CHARS) {
+                renderPane.setText("<html><body><i>Response too large to render inline "
+                        + "(" + (body.length() / 1024) + " KB). Use the Raw view.</i></body></html>");
+                renderPane.setCaretPosition(0);
+                return;
+            }
             body = body.replaceAll("(?is)<script.*?</script>", "")
                        .replaceAll("(?i)<link[^>]*>", "")
                        .replaceAll("(?i)src\\s*=\\s*\"https?://[^\"]*\"", "");
@@ -661,6 +681,10 @@ public class MessageEditor extends JPanel {
         SimpleAttributeSet plain = new SimpleAttributeSet();
         StyleConstants.setForeground(plain, Theme.TEXT);
         doc.setCharacterAttributes(0, text.length(), plain, true);
+
+        // A very large body is shown plain: colouring it walks every character
+        // on the event thread and would freeze the interface.
+        if (text.length() > MAX_DECORATE_CHARS) return;
 
         int bodyStart = text.indexOf("\r\n\r\n");
         int sep = 4;
@@ -1145,11 +1169,19 @@ public class MessageEditor extends JPanel {
             menu.addSeparator();
         }
 
+        if (service != null && ctx != null && ctx.canScan()) {
+            addItem(menu, "Actively scan this host", null, e -> ctx.launchScan(service.url(), true));
+            menu.addSeparator();
+        }
+
         if ((flags & REQUEST) != 0 && editable) {
             addItem(menu, "Change request method", null, e -> toggleMethod());
         }
         if ((flags & RESPONSE) != 0 && service != null && haveMessage) {
             addItem(menu, "Open response in browser", null, e -> openResponseInBrowser());
+            String base = service.url() + (relatedRequest != null ? relatedRequest.requestTarget()
+                    : message.isRequest() ? message.requestTarget() : "/");
+            addItem(menu, "Copy links in response", null, e -> clip(MessageActions.linksIn(message, base)));
         }
 
         addItem(menu, "Copy", KeyStroke.getKeyStroke(KeyEvent.VK_C, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), e -> {
@@ -1160,6 +1192,59 @@ public class MessageEditor extends JPanel {
         if (service != null) {
             addItem(menu, "Copy URL", null, e -> clip(service.url() + (message.isRequest() ? message.requestTarget() : "")));
             if (message.isRequest()) addItem(menu, "Copy as curl command (bash)", null, e -> clip(asCurl()));
+        }
+
+        // Record an issue, open/add the request, as the reference request menu does.
+        if (ctx != null && service != null && haveMessage) {
+            HttpMessage req = message.isRequest() ? message : relatedRequest;
+            HttpMessage resp = message.isRequest() ? null : message;
+            menu.addSeparator();
+            addItem(menu, "Record an issue", null, e -> ManualIssue.record(this, ctx, service, req, resp));
+            if (req != null) {
+                addItem(menu, "Request in browser", null, e -> MessageActions.openRequestInBrowser(this, service, req));
+                addItem(menu, "Add to site map", null, e -> MessageActions.addToSiteMap(ctx, service, req, resp));
+            }
+        }
+        if (editable) {
+            menu.addSeparator();
+            String sel = activeText().getSelectedText();
+            JMenu convert = new JMenu("Convert selection");
+            convert.setFont(Ui.PLAIN);
+            convert.setEnabled(sel != null && !sel.isEmpty());   // only with a selection, as the reference
+
+            JMenu url = sub("URL");
+            conv(url, "URL-decode", Convert::urlDecode);
+            conv(url, "URL-encode key characters", Convert::urlEncodeKey);
+            conv(url, "URL-encode key characters (Unicode)", Convert::urlEncodeKeyU);
+            conv(url, "URL-encode all characters", Convert::urlEncodeAll);
+            conv(url, "URL-encode all characters (Unicode)", Convert::urlEncodeAllU);
+            convert.add(url);
+
+            JMenu html = sub("HTML");
+            conv(html, "HTML-decode", Convert::htmlDecode);
+            conv(html, "HTML-encode key characters", Convert::htmlEncodeKey);
+            conv(html, "HTML-encode all characters (numeric entities)", Convert::htmlEncodeAll);
+            conv(html, "HTML-encode all characters (hex entities)", Convert::htmlEncodeHex);
+            convert.add(html);
+
+            JMenu b64 = sub("Base64");
+            conv(b64, "Base64-decode", Convert::base64Decode);
+            conv(b64, "Base64-encode", Convert::base64Encode);
+            convert.add(b64);
+
+            JMenu b64u = sub("Base64 URL");
+            conv(b64u, "Base64 URL-decode", Convert::base64UrlDecode);
+            conv(b64u, "Base64 URL-encode", Convert::base64UrlEncode);
+            convert.add(b64u);
+
+            JMenu str = sub("Construct string");
+            conv(str, "Create string in JavaScript", Convert::constructJs);
+            conv(str, "Create string in Microsoft SQL Server", Convert::constructMssql);
+            conv(str, "Create string in Oracle", Convert::constructOracle);
+            conv(str, "Create string in MySQL", Convert::constructMysql);
+            convert.add(str);
+
+            menu.add(convert);
         }
 
         if (!providers.isEmpty()) {
@@ -1246,6 +1331,25 @@ public class MessageEditor extends JPanel {
         menu.add(mi);
     }
 
+    private JMenu sub(String label) {
+        JMenu m = new JMenu(label);
+        m.setFont(Ui.PLAIN);
+        return m;
+    }
+
+    /** A "Convert selection" item: transform the current selection in place. */
+    private void conv(JMenu parent, String label, java.util.function.Function<String, String> fn) {
+        JMenuItem mi = new JMenuItem(label);
+        mi.setFont(Ui.PLAIN);
+        mi.addActionListener(e -> {
+            JTextComponent t = activeText();
+            String s = t.getSelectedText();
+            if (s == null || s.isEmpty()) return;
+            try { t.replaceSelection(fn.apply(s)); } catch (Exception ex) { /* a bad decode leaves the text as it was */ }
+        });
+        parent.add(mi);
+    }
+
     /** Switch between GET and POST, moving parameters between URL and body. */
     private void toggleMethod() {
         String method = message.method();
@@ -1279,17 +1383,5 @@ public class MessageEditor extends JPanel {
 
     private static String capitalise(String s) {
         return s == null || s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
-    }
-
-    /** Names the engagement-tool sinks that belong in the Engagement tools submenu. */
-    private static final class Engagement {
-        static boolean isEngagement(String t) { return t.equals("CSRF PoC") || t.equals("content discovery"); }
-        static String label(String t) {
-            return switch (t) {
-                case "CSRF PoC" -> "Generate CSRF PoC";
-                case "content discovery" -> "Discover content";
-                default -> t;
-            };
-        }
     }
 }

@@ -65,20 +65,20 @@ public record ScanConfig(
         return switch (name == null ? "" : name) {
             case "Lightweight" -> new ScanConfig(
                     "Lightweight",
-                    2, 0, true,
-                    true, 5, 5, 20,
+                    2, 1, true,
+                    true, 2, 5, 20,
                     "LOW", "MEDIUM",
                     INJECT_ALL, RPC_ALL, 0, 0);
             case "Fast" -> new ScanConfig(
                     "Fast",
-                    5, 0, true,
-                    true, 15, 10, 40,
+                    5, 3, true,
+                    true, 5, 10, 40,
                     "MEDIUM", "MEDIUM",
                     INJECT_ALL, RPC_ALL, 0, 0);
             case "Deep" -> new ScanConfig(
                     "Deep",
-                    0, 0, true,
-                    true, 0, 0, 0,
+                    0, 10, true,
+                    true, 20, 0, 0,
                     "INSANE", "MEDIUM",
                     INJECT_ALL, RPC_ALL, 0, 0);
             case "Balanced" -> balanced();
@@ -89,8 +89,8 @@ public record ScanConfig(
     private static ScanConfig balanced() {
         return new ScanConfig(
                 "Balanced",
-                10, 0, true,
-                true, 30, 10, 0,
+                10, 5, true,
+                true, 10, 10, 0,
                 "HIGH", "MEDIUM",
                 INJECT_ALL, RPC_ALL, 0, 0);
     }

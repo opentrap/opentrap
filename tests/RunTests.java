@@ -19,6 +19,8 @@ public final class RunTests {
         new opentrap.core.ScopePrefixTest().run();
         new opentrap.core.ScopeUrlRegexTest().run();
         new opentrap.core.MessageStoreCapTest().run();
+        new opentrap.core.ProjectStoreTest().run();
+        new opentrap.core.MessageStoreDiskTest().run();
         new opentrap.session.SessionTest().run();
         new opentrap.intruder.PayloadProcessorTest().run();
         new opentrap.report.ExportTest().run();
@@ -49,6 +51,7 @@ public final class RunTests {
         new opentrap.proxy.CertificateAuthorityIsolationTest().run();
         new opentrap.ui.ProjectTasksTest().run();
         new opentrap.ui.ProjectSlimTest().run();
+        new opentrap.ui.ProjectFileTest().run();
 
         System.exit(Harness.report());
     }

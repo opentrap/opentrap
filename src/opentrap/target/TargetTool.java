@@ -291,6 +291,9 @@ public class TargetTool implements ToolModule {
         tree.addTreeSelectionListener(e -> showTreeSelection());
         itemsTable.getSelectionModel().addListSelectionListener(e -> showItem());
         installTreeMenu();
+        // The Contents table is a history table, so it carries the same right-click
+        // menu (send to the tools, engagement tools, add to scope, copy URL, save).
+        new opentrap.proxy.HistoryContextMenu(ctx, itemsTable, itemsModel::at, null).install();
 
         itemsFilter.scope = ctx.scope();
         JComponent contents = new JPanel(new BorderLayout());
@@ -751,18 +754,132 @@ public class TargetTool implements ToolModule {
                 ctx.scopeChanged();
             });
         }
-        java.util.List<LogEntry> ents = node.entries();
-        LogEntry e = node.entry != null ? node.entry : (ents.isEmpty() ? null : ents.get(0));
-        if (e != null) {
+        // Scan actions, as the reference lists after scope.
+        if (node.service != null && ctx.canScan()) {
+            menu.addSeparator();
+            final String url = node.isHost ? node.service.url() : node.service.url() + node.path;
+            addItem(menu, "actively scan this host", () -> ctx.launchScan(node.service.url(), true));
+            if (!node.isHost) addItem(menu, "actively scan this branch", () -> ctx.launchScan(url, true));
+            addItem(menu, "crawl this host", () -> ctx.launchScan(node.service.url(), false));
+        }
+
+        LogEntry le = node.entry;
+        if (le != null) {
+            // This node is one request: the standard send-to tools flat, then the
+            // engagement tools in their own submenu, as the reference lays them out.
             menu.addSeparator();
             for (String tool : ctx.sinkNames()) {
-                final LogEntry le = e;
-                addItem(menu, "send to " + tool, () -> ctx.sendTo(tool, le.service(),
-                        le.request() == null ? null : le.request().copy(),
-                        le.response() == null ? null : le.response().copy(), null));
+                if (opentrap.ui.Engagement.isEngagement(tool)) continue;
+                final String to = tool; final LogEntry e = le;
+                addItem(menu, "send to " + to, () -> ctx.sendTo(to, e.service(),
+                        e.request() == null ? null : e.request().copy(),
+                        e.response() == null ? null : e.response().copy(), null));
+            }
+            addEngagementSubmenu(menu, le, true);
+            menu.addSeparator();
+            if (le.response() != null) {
+                addItem(menu, "open response in browser", () -> opentrap.ui.MessageActions.openResponseInBrowser(le.response()));
+            }
+            addItem(menu, "copy URL", () -> opentrap.ui.MessageActions.clip(le.url()));
+            if (le.request() != null) {
+                addItem(menu, "copy as curl command (bash)",
+                        () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.curl(le.service(), le.request())));
+            }
+            if (le.response() != null) {
+                addItem(menu, "copy links in response",
+                        () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.linksIn(le.response(), le.url())));
+            }
+            menu.addSeparator();
+            addItem(menu, "record an issue", () -> opentrap.ui.ManualIssue.record(ctx.frame(), ctx,
+                    le.service(), le.request(), le.response()));
+            if (le.request() != null) {
+                addItem(menu, "request in browser",
+                        () -> opentrap.ui.MessageActions.openRequestInBrowser(ctx.frame(), le.service(), le.request()));
+            }
+            addItem(menu, "save item", () -> opentrap.report.Export.saveItemsDialog(ctx.frame(), java.util.List.of(le)));
+        } else {
+            // A host or folder is not one request, so it offers only the path-level
+            // engagement tools (content discovery, not a per-request CSRF PoC) and a
+            // way to copy the URLs and links it contains, mirroring the reference host menu.
+            java.util.List<LogEntry> ents = node.entries();
+            LogEntry rep = ents.isEmpty() ? null : ents.get(0);
+            if (rep != null) addEngagementSubmenu(menu, rep, false);
+            // Report and delete the findings for this host, as the reference offers.
+            if (node.service != null) {
+                final String host = node.service.host();
+                menu.addSeparator();
+                addItem(menu, "report issues", () -> {
+                    java.util.List<Issue> hostIssues = new java.util.ArrayList<>();
+                    for (Issue i : ctx.issues()) if (i.host().equalsIgnoreCase(host)) hostIssues.add(i);
+                    opentrap.report.Export.reportDialog(ctx.frame(), hostIssues, "opentrap-report-" + host);
+                });
+                addItem(menu, "delete issues", () -> ctx.removeIssuesWhere(i -> i.host().equalsIgnoreCase(host)));
+            }
+            menu.addSeparator();
+            addItem(menu, "expand branch", () -> expandBranch(node));
+            if (!ents.isEmpty()) {
+                addItem(menu, "copy URLs in this host", () -> {
+                    StringBuilder sb = new StringBuilder();
+                    for (LogEntry e : ents) sb.append(e.url()).append('\n');
+                    opentrap.ui.MessageActions.clip(sb.toString().trim());
+                });
+                addItem(menu, "copy links in this host", () -> {
+                    java.util.LinkedHashSet<String> links = new java.util.LinkedHashSet<>();
+                    for (LogEntry e : ents) if (e.response() != null) {
+                        String s = opentrap.ui.MessageActions.linksIn(e.response(), e.url());
+                        if (!s.isEmpty()) java.util.Collections.addAll(links, s.split("\n"));
+                    }
+                    opentrap.ui.MessageActions.clip(String.join("\n", links));
+                });
+            }
+            if (!ents.isEmpty()) {
+                menu.addSeparator();
+                addItem(menu, "save items", () -> opentrap.report.Export.saveItemsDialog(ctx.frame(), ents));
             }
         }
         return menu;
+    }
+
+    /** Expand the whole subtree under the node the context menu was raised on. */
+    private void expandBranch(SiteMap.Node node) {
+        javax.swing.tree.TreePath sel = tree.getSelectionPath();
+        if (sel != null) expandAll(sel);
+    }
+
+    private void expandAll(javax.swing.tree.TreePath path) {
+        javax.swing.tree.TreeNode n = (javax.swing.tree.TreeNode) path.getLastPathComponent();
+        for (int i = 0; i < n.getChildCount(); i++) {
+            expandAll(path.pathByAddingChild(n.getChildAt(i)));
+        }
+        tree.expandPath(path);
+    }
+
+    /**
+     * The engagement-tools submenu. {@code includeRequestTools} false drops the
+     * tools that need a single specific request (a CSRF PoC), leaving the ones
+     * that work from a path (content discovery), for a host or folder node.
+     */
+    private void addEngagementSubmenu(JPopupMenu menu, LogEntry le, boolean includeRequestTools) {
+        if (le == null || le.request() == null) return;
+        java.util.List<String> eng = new java.util.ArrayList<>();
+        for (String tool : ctx.sinkNames()) {
+            if (!opentrap.ui.Engagement.isEngagement(tool)) continue;
+            if (!includeRequestTools && opentrap.ui.Engagement.needsRequest(tool)) continue;
+            eng.add(tool);
+        }
+        if (eng.isEmpty()) return;
+        JMenu sub = new JMenu("engagement tools");
+        sub.setFont(Ui.PLAIN);
+        for (String tool : eng) {
+            final String to = tool; final LogEntry e = le;
+            JMenuItem mi = new JMenuItem(opentrap.ui.Engagement.label(to));
+            mi.setFont(Ui.PLAIN);
+            mi.addActionListener(ev -> ctx.sendTo(to, e.service(),
+                    e.request() == null ? null : e.request().copy(),
+                    e.response() == null ? null : e.response().copy(), null));
+            sub.add(mi);
+        }
+        menu.add(sub);
     }
 
     private void addItem(JPopupMenu menu, String label, Runnable r) {

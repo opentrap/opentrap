@@ -54,7 +54,8 @@ public final class Advisory {
         row(b, "Confidence", esc(i.confidence().label()));
         if (withLocation) {
             row(b, "Host", esc(i.service() == null ? "" : i.service().url()));
-            row(b, "Path", esc(i.path()));
+            if (i.locationCount() > 1) row(b, "Path", esc(i.path()) + "  <i>(+" + (i.locationCount() - 1) + " more below)</i>");
+            else row(b, "Path", esc(i.path()));
         }
         if (i.param() != null && !i.param().isBlank()) row(b, "Parameter", esc(i.param()));
 
@@ -65,6 +66,13 @@ public final class Advisory {
         if (tags != null && !tags.isEmpty()) row(b, "Classification", esc(String.join(", ", tags)));
         if (i.moduleId() > 0) row(b, "Module", String.valueOf(i.moduleId()));
         b.append("</table>");
+
+        if (withLocation && i.locationCount() > 1) {
+            b.append("<h3>Affected locations (").append(i.locationCount()).append(")</h3><ul style='margin:0 0 0 14px;padding:0'>");
+            String host = i.service() == null ? "" : i.service().url();
+            for (String loc : i.locations()) b.append("<li>").append(esc(host)).append(esc(loc)).append("</li>");
+            b.append("</ul>");
+        }
 
         if (!i.evidence().isBlank()) {
             b.append("<h3>Evidence</h3><pre style='font-family:monospace;font-size:11px;")

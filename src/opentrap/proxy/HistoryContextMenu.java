@@ -23,12 +23,37 @@ public class HistoryContextMenu {
 
     private final SuiteContext ctx;
     private final JTable table;
-    private final HistoryModel model;
+    private final HistoryModel model;                               // null: a non-history table, driven by the resolver below
+    private final java.util.function.IntFunction<LogEntry> resolver;
+    private final java.util.function.Consumer<LogEntry> remover;    // null: no delete action
 
     public HistoryContextMenu(SuiteContext ctx, JTable table, HistoryModel model) {
         this.ctx = ctx;
         this.table = table;
         this.model = model;
+        this.resolver = model::at;
+        this.remover = model::remove;
+    }
+
+    /**
+     * For any table of entries that is not the proxy history model: a
+     * row-to-entry resolver and a remover (or null for no delete). The actions
+     * that only make sense against the whole history model (clear, new history
+     * window) are left off in this mode.
+     */
+    public HistoryContextMenu(SuiteContext ctx, JTable table,
+                              java.util.function.IntFunction<LogEntry> resolver,
+                              java.util.function.Consumer<LogEntry> remover) {
+        this.ctx = ctx;
+        this.table = table;
+        this.model = null;
+        this.resolver = resolver;
+        this.remover = remover;
+    }
+
+    /** Repaint after a per-entry change, through the model when there is one. */
+    private void refresh() {
+        if (model != null) model.fireTableDataChanged(); else table.repaint();
     }
 
     public void install() {
@@ -47,7 +72,7 @@ public class HistoryContextMenu {
     private List<LogEntry> selected() {
         List<LogEntry> out = new ArrayList<>();
         for (int r : table.getSelectedRows()) {
-            LogEntry e = model.at(table.convertRowIndexToModel(r));
+            LogEntry e = resolver.apply(table.convertRowIndexToModel(r));
             if (e != null) out.add(e);
         }
         return out;
@@ -131,7 +156,7 @@ public class HistoryContextMenu {
         // Annotate.
         addI(menu, "Add notes", Glyphs.pencil(14, Theme.ICON), () -> {
             String v = JOptionPane.showInputDialog(table, "Notes:", first.notes());
-            if (v != null) { first.setNotes(v); model.fireTableDataChanged(); }
+            if (v != null) { first.setNotes(v); refresh(); }
         });
         JMenu highlight = sub("Highlight");
         for (String[] c : new String[][]{{"", "none"}, {"#ff6b6b", "red"}, {"#ffa94d", "orange"}, {"#ffe066", "yellow"}, {"#8ce99a", "green"},
@@ -140,17 +165,21 @@ public class HistoryContextMenu {
             mi.setFont(Ui.PLAIN);
             if (!c[0].isEmpty()) { mi.setOpaque(true); mi.setBackground(Color.decode(c[0])); }
             else mi.setBorder(BorderFactory.createDashedBorder(Theme.BORDER));
-            mi.addActionListener(e -> { for (LogEntry en : sel) en.setHighlight(c[1].equals("none") ? "" : c[1]); model.fireTableDataChanged(); });
+            mi.addActionListener(e -> { for (LogEntry en : sel) en.setHighlight(c[1].equals("none") ? "" : c[1]); refresh(); });
             highlight.add(mi);
         }
         menu.add(highlight);
 
         // Delete / clear.
-        addI(menu, single ? "Delete item" : "Delete selected items", Glyphs.trash(14, Theme.ICON), () -> { for (LogEntry e : sel) model.remove(e); });
-        addK(menu, "Clear history", null, () -> {
-            if (JOptionPane.showConfirmDialog(table, "Clear the whole history?", "Clear history", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION) model.clear();
-        });
-        addK(menu, "Show new history window", null, () -> newHistoryWindow());
+        if (remover != null) {
+            addI(menu, single ? "Delete item" : "Delete selected items", Glyphs.trash(14, Theme.ICON), () -> { for (LogEntry e : sel) remover.accept(e); });
+        }
+        if (model != null) {
+            addK(menu, "Clear history", null, () -> {
+                if (JOptionPane.showConfirmDialog(table, "Clear the whole history?", "Clear history", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION) model.clear();
+            });
+            addK(menu, "Show new history window", null, () -> newHistoryWindow());
+        }
 
         // Copy / save.
         addI(menu, single ? "Copy URL" : "Copy selected URLs", Glyphs.copy(14, Theme.ICON), () -> {

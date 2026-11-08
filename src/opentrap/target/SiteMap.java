@@ -40,8 +40,7 @@ public class SiteMap {
     }
 
     static String key(LogEntry e) {
-        String method = e.request() == null ? "" : e.request().method();
-        return method + " " + e.pathAndQuery();
+        return e.method() + " " + e.pathAndQuery();
     }
 
     private final Node root = new Node("", false);
@@ -49,7 +48,7 @@ public class SiteMap {
     public Node root() { return root; }
 
     public synchronized void add(LogEntry e) {
-        if (e.service() == null || e.request() == null) return;
+        if (e.service() == null || !e.hasRequest()) return;
         String hostKey = e.service().url();
         Node host = root.children.computeIfAbsent(hostKey, k -> {
             Node n = new Node(e.service().url(), true);
@@ -58,7 +57,7 @@ public class SiteMap {
         });
         host.put(e);
 
-        String path = e.request().path();
+        String path = e.requestPath();
         String[] parts = path.split("/");
         Node cur = host;
         StringBuilder acc = new StringBuilder();
@@ -79,10 +78,10 @@ public class SiteMap {
 
         // Parameterised requests branch under the endpoint, so /x?a=1 and
         // /x?a=2 are distinct children of x (each query variant is its own node).
-        String query = e.request().query();
+        String query = e.requestQuery();
         if (query != null && !query.isEmpty()) {
             final Node leaf = cur;
-            String ckey = "?" + e.request().method() + " " + query;
+            String ckey = "?" + e.method() + " " + query;
             Node pchild = cur.children.computeIfAbsent(ckey, k -> {
                 Node n = new Node("?" + query, false);
                 n.service = e.service();

@@ -34,8 +34,9 @@ public final class ProjectSizeDialog {
         for (LogEntry e : ctx.store().all()) {
             long[] t = byTool.computeIfAbsent(e.tool(), k -> new long[3]);
             t[0]++;
-            if (e.request() != null) { t[1] += e.request().bodyOffset(); t[2] += e.request().length() - e.request().bodyOffset(); }
-            if (e.response() != null) { t[1] += e.response().bodyOffset(); t[2] += e.response().length() - e.response().bodyOffset(); }
+            // Sized from the index, so a big session's size scan never loads a body back from disk.
+            t[1] += e.requestHeaderBytes();  t[2] += e.requestBodyBytes();
+            t[1] += e.responseHeaderBytes(); t[2] += e.responseBodyBytes();
             if (e.originalResponse() != null) {
                 t[1] += e.originalResponse().bodyOffset();
                 t[2] += e.originalResponse().length() - e.originalResponse().bodyOffset();

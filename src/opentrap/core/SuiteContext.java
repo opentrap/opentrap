@@ -39,6 +39,8 @@ public class SuiteContext {
 
     public interface IssueListener {
         void issueAdded(Issue i);
+        /** An existing finding gained another affected location (de-dup hit). */
+        default void issueUpdated(Issue i) {}
         /** All issues were replaced at once (a project was restored): refresh once. */
         default void issuesReloaded() {}
     }
@@ -159,6 +161,26 @@ public class SuiteContext {
     /** Be told the tool name whenever something is sent to a tool, so the shell can badge its tab. */
     public void addSendListener(java.util.function.Consumer<String> l) { sendListeners.add(l); }
 
+    // ---- scan launcher ----
+    // Starting a scan lives in the dashboard; a right-click in the site map or
+    // history starts one through here without those tools depending on each other.
+
+    /** Starts a crawl (and, when {@code audit}, an audit) of a URL. */
+    public interface ScanLauncher { void launch(String url, boolean audit); }
+
+    private volatile ScanLauncher scanLauncher;
+
+    public void setScanLauncher(ScanLauncher l) { this.scanLauncher = l; }
+
+    /** True once a scan engine owner (the dashboard) has registered a launcher. */
+    public boolean canScan() { return scanLauncher != null; }
+
+    /** Start a scan of {@code url}; crawl and audit when {@code audit}, crawl only otherwise. */
+    public void launchScan(String url, boolean audit) {
+        ScanLauncher l = scanLauncher;
+        if (l != null && url != null && !url.isBlank()) l.launch(url, audit);
+    }
+
     // ---- history ----
 
     public LogEntry record(String tool, HttpService svc, HttpMessage req) {
@@ -180,9 +202,22 @@ public class SuiteContext {
 
     // ---- issues ----
 
-    /** Add a scanner issue, de-duplicated. Returns true if newly added. */
+    /**
+     * Add a scanner issue, de-duplicated. Returns true if newly added. When the
+     * same finding is seen again (a de-dup hit), its new location is recorded on
+     * the existing issue rather than dropped, so a site-wide finding keeps every
+     * affected path without being stored once per URL.
+     */
     public boolean addIssue(Issue i) {
-        if (i == null || issueByKey.putIfAbsent(i.dedupeKey(), i) != null) return false;
+        if (i == null) return false;
+        Issue existing = issueByKey.putIfAbsent(i.dedupeKey(), i);
+        if (existing != null) {
+            if (existing.addLocation(i.path(), i.param())) {
+                touch();
+                for (IssueListener l : issueListeners) l.issueUpdated(existing);
+            }
+            return false;
+        }
         synchronized (issues) { issues.add(i); }
         touch();
         for (IssueListener l : issueListeners) l.issueAdded(i);
@@ -192,6 +227,22 @@ public class SuiteContext {
     /** The issue already held for the same finding as {@code i}, or null. */
     public Issue existingIssue(Issue i) {
         return i == null ? null : issueByKey.get(i.dedupeKey());
+    }
+
+    /** Remove the issues matching {@code p}; returns how many were removed. */
+    public int removeIssuesWhere(java.util.function.Predicate<Issue> p) {
+        java.util.List<Issue> removed = new ArrayList<>();
+        synchronized (issues) {
+            issues.removeIf(i -> {
+                if (p.test(i)) { issueByKey.remove(i.dedupeKey()); removed.add(i); return true; }
+                return false;
+            });
+        }
+        if (!removed.isEmpty()) {
+            touch();
+            for (IssueListener l : issueListeners) l.issuesReloaded();
+        }
+        return removed.size();
     }
 
     /** Issues were edited in place (not added): refresh the views once. */
