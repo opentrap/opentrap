@@ -176,18 +176,8 @@ public class NewScanWizard extends JDialog {
         ButtonGroup g = new ButtonGroup();
         for (int i = 0; i < STEPS.length; i++) {
             final int idx = i;
-            JToggleButton b = new JToggleButton(
-                    "<html><div style='text-align:center'>" + STEPS[i].replace(" ", "<br>") + "</div></html>");
-            b.setFont(Ui.PLAIN);
-            b.setFocusable(false);
-            b.setContentAreaFilled(false);
-            b.setOpaque(true);
-            b.setBackground(Theme.SURFACE);
-            b.setHorizontalTextPosition(SwingConstants.CENTER);
-            b.setVerticalTextPosition(SwingConstants.BOTTOM);
-            b.setBorder(Ui.pad(12, 14, 12, 14));
+            StepButton b = new StepButton(STEPS[i], STEP_ICONS[i]);
             b.setAlignmentX(Component.CENTER_ALIGNMENT);
-            b.setMaximumSize(new Dimension(150, 80));
             b.addActionListener(e -> selectStep(idx));
             g.add(b);
             rail[i] = b;
@@ -212,11 +202,8 @@ public class NewScanWizard extends JDialog {
         if (!typeChosen) i = 0;
         step = Math.max(0, Math.min(STEPS.length - 1, i));
         for (int k = 0; k < rail.length; k++) {
-            boolean on = k == step;
-            rail[k].setSelected(on);
-            rail[k].setBackground(on ? Ui.ACCENT : Theme.SURFACE);
-            rail[k].setForeground(on ? Color.WHITE : Theme.TEXT);
-            rail[k].setIcon(railIcon(STEP_ICONS[k], on ? Color.WHITE : Theme.MUTED));
+            rail[k].setSelected(k == step);
+            rail[k].repaint();
         }
         cards.show(content, STEPS[step]);
         updateButtons();
@@ -918,6 +905,55 @@ public class NewScanWizard extends JDialog {
         }
         g.dispose();
         return new ImageIcon(img);
+    }
+
+    /**
+     * One step in the left rail. It paints its own background, icon and wrapped
+     * label with explicit colours (accent fill and white text when selected,
+     * otherwise the rail surface and the normal text colour). Painting the label
+     * directly, rather than through an HTML button label, keeps the selected text
+     * readable on every display and font, which an HTML label did not.
+     */
+    private static final class StepButton extends JToggleButton {
+        private final String label;
+        private final String iconKind;
+
+        StepButton(String label, String iconKind) {
+            this.label = label;
+            this.iconKind = iconKind;
+            setFont(Ui.PLAIN);
+            setFocusable(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setPreferredSize(new Dimension(150, 76));
+        }
+
+        @Override public Dimension getMaximumSize() { return new Dimension(150, 80); }
+
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            boolean on = isSelected();
+            int w = getWidth(), h = getHeight();
+            g2.setColor(on ? Ui.ACCENT : Theme.SURFACE);
+            g2.fillRect(0, 0, w, h);
+
+            Icon ic = railIcon(iconKind, on ? Color.WHITE : Theme.MUTED);
+            int iy = 12;
+            ic.paintIcon(this, g2, (w - ic.getIconWidth()) / 2, iy);
+
+            g2.setColor(on ? Color.WHITE : Theme.TEXT);
+            g2.setFont(getFont());
+            FontMetrics fm = g2.getFontMetrics();
+            int ty = iy + ic.getIconHeight() + 8 + fm.getAscent();
+            for (String word : label.split(" ")) {
+                g2.drawString(word, (w - fm.stringWidth(word)) / 2f, ty);
+                ty += fm.getHeight();
+            }
+            g2.dispose();
+        }
     }
 
     private static Icon configIcon(String name) {

@@ -212,15 +212,14 @@ public class DashboardTool implements ToolModule {
         left.setBorder(Ui.pad(8, 8, 8, 8));
 
         // Header: bold "Tasks" + action buttons.
+        // The standalone Spider button is gone: a crawl-only run is now the
+        // "Crawl" option in the New scan wizard, so these two cover every task.
         JButton newScan = Ui.primaryButton("New scan", "crawl and audit a target");
         JButton newLiveTask = Ui.primaryButton("New live task", "start a live task");
-        JButton spiderBtn = Ui.button("Spider");
         accentise(newScan);
         accentise(newLiveTask);
-        accentise(spiderBtn);
         newScan.addActionListener(e -> newScan());
         opentrap.ui.Unbuilt.DASHBOARD_LIVE_TASK.attach(newLiveTask);
-        spiderBtn.addActionListener(e -> startSpider());
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
@@ -229,7 +228,6 @@ public class DashboardTool implements ToolModule {
         btns.setOpaque(false);
         btns.add(newScan);
         btns.add(newLiveTask);
-        btns.add(spiderBtn);
         header.add(btns, BorderLayout.EAST);
 
         // Filter + search row.
@@ -1755,30 +1753,6 @@ public class DashboardTool implements ToolModule {
         if (!w.started()) return;
         // One job for every URL listed: a single crawl task and audit task.
         startSpiderFor(w.targetUrls(), w.crawlAndAudit(), w.config(), w.threads());
-    }
-
-    private void startSpider() {
-        String def = "https://";
-        // Default to the first in-scope host if scope is set.
-        if (!ctx.scope().include().isEmpty()) {
-            opentrap.core.Scope.Rule first = ctx.scope().include().get(0);
-            if (first.isPrefix()) {
-                def = first.prefix.contains("://") ? first.prefix : "https://" + first.prefix + "/";
-            } else {
-                String host = opentrap.core.Scope.display(first.host);
-                if (!host.isBlank()) def = "https://" + host + "/";
-            }
-        }
-        String url = (String) JOptionPane.showInputDialog(ctx.frame(),
-                "URL to spider (the crawl stays within the target scope):", "Spider",
-                JOptionPane.PLAIN_MESSAGE, null, null, def);
-        if (url == null || url.trim().isEmpty()) return;
-        startSpiderFor(url.trim());
-    }
-
-    /** Crawl the given URL. The spider button calls this directly (crawl only). */
-    private void startSpiderFor(String url) {
-        startSpiderFor(url, false, opentrap.engine.ScanConfig.crawlDefault(), 10);
     }
 
     private void startSpiderFor(String url, boolean thenAudit) {
