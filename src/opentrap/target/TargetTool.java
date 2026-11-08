@@ -702,6 +702,7 @@ public class TargetTool implements ToolModule {
                 addItem(menu, "request in browser",
                         () -> opentrap.ui.MessageActions.openRequestInBrowser(ctx.frame(), le.service(), le.request()));
             }
+            addItem(menu, "save item", () -> opentrap.report.Export.saveItemsDialog(ctx.frame(), java.util.List.of(le)));
         } else {
             // A host or folder is not one request, so it offers only the path-level
             // engagement tools (content discovery, not a per-request CSRF PoC) and a
@@ -737,11 +738,10 @@ public class TargetTool implements ToolModule {
                     opentrap.ui.MessageActions.clip(String.join("\n", links));
                 });
             }
-            menu.addSeparator();
-            JMenuItem saveItems = new JMenuItem("save items");
-            saveItems.setFont(Ui.PLAIN);
-            opentrap.ui.Unbuilt.TARGET_SAVE_ITEMS.attach(saveItems);   // not yet implemented
-            menu.add(saveItems);
+            if (!ents.isEmpty()) {
+                menu.addSeparator();
+                addItem(menu, "save items", () -> opentrap.report.Export.saveItemsDialog(ctx.frame(), ents));
+            }
         }
         return menu;
     }

@@ -4,13 +4,22 @@ import opentrap.core.Issue;
 import opentrap.core.LogEntry;
 import opentrap.ui.Advisory;
 
+import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import java.awt.BorderLayout;
 import java.awt.Component;
+import java.io.File;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.Base64;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * Writes findings and traffic to disk: an HTML or XML issue report, and logged
@@ -227,6 +236,118 @@ public final class Export {
     }
 
     // ---------------- save helper ----------------
+
+    // ---- saved items (request/response records, plain or base64) --------------
+
+    private static final String ITEMS_DOCTYPE =
+            "<!DOCTYPE items [\n"
+          + "<!ELEMENT items (item*)>\n"
+          + "<!ATTLIST items exportTool CDATA \"\">\n"
+          + "<!ATTLIST items exportVersion CDATA \"\">\n"
+          + "<!ATTLIST items exportTime CDATA \"\">\n"
+          + "<!ELEMENT item (time, url, host, port, protocol, method, path, extension, request, status, responselength, mimetype, response, comment)>\n"
+          + "<!ELEMENT time (#PCDATA)>\n"
+          + "<!ELEMENT url (#PCDATA)>\n"
+          + "<!ELEMENT host (#PCDATA)>\n"
+          + "<!ATTLIST host ip CDATA \"\">\n"
+          + "<!ELEMENT port (#PCDATA)>\n"
+          + "<!ELEMENT protocol (#PCDATA)>\n"
+          + "<!ELEMENT method (#PCDATA)>\n"
+          + "<!ELEMENT path (#PCDATA)>\n"
+          + "<!ELEMENT extension (#PCDATA)>\n"
+          + "<!ELEMENT request (#PCDATA)>\n"
+          + "<!ATTLIST request base64 (true|false) \"false\">\n"
+          + "<!ELEMENT status (#PCDATA)>\n"
+          + "<!ELEMENT responselength (#PCDATA)>\n"
+          + "<!ELEMENT mimetype (#PCDATA)>\n"
+          + "<!ELEMENT response (#PCDATA)>\n"
+          + "<!ATTLIST response base64 (true|false) \"false\">\n"
+          + "<!ELEMENT comment (#PCDATA)>\n"
+          + "]>\n";
+
+    /** The selected entries as an item XML, requests and responses plain or base64-encoded. */
+    public static String itemsXml(List<opentrap.core.LogEntry> entries, boolean base64) {
+        SimpleDateFormat fmt = new SimpleDateFormat("EEE MMM dd HH:mm:ss zzz yyyy", Locale.US);
+        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+        StringBuilder b = new StringBuilder();
+        b.append("<?xml version=\"1.1\"?>\n");
+        b.append("<!-- NOTE: Any NULL bytes in requests and responses are preserved within this output, even "
+                + "though this strictly breaks the XML syntax. If your XML parser rejects the NULL bytes then you "
+                + "will need to remove or replace these bytes before parsing. Alternatively, you can use the option "
+                + "to base64-encode requests and responses. -->\n");
+        b.append(ITEMS_DOCTYPE);
+        b.append("<items exportTool=\"OpenTRAP\" exportVersion=\"").append(Advisory.esc(opentrap.ui.Main.VERSION))
+         .append("\" exportTime=\"").append(fmt.format(new Date())).append("\">\n");
+        for (opentrap.core.LogEntry e : entries) {
+            opentrap.core.HttpService svc = e.service();
+            byte[] req  = e.request() == null ? new byte[0] : e.request().raw();
+            byte[] resp = e.response() == null ? new byte[0] : e.response().raw();
+            String ext = e.fileExtension();
+            b.append("  <item>\n");
+            plain(b, "time", fmt.format(e.time()));
+            cdata(b, "url", e.url());
+            b.append("    <host ip=\"").append(Advisory.esc(e.remoteIp())).append("\">")
+             .append(Advisory.esc(svc == null ? "" : svc.host())).append("</host>\n");
+            plain(b, "port", String.valueOf(svc == null ? 0 : svc.port()));
+            plain(b, "protocol", svc != null && svc.secure() ? "https" : "http");
+            cdata(b, "method", e.method());
+            cdata(b, "path", e.requestPath());
+            plain(b, "extension", ext == null || ext.isEmpty() ? "null" : ext);
+            bodyEl(b, "request", req, base64);
+            plain(b, "status", e.status() == 0 ? "" : String.valueOf(e.status()));
+            plain(b, "responselength", String.valueOf(e.responseLen()));
+            plain(b, "mimetype", e.mimeType());
+            bodyEl(b, "response", resp, base64);
+            cdata(b, "comment", e.notes());
+            b.append("  </item>\n");
+        }
+        return b.append("</items>\n").toString();
+    }
+
+    private static void plain(StringBuilder b, String tag, String v) {
+        b.append("    <").append(tag).append('>').append(Advisory.esc(v == null ? "" : v)).append("</").append(tag).append(">\n");
+    }
+
+    private static void cdata(StringBuilder b, String tag, String v) {
+        b.append("    <").append(tag).append("><![CDATA[").append(cdataSafe(v)).append("]]></").append(tag).append(">\n");
+    }
+
+    private static void bodyEl(StringBuilder b, String tag, byte[] raw, boolean base64) {
+        b.append("    <").append(tag).append(" base64=\"").append(base64).append("\"><![CDATA[");
+        if (base64) b.append(Base64.getEncoder().encodeToString(raw));
+        else b.append(cdataSafe(new String(raw, StandardCharsets.ISO_8859_1)));
+        b.append("]]></").append(tag).append(">\n");
+    }
+
+    /** Make text safe inside a CDATA section by splitting any "]]>" sequence. */
+    private static String cdataSafe(String s) {
+        return s == null ? "" : s.replace("]]>", "]]]]><![CDATA[>");
+    }
+
+    /** Save items to a file chosen in a dialog, with an option to base64-encode. */
+    public static void saveItemsDialog(Component parent, List<opentrap.core.LogEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            JOptionPane.showMessageDialog(parent, "There are no items to save.", "save items", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle("save items");
+        fc.setSelectedFile(new File("items.xml"));
+        JCheckBox b64 = new JCheckBox("Base64-encode requests and responses");
+        JPanel acc = new JPanel(new BorderLayout());
+        acc.add(b64, BorderLayout.NORTH);
+        fc.setAccessory(acc);
+        if (fc.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return;
+        File f = fc.getSelectedFile();
+        try (PrintWriter w = new PrintWriter(f, StandardCharsets.UTF_8)) {
+            w.print(itemsXml(entries, b64.isSelected()));
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(parent, "save failed: " + e.getMessage(), "save items", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        JOptionPane.showMessageDialog(parent, "Save successful: " + f.getAbsolutePath(),
+                "save items", JOptionPane.INFORMATION_MESSAGE);
+    }
 
     public static void save(Component parent, String suggestedName, String content) {
         JFileChooser fc = new JFileChooser();

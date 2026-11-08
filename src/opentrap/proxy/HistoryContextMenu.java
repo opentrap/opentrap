@@ -161,6 +161,8 @@ public class HistoryContextMenu {
                         () -> opentrap.ui.MessageActions.openRequestInBrowser(ctx.frame(), first.service(), first.request()));
             }
         }
+        add(menu, single ? "save item" : "save selected items",
+                () -> opentrap.report.Export.saveItemsDialog(ctx.frame(), sel));
         return menu;
     }
 
