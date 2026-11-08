@@ -26,6 +26,18 @@ This file is generated from the registry in `src/opentrap/ui/Unbuilt.java`, whic
 |---|---|
 | Resource pool | `OT-INTRUDER-RESPOOL` |
 
+## Target
+
+| Feature | Reference |
+|---|---|
+| Save items | `OT-TARGET-SAVE-ITEMS` |
+
+## Message editor
+
+| Feature | Reference |
+|---|---|
+| Convert selection | `OT-EDITOR-CONVERT` |
+
 ## Extensions
 
 | Feature | Reference |
@@ -51,4 +63,4 @@ This file is generated from the registry in `src/opentrap/ui/Unbuilt.java`, whic
 | Suite | `OT-SETTINGS-SUITE` |
 | Extensions | `OT-SETTINGS-EXTENSIONS` |
 
-15 open items.
+17 open items.

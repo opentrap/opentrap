@@ -18,6 +18,20 @@ import java.util.List;
  */
 public final class Export {
 
+    /** Prompt for HTML or XML and save {@code issues} as a report named {@code baseName}. */
+    public static void reportDialog(Component parent, List<Issue> issues, String baseName) {
+        if (issues == null || issues.isEmpty()) {
+            JOptionPane.showMessageDialog(parent, "There are no findings to export.",
+                    "export report", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        Object[] options = {"HTML", "XML", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(parent, "Export the findings as:", "export report",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+        if (choice == 0) save(parent, baseName + ".html", issuesHtml(issues));
+        else if (choice == 1) save(parent, baseName + ".xml", issuesXml(issues));
+    }
+
     private Export() {}
 
     // ---------------- issue report ----------------

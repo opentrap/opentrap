@@ -58,6 +58,10 @@ public final class Unbuilt {
     // Intruder
     public static final Unbuilt INTRUDER_RESPOOL     = of("OT-INTRUDER-RESPOOL",     "Intruder > Resource pool");
 
+    public static final Unbuilt TARGET_SAVE_ITEMS    = of("OT-TARGET-SAVE-ITEMS",    "Target > Save items");
+
+    public static final Unbuilt EDITOR_CONVERT       = of("OT-EDITOR-CONVERT",       "Message editor > Convert selection");
+
     // Extensions
     public static final Unbuilt EXT_INSTALLED        = of("OT-EXT-INSTALLED",        "Extensions > Installed");
     public static final Unbuilt EXT_STORE            = of("OT-EXT-STORE",            "Extensions > Store");

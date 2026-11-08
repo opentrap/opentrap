@@ -811,17 +811,8 @@ public class DashboardTool implements ToolModule {
     }
 
     private void exportIssuesReport() {
-        List<Issue> all = ctx == null ? new ArrayList<>() : ctx.issues();
-        if (all.isEmpty()) {
-            JOptionPane.showMessageDialog(ctx == null ? null : ctx.frame(),
-                    "There are no findings to export yet.", "export report", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        Object[] options = {"HTML", "XML", "Cancel"};
-        int choice = JOptionPane.showOptionDialog(ctx.frame(), "Export the findings as:", "export report",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-        if (choice == 0) opentrap.report.Export.save(ctx.frame(), "opentrap-report.html", opentrap.report.Export.issuesHtml(all));
-        else if (choice == 1) opentrap.report.Export.save(ctx.frame(), "opentrap-report.xml", opentrap.report.Export.issuesXml(all));
+        opentrap.report.Export.reportDialog(ctx == null ? null : ctx.frame(),
+                ctx == null ? new ArrayList<>() : ctx.issues(), "opentrap-report");
     }
 
     private JComponent buildEventLogTab() {

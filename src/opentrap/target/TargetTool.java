@@ -695,6 +695,13 @@ public class TargetTool implements ToolModule {
                 addItem(menu, "copy links in response",
                         () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.linksIn(le.response(), le.url())));
             }
+            menu.addSeparator();
+            addItem(menu, "record an issue", () -> opentrap.ui.ManualIssue.record(ctx.frame(), ctx,
+                    le.service(), le.request(), le.response()));
+            if (le.request() != null) {
+                addItem(menu, "request in browser",
+                        () -> opentrap.ui.MessageActions.openRequestInBrowser(ctx.frame(), le.service(), le.request()));
+            }
         } else {
             // A host or folder is not one request, so it offers only the path-level
             // engagement tools (content discovery, not a per-request CSRF PoC) and a
@@ -702,6 +709,17 @@ public class TargetTool implements ToolModule {
             java.util.List<LogEntry> ents = node.entries();
             LogEntry rep = ents.isEmpty() ? null : ents.get(0);
             if (rep != null) addEngagementSubmenu(menu, rep, false);
+            // Report and delete the findings for this host, as the reference offers.
+            if (node.service != null) {
+                final String host = node.service.host();
+                menu.addSeparator();
+                addItem(menu, "report issues", () -> {
+                    java.util.List<Issue> hostIssues = new java.util.ArrayList<>();
+                    for (Issue i : ctx.issues()) if (i.host().equalsIgnoreCase(host)) hostIssues.add(i);
+                    opentrap.report.Export.reportDialog(ctx.frame(), hostIssues, "opentrap-report-" + host);
+                });
+                addItem(menu, "delete issues", () -> ctx.removeIssuesWhere(i -> i.host().equalsIgnoreCase(host)));
+            }
             menu.addSeparator();
             addItem(menu, "expand branch", () -> expandBranch(node));
             if (!ents.isEmpty()) {
@@ -719,6 +737,11 @@ public class TargetTool implements ToolModule {
                     opentrap.ui.MessageActions.clip(String.join("\n", links));
                 });
             }
+            menu.addSeparator();
+            JMenuItem saveItems = new JMenuItem("save items");
+            saveItems.setFont(Ui.PLAIN);
+            opentrap.ui.Unbuilt.TARGET_SAVE_ITEMS.attach(saveItems);   // not yet implemented
+            menu.add(saveItems);
         }
         return menu;
     }

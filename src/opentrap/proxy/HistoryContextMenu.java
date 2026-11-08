@@ -152,6 +152,15 @@ public class HistoryContextMenu {
             add(menu, "copy links in response",
                     () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.linksIn(first.response(), first.url())));
         }
+        if (single) {
+            menu.addSeparator();
+            add(menu, "record an issue", () -> opentrap.ui.ManualIssue.record(ctx.frame(), ctx,
+                    first.service(), first.request(), first.response()));
+            if (first.request() != null) {
+                add(menu, "request in browser",
+                        () -> opentrap.ui.MessageActions.openRequestInBrowser(ctx.frame(), first.service(), first.request()));
+            }
+        }
         return menu;
     }
 

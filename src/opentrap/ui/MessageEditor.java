@@ -799,6 +799,24 @@ public class MessageEditor extends JPanel {
             if (message.isRequest()) addItem(menu, "Copy as curl command (bash)", null, e -> clip(asCurl()));
         }
 
+        // Record an issue, open/add the request, as the reference request menu does.
+        if (ctx != null && service != null && haveMessage) {
+            HttpMessage req = message.isRequest() ? message : relatedRequest;
+            HttpMessage resp = message.isRequest() ? null : message;
+            menu.addSeparator();
+            addItem(menu, "Record an issue", null, e -> ManualIssue.record(this, ctx, service, req, resp));
+            if (req != null) {
+                addItem(menu, "Request in browser", null, e -> MessageActions.openRequestInBrowser(this, service, req));
+                addItem(menu, "Add to site map", null, e -> MessageActions.addToSiteMap(ctx, service, req, resp));
+            }
+        }
+        if (editable) {
+            JMenuItem convert = new JMenuItem("Convert selection");
+            convert.setFont(Ui.PLAIN);
+            Unbuilt.EDITOR_CONVERT.attach(convert);   // not yet implemented
+            menu.add(convert);
+        }
+
         if (!providers.isEmpty()) {
             menu.addSeparator();
             for (ActionProvider p : providers) p.contribute(menu);

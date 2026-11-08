@@ -2,7 +2,11 @@ package opentrap.ui;
 
 import opentrap.core.HttpMessage;
 import opentrap.core.HttpService;
+import opentrap.core.LogEntry;
+import opentrap.core.SuiteContext;
 
+import javax.swing.JOptionPane;
+import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
@@ -80,5 +84,31 @@ public final class MessageActions {
     private static String resolve(String base, String ref) {
         try { return java.net.URI.create(base).resolve(ref).toString(); }
         catch (Exception e) { return ref; }
+    }
+
+    /** Open a GET request's URL in the system browser; other methods cannot be replayed this way. */
+    public static void openRequestInBrowser(Component parent, HttpService svc, HttpMessage req) {
+        if (req == null) return;
+        if (!"GET".equalsIgnoreCase(req.method())) {
+            JOptionPane.showMessageDialog(parent,
+                    "Only GET requests can be opened in a browser; this one is " + req.method() + ".",
+                    "request in browser", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        try {
+            String url = (svc == null ? "" : svc.url()) + req.requestTarget();
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                Desktop.getDesktop().browse(java.net.URI.create(url));
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** Record a request (and its response) so it appears in the site map and history. */
+    public static void addToSiteMap(SuiteContext ctx, HttpService svc, HttpMessage req, HttpMessage resp) {
+        if (ctx == null || svc == null || req == null) return;
+        LogEntry e = new LogEntry("proxy", svc, req.copy());
+        if (resp != null) e.setResponse(resp.copy());
+        ctx.store().add(e);
+        ctx.siteMapChanged(e);
     }
 }

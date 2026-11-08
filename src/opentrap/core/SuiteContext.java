@@ -224,6 +224,22 @@ public class SuiteContext {
         return i == null ? null : issueByKey.get(i.dedupeKey());
     }
 
+    /** Remove the issues matching {@code p}; returns how many were removed. */
+    public int removeIssuesWhere(java.util.function.Predicate<Issue> p) {
+        java.util.List<Issue> removed = new ArrayList<>();
+        synchronized (issues) {
+            issues.removeIf(i -> {
+                if (p.test(i)) { issueByKey.remove(i.dedupeKey()); removed.add(i); return true; }
+                return false;
+            });
+        }
+        if (!removed.isEmpty()) {
+            touch();
+            for (IssueListener l : issueListeners) l.issuesReloaded();
+        }
+        return removed.size();
+    }
+
     /** Issues were edited in place (not added): refresh the views once. */
     public void issuesChanged() {
         for (IssueListener l : issueListeners) l.issuesReloaded();
