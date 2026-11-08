@@ -49,7 +49,8 @@ public class LoggerTool implements ToolModule {
         Ui.centerCells(table);
         TableRowSorter<Model> sorter = new TableRowSorter<>(model);
         table.setRowSorter(sorter);
-        sorter.setSortKeys(java.util.List.of(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
+        // Newest first, so the most recent entry stays at the top of the table.
+        sorter.setSortKeys(java.util.List.of(new RowSorter.SortKey(0, SortOrder.DESCENDING)));
 
         reqView = new MessageEditor(ctx, MessageEditor.REQUEST, false);
         respView = new MessageEditor(ctx, MessageEditor.RESPONSE, false);

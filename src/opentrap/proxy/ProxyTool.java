@@ -505,7 +505,9 @@ public class ProxyTool implements ToolModule {
             Ui.centerCells(table);
             TableRowSorter<HistoryModel> sorter = new TableRowSorter<>(model);
             table.setRowSorter(sorter);
-            sorter.setSortKeys(java.util.List.of(new RowSorter.SortKey(0, SortOrder.ASCENDING)));
+            // Newest first: the latest request stays at the top of the table as
+            // more arrive, so the user never scrolls to find the most recent.
+            sorter.setSortKeys(java.util.List.of(new RowSorter.SortKey(0, SortOrder.DESCENDING)));
 
             JPanel top = new JPanel(new BorderLayout());
             top.add(new OutOfScopeBanner(ctx), BorderLayout.NORTH);
@@ -562,7 +564,7 @@ public class ProxyTool implements ToolModule {
                 filterButton.setText("Filter settings: " + (filterOn.isSelected() ? filter.summary() : "Showing all items"));
             });
             JButton help = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.help(), "About the history", () -> JOptionPane.showMessageDialog(this,
-                    "Every request that passed through the proxy, newest at the bottom.\nClick the filter bar to choose what is shown.",
+                    "Every request that passed through the proxy, newest at the top.\nClick the filter bar to choose what is shown.",
                     "HTTP history", JOptionPane.INFORMATION_MESSAGE));
             JButton kebab = opentrap.ui.Glyphs.menuButton("Table layout and custom columns", () -> opentrap.ui.TableLayoutMenu.build(table));
             return Ui.filterBar(filterButton, urlSearch, filterOn, help, kebab);
