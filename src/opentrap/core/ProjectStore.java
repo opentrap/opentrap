@@ -28,6 +28,8 @@ import java.util.zip.CRC32;
  *   <li>{@link #ENTRY}: one history entry's index (its metadata and the offsets
  *       of its bodies), appended as the entry is recorded so the index is
  *       durable per exchange, not only at a periodic save.
+ *   <li>{@link #WS}: one WebSocket frame's index (its metadata and the offset
+ *       of its payload), appended as the frame is relayed.
  *   <li>{@link #SNAPSHOT}: the small mutable session state (scope, settings,
  *       findings, tool states, tasks), appended when it changes or on save.
  *   <li>{@link #TOMBSTONE}: marks an earlier entry removed.
@@ -48,6 +50,7 @@ public final class ProjectStore implements Closeable {
     public static final byte ENTRY = 2;
     public static final byte SNAPSHOT = 3;
     public static final byte TOMBSTONE = 4;
+    public static final byte WS = 5;
 
     private static final int MAGIC = 0x4F545231;   // "OTR1"
     private static final int VERSION = 1;

@@ -99,9 +99,11 @@ public class Main {
             // makes it appear reliably.
             Debug.log("creating SuiteContext and SuiteFrame");
             SuiteContext ctx = new SuiteContext();
-            // EXPERIMENTAL (issue #37 keystone): keep recorded traffic bodies on
-            // disk, not in the heap, so a long proxying session stays bounded.
+            // EXPERIMENTAL (issue #37 keystone): keep recorded traffic bodies
+            // and WebSocket frame payloads on disk, not in the heap, so a long
+            // proxying session stays bounded.
             ctx.store().useDiskStore(home.resolve("traffic"));
+            ctx.wsStore().useDiskStore(home.resolve("ws-traffic"));
             SuiteFrame frame = new SuiteFrame(ctx, TITLE);
             // Under --debug, report what the interface was doing whenever it
             // stops answering, so a freeze comes with its reason attached.

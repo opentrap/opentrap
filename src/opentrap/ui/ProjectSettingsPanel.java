@@ -54,7 +54,21 @@ public final class ProjectSettingsPanel extends JPanel {
                 + "amount the oldest probes are dropped as new ones arrive, so a long audit cannot "
                 + "exhaust memory. 0 keeps everything. Findings, the crawl and everything done by "
                 + "hand are never dropped.");
-        page.section("memory", memRow, memNote);
+
+        JSpinner wsMem = new JSpinner(new SpinnerNumberModel(
+                s.getInt(ProjectOptions.WS_MEMORY_MB, ProjectOptions.DEFAULT_WS_MEMORY_MB), 0, 100_000, 8));
+        wsMem.setFont(Ui.PLAIN);
+        wsMem.addChangeListener(e -> {
+            s.setInt(ProjectOptions.WS_MEMORY_MB, (Integer) wsMem.getValue());
+            ctx.wsStore().setCapBytes(ProjectOptions.wsMemoryBytes(s));
+        });
+        JPanel wsMemRow = Ui.form("websocket frames kept in memory (MB):", wsMem);
+        JTextArea wsMemNote = Ui.note(
+                "WebSocket frames keep their payloads on disk like HTTP traffic, so a long session "
+                + "cannot exhaust memory. This cap bounds the payloads kept in the heap when disk "
+                + "recording is off: past it the oldest frames are dropped as new ones arrive. "
+                + "0 keeps everything.");
+        page.section("memory", memRow, memNote, wsMemRow, wsMemNote);
 
         JCheckBox logoos = Ui.check("log out-of-scope traffic", ProjectOptions.logOutOfScope(s));
         logoos.addActionListener(e -> s.setBool(ProjectOptions.LOG_OUT_OF_SCOPE, logoos.isSelected()));

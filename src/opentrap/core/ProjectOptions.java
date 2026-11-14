@@ -11,7 +11,9 @@ package opentrap.core;
  * done by hand are kept in full, the audit's own probe traffic is kept as
  * headers only (every finding already carries its full request and response),
  * and the probe traffic held in memory during a session is capped so a long
- * audit cannot grow the heap without limit.
+ * audit cannot grow the heap without limit. WebSocket frames are bounded the
+ * same way: their payloads spill to the project store like HTTP bodies, and
+ * the cap drops the oldest only while they must stay in memory.
  */
 public final class ProjectOptions {
     private ProjectOptions() {}
@@ -22,6 +24,8 @@ public final class ProjectOptions {
     public static final String BODY_CAP_KB = "project.bodyCapKb";
     /** How much audit traffic the session keeps in memory, in MB; the oldest is dropped past this. */
     public static final String AUDIT_MEMORY_MB = "project.auditMemoryMb";
+    /** How much WebSocket frame payload the session keeps in memory, in MB; the oldest is dropped past this. */
+    public static final String WS_MEMORY_MB = "project.wsMemoryMb";
     /** Whether the proxy records traffic that is outside the target scope. */
     public static final String LOG_OUT_OF_SCOPE = "proxy.logOutOfScope";
     /**
@@ -33,6 +37,7 @@ public final class ProjectOptions {
     public static final String SCOPE_ADVANCED = "scope.advanced";
 
     public static final int DEFAULT_AUDIT_MEMORY_MB = 100;
+    public static final int DEFAULT_WS_MEMORY_MB = 32;
 
     /** The tool tag the engine gives its audit probes; the one kind of traffic saved headers-only. */
     public static final String AUDIT_TOOL = "audit";
@@ -48,6 +53,12 @@ public final class ProjectOptions {
     /** The in-memory audit cap in bytes, or 0 for none. */
     public static long auditMemoryBytes(Settings s) {
         int mb = s.getInt(AUDIT_MEMORY_MB, DEFAULT_AUDIT_MEMORY_MB);
+        return mb <= 0 ? 0 : mb * 1024L * 1024L;
+    }
+
+    /** The in-memory WebSocket cap in bytes, or 0 for none. */
+    public static long wsMemoryBytes(Settings s) {
+        int mb = s.getInt(WS_MEMORY_MB, DEFAULT_WS_MEMORY_MB);
         return mb <= 0 ? 0 : mb * 1024L * 1024L;
     }
 

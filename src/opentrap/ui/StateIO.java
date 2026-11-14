@@ -227,8 +227,16 @@ public final class StateIO {
                 store.append(ProjectStore.ENTRY, rec.indexBytes());
                 migrated.add(rec);
             }
+            List<WebSocketMessage> frames = new ArrayList<>();
+            for (WebSocketMessage m : ctx.wsStore().all()) {
+                WebSocketMessage rec = m.writtenTo(store);
+                store.append(ProjectStore.WS, rec.indexBytes());
+                frames.add(rec);
+            }
             store.append(ProjectStore.SNAPSHOT, sessionStateBytes(ctx, o));
             store.sync();
+            ctx.wsStore().useStore(store);
+            ctx.wsStore().replaceAll(frames);
             ctx.store().useStore(store);
             if (!migrated.isEmpty()) ctx.store().replaceAll(migrated);
         }
@@ -262,7 +270,8 @@ public final class StateIO {
     /**
      * Write every live entry (filtered by scope and tool, bodies slimmed) and a
      * session-state snapshot into {@code target}. The live entries are copied,
-     * not moved, so the running session is never disturbed.
+     * not moved, so the running session is never disturbed. WebSocket frames
+     * are copied whole, like the history.
      */
     static void writeAllTo(SuiteContext ctx, ProjectStore target, SaveOptions o) throws IOException {
         for (LogEntry e : ctx.store().all()) {
@@ -271,6 +280,10 @@ public final class StateIO {
             boolean drop = !o.keepAuditBodies && opentrap.core.ProjectOptions.AUDIT_TOOL.equals(e.tool());
             LogEntry rec = e.writtenTo(target, drop, o.bodyCapBytes);
             target.append(ProjectStore.ENTRY, rec.indexBytes());
+        }
+        for (WebSocketMessage m : ctx.wsStore().all()) {
+            WebSocketMessage rec = m.writtenTo(target);
+            target.append(ProjectStore.WS, rec.indexBytes());
         }
         target.append(ProjectStore.SNAPSHOT, sessionStateBytes(ctx, o));
     }
@@ -298,6 +311,7 @@ public final class StateIO {
     static int openV7(SuiteContext ctx, File file) throws Exception {
         ProjectStore store = new ProjectStore(file.toPath(), 32L * 1024 * 1024);
         java.util.LinkedHashMap<Integer, LogEntry> byNumber = new java.util.LinkedHashMap<>();
+        List<WebSocketMessage> frames = new ArrayList<>();
         byte[][] snapshot = { null };
         store.scan((type, offset, data) -> {
             try {
@@ -308,6 +322,8 @@ public final class StateIO {
                     int n = ((data[0] & 0xFF) << 24) | ((data[1] & 0xFF) << 16)
                             | ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
                     byNumber.remove(n);
+                } else if (type == ProjectStore.WS) {
+                    frames.add(WebSocketMessage.fromIndex(data, store));
                 } else if (type == ProjectStore.SNAPSHOT) {
                     snapshot[0] = data;
                 }
@@ -317,9 +333,11 @@ public final class StateIO {
         });
         List<LogEntry> entries = new ArrayList<>(byNumber.values());
         ctx.store().useStore(store);   // keep recording into this same file
+        ctx.wsStore().useStore(store); // the WebSocket frames too
         ctx.setRestoring(true);
         try {
             ctx.store().replaceAll(entries);
+            ctx.wsStore().replaceAll(frames);
             if (snapshot[0] != null) applySessionState(ctx, snapshot[0]);
             int max = 0;
             for (LogEntry le : entries) max = Math.max(max, le.number());

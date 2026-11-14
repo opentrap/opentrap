@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,6 +40,14 @@ public final class ProjectFileTest {
         File f = Files.createTempFile("opentrap-projfile", ".otrap").toFile();
         f.delete();   // bindNew/open create it fresh
         return f;
+    }
+
+    /** Wait for the frame offloader to spill every payload, as the disk tests do. */
+    private static void awaitWsOffload(SuiteContext ctx) {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (ctx.wsStore().residentBytes() > 0 && System.currentTimeMillis() < deadline) {
+            try { Thread.sleep(5); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
+        }
     }
 
     public void run() {
@@ -92,6 +101,49 @@ public final class ProjectFileTest {
                     if (e.pathAndQuery().equals("/edit")) { sawEdit = true; Expect.equal(e.notes(), "look here", "the edit is kept"); }
                 }
                 Expect.isTrue(sawEdit, "the edited entry is present");
+                back.store().closeStore();
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("websocket frames round-trip through a save and reopen", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                File f = tmp();
+                StateIO.bindNew(ctx, f, StateIO.SaveOptions.fromSettings(ctx));
+                ctx.wsStore().add(new WebSocketMessage(7, "example.com",
+                        WebSocketMessage.Direction.S2C, WebSocketMessage.Op.TEXT,
+                        "server frame one".getBytes(StandardCharsets.UTF_8), false));
+                ctx.wsStore().add(new WebSocketMessage(7, "example.com",
+                        WebSocketMessage.Direction.C2S, WebSocketMessage.Op.TEXT,
+                        "client frame two".getBytes(StandardCharsets.UTF_8), true));
+                awaitWsOffload(ctx);                // the payloads leave the heap
+                StateIO.save(ctx, f);               // cheap snapshot append
+                ctx.wsStore().closeStore();         // drains the frame records and fsyncs
+                ctx.store().closeStore();
+
+                SuiteContext back = new SuiteContext();
+                StateIO.restore(back, f);
+                Expect.equal(back.wsStore().size(), 2, "both frames reopen");
+                List<WebSocketMessage> frames = back.wsStore().all();
+                Expect.equal(frames.get(0).text(), "server frame one", "order and payload preserved");
+                Expect.equal(frames.get(1).text(), "client frame two", "the second frame preserved");
+                Expect.isTrue(frames.get(0).offloaded(), "the payloads reopen on disk, not in the heap");
+                Expect.isTrue(frames.get(1).edited, "frame metadata preserved");
+                Expect.equal(frames.get(0).connectionId, 7, "the connection id preserved");
+
+                // A saved copy to another file (the full rewrite path) carries
+                // the frames too, payloads included.
+                File copy = tmp();
+                StateIO.save(back, copy);
+                SuiteContext third = new SuiteContext();
+                StateIO.restore(third, copy);
+                Expect.equal(third.wsStore().size(), 2, "a saved copy carries the frames");
+                Expect.equal(third.wsStore().all().get(0).text(), "server frame one", "payloads whole in the copy");
+                third.wsStore().closeStore();
+                third.store().closeStore();
+                copy.delete();
+
+                back.wsStore().closeStore();
                 back.store().closeStore();
             } catch (Exception e) { throw new RuntimeException(e); }
         });
