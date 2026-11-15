@@ -77,6 +77,10 @@ Construct: `new LogEntry(String tool, HttpService svc, HttpMessage request)`.
 `add(LogEntry) all() size() get(i) clear() remove(e) replaceAll(list) addListener(MessageStore.Listener)`
 `interface Listener { void entryAdded(LogEntry e); void entryUpdated(LogEntry e); }`
 
+## opentrap.core.WebSocketStore
+`add(WebSocketMessage) all() recent(n) size() get(i) clear() replaceAll(list) addListener(WebSocketStore.Listener)`
+`interface Listener { void messageAdded(WebSocketMessage m); default messageRemoved(m) reloaded(list) }`
+
 ## opentrap.core.Scope
 `boolean isInScope(HttpService svc, String path)`, `isInScope(LogEntry)`, `include()`, `exclude()` (List<Scope.Rule>), `includeUrl(svc,path,wholeHost)`, `excludeUrl(...)`.
 

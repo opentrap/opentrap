@@ -21,6 +21,7 @@ public final class RunTests {
         new opentrap.core.MessageStoreCapTest().run();
         new opentrap.core.ProjectStoreTest().run();
         new opentrap.core.MessageStoreDiskTest().run();
+        new opentrap.core.WebSocketStoreTest().run();
         new opentrap.session.SessionTest().run();
         new opentrap.intruder.PayloadProcessorTest().run();
         new opentrap.report.ExportTest().run();

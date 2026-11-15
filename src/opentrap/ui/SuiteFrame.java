@@ -70,12 +70,15 @@ public class SuiteFrame extends JFrame {
             return configLibrary;
         });
         SettingsDialog.register("Project", () -> new ProjectSettingsPanel(ctx));
-        // The audit traffic cap follows its setting, including one restored
-        // from a project.
+        // The audit traffic and WebSocket frame caps follow their settings,
+        // including ones restored from a project.
         ctx.store().setAuditCapBytes(opentrap.core.ProjectOptions.auditMemoryBytes(ctx.settings()));
+        ctx.wsStore().setCapBytes(opentrap.core.ProjectOptions.wsMemoryBytes(ctx.settings()));
         ctx.settings().addListener(key -> {
             if (opentrap.core.ProjectOptions.AUDIT_MEMORY_MB.equals(key))
                 ctx.store().setAuditCapBytes(opentrap.core.ProjectOptions.auditMemoryBytes(ctx.settings()));
+            if (opentrap.core.ProjectOptions.WS_MEMORY_MB.equals(key))
+                ctx.wsStore().setCapBytes(opentrap.core.ProjectOptions.wsMemoryBytes(ctx.settings()));
         });
         setIconImages(AppIcon.images());
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);

@@ -41,7 +41,17 @@ public class WebSocketsPanel extends JPanel implements WsInterceptor {
     public WebSocketsPanel(SuiteContext ctx) {
         super(new BorderLayout());
         this.ctx = ctx;
-        ctx.wsStore().addListener(m -> SwingUtilities.invokeLater(() -> model.add(m)));
+        ctx.wsStore().addListener(new WebSocketStore.Listener() {
+            @Override public void messageAdded(WebSocketMessage m) {
+                SwingUtilities.invokeLater(() -> model.add(m));
+            }
+            @Override public void messageRemoved(WebSocketMessage m) {
+                SwingUtilities.invokeLater(() -> model.remove(m));
+            }
+            @Override public void reloaded(List<WebSocketMessage> all) {
+                SwingUtilities.invokeLater(() -> model.reload(all));
+            }
+        });
         WebSocketConnection.setInterceptor(this);
         WebSocketConnection.addLiveListener(() -> SwingUtilities.invokeLater(this::refreshConnections));
 
@@ -202,6 +212,15 @@ public class WebSocketsPanel extends JPanel implements WsInterceptor {
         private final String[] cols = {"#", "Conn", "Direction", "Opcode", "Length", "Preview"};
         private final List<WebSocketMessage> rows = new ArrayList<>();
         void add(WebSocketMessage m) { rows.add(m); fireTableRowsInserted(rows.size() - 1, rows.size() - 1); }
+        /** A frame dropped by the memory cap leaves the table. */
+        void remove(WebSocketMessage m) { if (rows.remove(m)) fireTableDataChanged(); }
+        /**
+         * A restored project replaces the history wholesale: rebuild once from
+         * the given frames. Only the light index comes across; payloads reload
+         * from disk per selection, so a large restore never pulls every frame's
+         * bytes at once.
+         */
+        void reload(List<WebSocketMessage> all) { rows.clear(); rows.addAll(all); fireTableDataChanged(); }
         void clear() { rows.clear(); fireTableDataChanged(); }
         WebSocketMessage at(int r) { return r >= 0 && r < rows.size() ? rows.get(r) : null; }
         @Override public int getRowCount() { return rows.size(); }
